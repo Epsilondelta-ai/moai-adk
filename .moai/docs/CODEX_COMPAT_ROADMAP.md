@@ -52,7 +52,7 @@ When this roadmap is complete:
 | ID | Name | Status | Depends On |
 | --- | --- | --- | --- |
 | CX-01 | Codex Surface Audit | DONE | - |
-| CX-02 | Shared/Core Boundary Definition | PENDING | CX-01 |
+| CX-02 | Shared/Core Boundary Definition | DONE | CX-01 |
 | CX-03 | Codex Adapter Layout | PENDING | CX-02 |
 | CX-04 | Codex Template Scaffold | PENDING | CX-03 |
 | CX-05 | `$moai` Skill Entry Point | PENDING | CX-04 |
@@ -87,7 +87,7 @@ When this roadmap is complete:
 
 ### CX-02 Shared/Core Boundary Definition
 
-- Status: `PENDING`
+- Status: `DONE`
 - Goal: Define what belongs to the shared MoAI core versus the Claude adapter versus the new Codex adapter.
 - Why:
   Without this boundary, later work drifts into broad refactors and merge conflicts.
@@ -272,27 +272,86 @@ This section is intentionally mutable. Update it as decisions are made.
 - Preferred implementation style: additive templates and additive Codex-specific runtime/helpers
 - Preferred compatibility target: workflow parity in Codex, not Claude hook parity
 
-### File Ownership Draft
+### CX-02 Boundary Decision
+
+- `.moai/**` remains the adapter-neutral project-state authority and is the default home for shared metadata, workflow state, plans, specs, and roadmap tracking.
+- Shared/core ownership is limited to engine-neutral state, template plumbing, manifesting, orchestration, update mechanics, and reusable project/runtime helpers. Generic package names are not enough; a path is shared only when its behavior is also adapter-neutral.
+- Claude-facing launch, profile, hook, statusline, and generated-asset paths remain Claude-adapter owned even when some internals look reusable. `CX-03` should consume them only through narrow additive seams, not by widening their ownership.
+- Codex support should land in new additive surfaces rooted in `.codex/**`, `internal/template/templates/.codex/**`, an optional `internal/cli/codex.go`, and a dedicated runtime/helper package outside `internal/hook/**` and the current Claude profile store.
+- Mixed packages may accept narrow extension seams only in `internal/cli/init.go`, `internal/cli/update.go`, `internal/template/**`, and `internal/profile/sync.go`. Those seams are limited to additive provisioning or shared config sync and should not become adapter dumping grounds.
+
+### File Ownership Map
 
 - Shared/core:
   - `.moai/**`
   - `internal/config/**`
   - `internal/manifest/**`
-  - `internal/template/**`
   - `internal/loop/**`
   - `internal/workflow/**`
   - `internal/mcp/**`
-- Upstream Claude-owned unless necessary:
+  - `internal/core/git/**`
+  - `internal/core/project/**`
+  - `internal/core/quality/**`
+  - `internal/foundation/**`
+  - `internal/update/**`
+  - `internal/template/context.go`
+  - `internal/template/deployer*.go`
+  - `internal/template/embed.go`
+  - `internal/template/errors.go`
+  - `internal/template/renderer.go`
+  - `internal/template/settings.go`
+  - `internal/template/validator.go`
+  - `internal/template/templates/.moai/**`
+  - `internal/template/templates/.mcp.json.tmpl`
+- Claude adapter owned:
+  - `.claude/**`
   - `internal/template/templates/.claude/**`
+  - `internal/template/templates/CLAUDE.md`
   - `internal/hook/**`
+  - `internal/profile/profile.go`
+  - `internal/profile/preferences.go`
   - `internal/cli/cc.go`
   - `internal/cli/cg.go`
   - `internal/cli/glm.go`
   - `internal/cli/launcher.go`
-- Codex-owned planned additions:
+  - `internal/cli/hook.go`
+  - `internal/cli/statusline.go`
+  - `internal/cli/profile.go`
+  - `internal/cli/profile_setup.go`
+  - `internal/cli/profile_setup_translations.go`
+  - `internal/statusline/**`
+- Codex adapter owned planned additions:
+  - `.codex/**`
   - `internal/template/templates/.codex/**`
-  - `internal/codex/**` or `internal/runtime/codex/**`
-  - optional `internal/cli/codex.go`
+  - `internal/cli/codex.go`
+  - `internal/codex/**`
+  - fallback if runtime naming must stay grouped: `internal/runtime/codex/**`
+- Shared packages with additive extension seams only:
+  - `internal/cli/init.go`
+  - `internal/cli/update.go`
+  - `internal/profile/sync.go`
+  - `internal/template/model_policy.go`
+  - `internal/template/templates/`
+
+### Protected Paths
+
+- Do not modify unless a Codex requirement cannot be met additively:
+  - `.claude/**`
+  - `internal/template/templates/.claude/**`
+  - `internal/template/templates/CLAUDE.md`
+  - `internal/hook/**`
+  - `internal/profile/profile.go`
+  - `internal/profile/preferences.go`
+  - `internal/cli/cc.go`
+  - `internal/cli/cg.go`
+  - `internal/cli/glm.go`
+  - `internal/cli/launcher.go`
+  - `internal/cli/hook.go`
+  - `internal/cli/statusline.go`
+  - `internal/cli/profile.go`
+  - `internal/cli/profile_setup.go`
+  - `internal/cli/profile_setup_translations.go`
+  - `internal/statusline/**`
 
 ## Execution Notes
 
@@ -336,6 +395,40 @@ Template:
 - Follow-up:
   - `CX-02` should define the shared/core boundary before any Codex template or launcher implementation.
 
+### 2026-04-10 14:53 KST - CX-02 Shared/Core Boundary Definition
+
+- Status: `IN_PROGRESS` -> `DONE`
+- Summary:
+  - Locked `.moai/**`, config/manifest/loop/workflow/MCP, selected `internal/core/**`, `internal/foundation/**`, `internal/update/**`, and shared template plumbing as the reusable core boundary.
+  - Classified Claude launch, hook, profile, statusline, and `.claude` template surfaces as Claude-adapter owned even where some helper logic appears reusable.
+  - Reserved additive Codex ownership under `.codex/**`, `internal/template/templates/.codex/**`, optional `internal/cli/codex.go`, and a dedicated Codex runtime/helper package outside Claude-owned packages.
+  - Marked mixed seams that may accept additive extension only in `internal/cli/init.go`, `internal/cli/update.go`, `internal/profile/sync.go`, and shared template plumbing.
+- Files reviewed:
+  - `.moai/docs/CODEX_COMPAT_ROADMAP.md`
+  - `.moai/docs/CX-02_SHARED_CORE_BOUNDARY_PLAN.md`
+  - `internal/cli/init.go`
+  - `internal/cli/update.go`
+  - `internal/cli/launcher.go`
+  - `internal/profile/profile.go`
+  - `internal/profile/preferences.go`
+  - `internal/profile/sync.go`
+  - `internal/hook/protocol.go`
+  - `internal/template/deployer.go`
+  - `internal/template/templates/**`
+  - `internal/statusline/**`
+  - `internal/config/**`
+  - `internal/manifest/**`
+  - `internal/loop/**`
+  - `internal/workflow/**`
+  - `internal/mcp/**`
+  - `internal/core/**`
+  - `internal/foundation/**`
+  - `internal/update/**`
+- Verification:
+  - Confirmed the roadmap now contains a boundary decision, explicit ownership map, explicit protected-path list, updated `CX-02` status lines, and a handoff-ready Codex ownership reservation for `CX-03`.
+- Follow-up:
+  - `CX-03` should finalize the concrete Codex on-disk layout using the reserved paths without reopening Claude/shared ownership.
+
 ## Verification Log
 
 Use this section to record concrete verification results.
@@ -354,6 +447,7 @@ Template:
 ```
 
 - 2026-04-10 14:32 KST: `CX-01` completed as a source audit and roadmap update only; no code-path tests were required or run.
+- 2026-04-10 14:53 KST: `CX-02` completed as a roadmap architecture decision only; verification was limited to document completeness and path classification consistency.
 
 ## Upstream Strategy
 
