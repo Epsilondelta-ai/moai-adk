@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -645,6 +646,64 @@ func TestInit_ManifestPreservesDeployedEntries(t *testing.T) {
 	}
 	if saved.DeployedAt == "" {
 		t.Error("manifest DeployedAt should not be empty")
+	}
+}
+
+func TestInit_DeploysCodexSkillAndTracksManifest(t *testing.T) {
+	root := t.TempDir()
+
+	embedded, err := template.EmbeddedTemplates()
+	if err != nil {
+		t.Fatalf("EmbeddedTemplates() error: %v", err)
+	}
+	renderer := template.NewRenderer(embedded)
+	deployer := template.NewDeployerWithRenderer(embedded, renderer)
+	mgr := manifest.NewManager()
+	initializer := NewInitializer(deployer, mgr, nil)
+
+	opts := InitOptions{
+		ProjectRoot:     root,
+		ProjectName:     "codex-init",
+		Language:        "Go",
+		Framework:       "none",
+		UserName:        "testuser",
+		ConvLang:        "en",
+		DevelopmentMode: "ddd",
+		SkipShellConfig: true,
+		ModelPolicy:     string(template.DefaultModelPolicy),
+		NonInteractive:  true,
+	}
+
+	if _, err := initializer.Init(context.Background(), opts); err != nil {
+		t.Fatalf("Init() error = %v", err)
+	}
+
+	wantContent, err := fs.ReadFile(embedded, ".codex/skills/moai/SKILL.md")
+	if err != nil {
+		t.Fatalf("read embedded codex skill: %v", err)
+	}
+
+	skillPath := filepath.Join(root, ".codex", "skills", "moai", "SKILL.md")
+	gotContent, err := os.ReadFile(skillPath)
+	if err != nil {
+		t.Fatalf("read deployed codex skill: %v", err)
+	}
+	if string(gotContent) != string(wantContent) {
+		t.Fatal("deployed codex skill content does not match embedded template")
+	}
+
+	if _, err := mgr.Load(root); err != nil {
+		t.Fatalf("Load() manifest error = %v", err)
+	}
+	entry, ok := mgr.GetEntry(".codex/skills/moai/SKILL.md")
+	if !ok {
+		t.Fatal("manifest missing codex skill entry")
+	}
+	if entry.Provenance != manifest.TemplateManaged {
+		t.Fatalf("codex skill provenance = %q, want %q", entry.Provenance, manifest.TemplateManaged)
+	}
+	if entry.TemplateHash == "" || entry.DeployedHash == "" || entry.CurrentHash == "" {
+		t.Fatal("codex skill manifest hashes should all be populated")
 	}
 }
 

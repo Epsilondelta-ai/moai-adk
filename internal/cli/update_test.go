@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -11,9 +12,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/modu-ai/moai-adk/internal/manifest"
 	"github.com/modu-ai/moai-adk/internal/template"
 	"github.com/modu-ai/moai-adk/internal/update"
 	"github.com/modu-ai/moai-adk/pkg/version"
+	"github.com/spf13/cobra"
 )
 
 // buildSmartPATH is a test helper that builds a Smart PATH for a given home directory.
@@ -451,6 +454,108 @@ func TestRunTemplateSync_EmbeddedTemplatesError(t *testing.T) {
 	}
 }
 
+func TestRunTemplateSyncWithReporter_InstallsMissingCodexSkillAndTracksManifest(t *testing.T) {
+	tmpDir := t.TempDir()
+	writeUpdateProjectScaffold(t, tmpDir)
+
+	origDir, _ := os.Getwd()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
+
+	t.Setenv("HOME", tmpDir)
+
+	cmd := &cobra.Command{Use: "test"}
+	cmd.Flags().Bool("force", false, "")
+	cmd.Flags().Bool("yes", true, "")
+	cmd.Flags().Bool("config", false, "")
+	_ = cmd.Flags().Set("yes", "true")
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetContext(context.Background())
+
+	if err := runTemplateSyncWithReporter(cmd, nil, true); err != nil {
+		t.Fatalf("runTemplateSyncWithReporter() error = %v", err)
+	}
+
+	assertCodexSkillMatchesTemplate(t, tmpDir)
+	assertCodexSkillManifestEntry(t, tmpDir)
+}
+
+func TestRunTemplateSyncWithReporter_RefreshesCodexSkillAndManifest(t *testing.T) {
+	tmpDir := t.TempDir()
+	writeUpdateProjectScaffold(t, tmpDir)
+
+	staleContent := []byte("# stale codex skill\n")
+	skillPath := filepath.Join(tmpDir, ".codex", "skills", "moai", "SKILL.md")
+	if err := os.MkdirAll(filepath.Dir(skillPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(skillPath, staleContent, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	mgr := manifest.NewManager()
+	if _, err := mgr.Load(tmpDir); err != nil {
+		t.Fatalf("manifest Load() error = %v", err)
+	}
+	staleHash := manifest.HashBytes(staleContent)
+	if err := mgr.Track(".codex/skills/moai/SKILL.md", manifest.TemplateManaged, staleHash); err != nil {
+		t.Fatalf("Track() stale codex skill error = %v", err)
+	}
+	if err := mgr.Save(); err != nil {
+		t.Fatalf("Save() stale manifest error = %v", err)
+	}
+
+	origDir, _ := os.Getwd()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
+
+	t.Setenv("HOME", tmpDir)
+
+	cmd := &cobra.Command{Use: "test"}
+	cmd.Flags().Bool("force", false, "")
+	cmd.Flags().Bool("yes", true, "")
+	cmd.Flags().Bool("config", false, "")
+	_ = cmd.Flags().Set("yes", "true")
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetContext(context.Background())
+
+	if err := runTemplateSyncWithReporter(cmd, nil, true); err != nil {
+		t.Fatalf("runTemplateSyncWithReporter() error = %v", err)
+	}
+
+	wantContent := codexSkillTemplateContent(t)
+	gotContent, err := os.ReadFile(skillPath)
+	if err != nil {
+		t.Fatalf("read refreshed codex skill: %v", err)
+	}
+	if string(gotContent) != string(wantContent) {
+		t.Fatal("codex skill content was not refreshed from embedded templates")
+	}
+
+	if _, err := mgr.Load(tmpDir); err != nil {
+		t.Fatalf("reload manifest error = %v", err)
+	}
+	entry, ok := mgr.GetEntry(".codex/skills/moai/SKILL.md")
+	if !ok {
+		t.Fatal("manifest missing codex skill entry after refresh")
+	}
+	if entry.TemplateHash == staleHash {
+		t.Fatal("manifest template hash still points to stale codex content")
+	}
+	if entry.CurrentHash == staleHash || entry.DeployedHash == staleHash {
+		t.Fatal("manifest current/deployed hashes still point to stale codex content")
+	}
+	if entry.Provenance != manifest.TemplateManaged {
+		t.Fatalf("codex skill provenance = %q, want %q", entry.Provenance, manifest.TemplateManaged)
+	}
+}
+
 func TestGetProjectConfigVersion_EmptyTemplateVersion(t *testing.T) {
 	// Create temp directory
 	tmpDir := t.TempDir()
@@ -474,6 +579,73 @@ func TestGetProjectConfigVersion_EmptyTemplateVersion(t *testing.T) {
 
 	if version != "0.0.0" {
 		t.Errorf("expected version %q for missing template_version, got %q", "0.0.0", version)
+	}
+}
+
+func writeUpdateProjectScaffold(t *testing.T, root string) {
+	t.Helper()
+
+	sectionsDir := filepath.Join(root, ".moai", "config", "sections")
+	if err := os.MkdirAll(sectionsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	systemYAML := "moai:\n  template_version: \"0.0.0\"\n"
+	if err := os.WriteFile(filepath.Join(sectionsDir, "system.yaml"), []byte(systemYAML), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	manifestPath := filepath.Join(root, ".moai", "manifest.json")
+	if err := os.WriteFile(manifestPath, []byte("{}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func codexSkillTemplateContent(t *testing.T) []byte {
+	t.Helper()
+
+	embedded, err := template.EmbeddedTemplates()
+	if err != nil {
+		t.Fatalf("EmbeddedTemplates() error = %v", err)
+	}
+	content, err := fs.ReadFile(embedded, ".codex/skills/moai/SKILL.md")
+	if err != nil {
+		t.Fatalf("read embedded codex skill: %v", err)
+	}
+	return content
+}
+
+func assertCodexSkillMatchesTemplate(t *testing.T, root string) {
+	t.Helper()
+
+	wantContent := codexSkillTemplateContent(t)
+	gotContent, err := os.ReadFile(filepath.Join(root, ".codex", "skills", "moai", "SKILL.md"))
+	if err != nil {
+		t.Fatalf("read deployed codex skill: %v", err)
+	}
+	if string(gotContent) != string(wantContent) {
+		t.Fatal("deployed codex skill content does not match embedded template")
+	}
+}
+
+func assertCodexSkillManifestEntry(t *testing.T, root string) {
+	t.Helper()
+
+	mgr := manifest.NewManager()
+	if _, err := mgr.Load(root); err != nil {
+		t.Fatalf("manifest Load() error = %v", err)
+	}
+	entry, ok := mgr.GetEntry(".codex/skills/moai/SKILL.md")
+	if !ok {
+		t.Fatal("manifest missing codex skill entry")
+	}
+	if entry.Provenance != manifest.TemplateManaged {
+		t.Fatalf("codex skill provenance = %q, want %q", entry.Provenance, manifest.TemplateManaged)
+	}
+	if entry.TemplateHash == "" || entry.CurrentHash == "" || entry.DeployedHash == "" {
+		t.Fatal("codex skill manifest hashes should all be populated")
+	}
+	mf := mgr.Manifest()
+	if mf == nil || mf.Version == "" || mf.DeployedAt == "" {
+		t.Fatal("manifest version and deployed_at should be persisted after update")
 	}
 }
 

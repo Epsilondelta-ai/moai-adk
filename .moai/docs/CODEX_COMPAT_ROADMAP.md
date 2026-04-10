@@ -56,7 +56,7 @@ When this roadmap is complete:
 | CX-03 | Codex Adapter Layout | DONE | CX-02 |
 | CX-04 | Codex Template Scaffold | DONE | CX-03 |
 | CX-05 | `$moai` Skill Entry Point | DONE | CX-04 |
-| CX-06 | Init and Update Provisioning | PENDING | CX-04 |
+| CX-06 | Init and Update Provisioning | DONE | CX-04 |
 | CX-07 | Codex Workflow Prompt Pack | PENDING | CX-05 |
 | CX-08 | Manifest and Drift Policy | PENDING | CX-06 |
 | CX-09 | Codex Runtime Helpers | PENDING | CX-06 |
@@ -157,7 +157,7 @@ When this roadmap is complete:
 
 ### CX-06 Init and Update Provisioning
 
-- Status: `PENDING`
+- Status: `DONE`
 - Goal: Ensure `moai init` and `moai update` create and refresh Codex assets.
 - Why:
   Manual setup is too fragile for AI-first operation.
@@ -530,6 +530,24 @@ Template:
   - `CX-06` should provision the new `.codex/skills/moai/SKILL.md` asset through `moai init` and `moai update` without changing Claude-owned paths.
   - `CX-07` should extend this entry contract into deeper Codex workflow prompt packs while keeping `.moai/**` as the shared workflow-state authority.
 
+### 2026-04-10 16:00 KST - CX-06 Init and Update Provisioning
+
+- Status: `IN_PROGRESS` -> `DONE`
+- Summary:
+  - Verified that `moai init` and `moai update` already consume the shared embedded template tree, so Codex provisioning could stay additive through `internal/template/templates/.codex/**` without a Codex-only installer path.
+  - Added lifecycle regression tests proving `init` deploys `.codex/skills/moai/SKILL.md` and tracks it in `.moai/manifest.json` as `template_managed`.
+  - Fixed `moai update` to persist the final manifest after deployment, restore, and merge steps, then added lifecycle tests covering both first-install and refresh behavior for the Codex skill.
+- Files touched:
+  - `internal/cli/update.go`
+  - `internal/cli/update_test.go`
+  - `internal/core/project/initializer_test.go`
+  - `.moai/docs/CODEX_COMPAT_ROADMAP.md`
+- Verification:
+  - `go test ./internal/core/project/... ./internal/cli/... ./internal/template/...`
+- Follow-up:
+  - `CX-08` should decide whether files restored or merged after update should remain `template_managed` or move to a stricter drift-state classification.
+  - `CX-09` can stay focused on Codex runtime/helper gaps; provisioning no longer needs extra lifecycle-specific entrypoints.
+
 ## Verification Log
 
 Use this section to record concrete verification results.
@@ -552,6 +570,7 @@ Template:
 - 2026-04-10 15:12 KST: `CX-03` completed as a roadmap architecture decision only; verification was limited to layout consistency against current template embedding, CLI package placement, and protected-path constraints.
 - 2026-04-10 15:21 KST: `CX-04` added `internal/template/templates/.codex/skills/moai/SKILL.md` as the reserved Codex skill scaffold and verified embedded/listed/deployed behavior with `go test ./internal/template/...`.
 - 2026-04-10 15:33 KST: `CX-05` replaced the Codex skill scaffold with the real `$moai` entry contract, strengthened template regression coverage around routing and `.moai/**` handoff markers, and verified the change with `go test ./internal/template/...`.
+- 2026-04-10 16:00 KST: `CX-06` locked Codex asset provisioning into the real `init`/`update` lifecycle with manifest persistence and regression coverage via `go test ./internal/core/project/... ./internal/cli/... ./internal/template/...`.
 
 ## Upstream Strategy
 
