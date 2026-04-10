@@ -53,7 +53,7 @@ When this roadmap is complete:
 | --- | --- | --- | --- |
 | CX-01 | Codex Surface Audit | DONE | - |
 | CX-02 | Shared/Core Boundary Definition | DONE | CX-01 |
-| CX-03 | Codex Adapter Layout | PENDING | CX-02 |
+| CX-03 | Codex Adapter Layout | DONE | CX-02 |
 | CX-04 | Codex Template Scaffold | PENDING | CX-03 |
 | CX-05 | `$moai` Skill Entry Point | PENDING | CX-04 |
 | CX-06 | Init and Update Provisioning | PENDING | CX-04 |
@@ -105,7 +105,7 @@ When this roadmap is complete:
 
 ### CX-03 Codex Adapter Layout
 
-- Status: `PENDING`
+- Status: `DONE`
 - Goal: Choose stable on-disk paths for Codex-generated assets and Codex-specific source code.
 - Why:
   Layout decisions determine future merge cost.
@@ -280,6 +280,42 @@ This section is intentionally mutable. Update it as decisions are made.
 - Codex support should land in new additive surfaces rooted in `.codex/**`, `internal/template/templates/.codex/**`, an optional `internal/cli/codex.go`, and a dedicated runtime/helper package outside `internal/hook/**` and the current Claude profile store.
 - Mixed packages may accept narrow extension seams only in `internal/cli/init.go`, `internal/cli/update.go`, `internal/template/**`, and `internal/profile/sync.go`. Those seams are limited to additive provisioning or shared config sync and should not become adapter dumping grounds.
 
+### CX-03 Layout Decision
+
+- Generated Codex project assets are fixed under `.codex/**`. This keeps Codex-owned assets additive beside `.claude/**` and `.moai/**`, avoids expanding Claude-owned roots, and gives `moai init` / `moai update` a stable adapter-specific destination.
+- Source-side Codex templates are fixed under `internal/template/templates/.codex/**`. `internal/template/embed.go` already embeds the whole `templates/` tree with dot-prefixed siblings preserved, so `.codex` can be added as a direct sibling of `.claude` and `.moai` without special template plumbing.
+- Codex CLI integration should use a dedicated `internal/cli/codex.go` file whenever Codex-specific commands or helpers are added. The file is reserved now even though `CX-03` does not implement command wiring; this keeps future Codex CLI work additive and avoids widening Claude entrypoints such as `cc.go`, `cg.go`, `glm.go`, or `launcher.go`.
+- Codex runtime and helper code is fixed under `internal/codex/**`, not `internal/runtime/codex/**`. There is no existing `internal/runtime/` boundary to extend, and introducing one only for Codex would imply a broader abstraction that the codebase does not currently support.
+
+### CX-03 Fixed Codex-Owned Paths
+
+- `.codex/**`
+- `internal/template/templates/.codex/**`
+- `internal/cli/codex.go`
+- `internal/codex/**`
+
+### CX-03 Shared Seams And Protected Paths
+
+- Shared packages that may reference the fixed Codex layout:
+  - `internal/cli/init.go`
+  - `internal/cli/update.go`
+  - `internal/profile/sync.go`
+  - `internal/template/embed.go`
+  - `internal/template/deployer.go`
+  - `internal/template/renderer.go`
+  - `internal/template/templates/`
+- Protected Claude-owned paths that remain untouched by this layout decision:
+  - `.claude/**`
+  - `internal/template/templates/.claude/**`
+  - `internal/template/templates/CLAUDE.md`
+  - `internal/cli/cc.go`
+  - `internal/cli/cg.go`
+  - `internal/cli/glm.go`
+  - `internal/cli/launcher.go`
+  - `internal/hook/**`
+  - `internal/profile/profile.go`
+  - `internal/profile/preferences.go`
+
 ### File Ownership Map
 
 - Shared/core:
@@ -320,17 +356,18 @@ This section is intentionally mutable. Update it as decisions are made.
   - `internal/cli/profile_setup.go`
   - `internal/cli/profile_setup_translations.go`
   - `internal/statusline/**`
-- Codex adapter owned planned additions:
+- Codex adapter owned:
   - `.codex/**`
   - `internal/template/templates/.codex/**`
   - `internal/cli/codex.go`
   - `internal/codex/**`
-  - fallback if runtime naming must stay grouped: `internal/runtime/codex/**`
 - Shared packages with additive extension seams only:
   - `internal/cli/init.go`
   - `internal/cli/update.go`
   - `internal/profile/sync.go`
-  - `internal/template/model_policy.go`
+  - `internal/template/embed.go`
+  - `internal/template/deployer.go`
+  - `internal/template/renderer.go`
   - `internal/template/templates/`
 
 ### Protected Paths
@@ -429,6 +466,31 @@ Template:
 - Follow-up:
   - `CX-03` should finalize the concrete Codex on-disk layout using the reserved paths without reopening Claude/shared ownership.
 
+### 2026-04-10 15:12 KST - CX-03 Codex Adapter Layout
+
+- Status: `IN_PROGRESS` -> `DONE`
+- Summary:
+  - Fixed `.codex/**` as the generated project asset root so Codex assets stay additive beside `.claude/**` and `.moai/**`.
+  - Fixed `internal/template/templates/.codex/**` as the source template root because the existing `templates/` embedding and deploy path rules already support dot-prefixed sibling trees without new plumbing.
+  - Reserved `internal/cli/codex.go` as the required additive CLI seam for any future Codex-specific command surface, while deferring actual command wiring to later tasks.
+  - Chose `internal/codex/**` over `internal/runtime/codex/**` because the repository has no existing `internal/runtime/` boundary and introducing one now would be premature generalization.
+  - Recorded the allowed shared seams and restated protected Claude-owned paths so `CX-04`, `CX-05`, `CX-06`, and `CX-09` can proceed without reopening layout ownership.
+- Files reviewed:
+  - `.moai/docs/CX-03_CODEX_ADAPTER_LAYOUT_PLAN.md`
+  - `.moai/docs/CODEX_COMPAT_ROADMAP.md`
+  - `internal/cli/root.go`
+  - `internal/cli/init.go`
+  - `internal/cli/update.go`
+  - `internal/profile/sync.go`
+  - `internal/template/embed.go`
+  - `internal/template/deployer.go`
+  - `internal/template/renderer.go`
+  - `internal/template/templates/**`
+- Verification:
+  - Confirmed the roadmap now answers all required `CX-03` layout questions explicitly, updates the task status lines, preserves all Claude-owned paths in place, and gives `CX-04` a fixed destination for generated assets, source templates, CLI seams, and helper-package placement.
+- Follow-up:
+  - `CX-04` should scaffold `internal/template/templates/.codex/**` exactly under the fixed layout and must not reopen root-path or package-placement decisions.
+
 ## Verification Log
 
 Use this section to record concrete verification results.
@@ -448,6 +510,7 @@ Template:
 
 - 2026-04-10 14:32 KST: `CX-01` completed as a source audit and roadmap update only; no code-path tests were required or run.
 - 2026-04-10 14:53 KST: `CX-02` completed as a roadmap architecture decision only; verification was limited to document completeness and path classification consistency.
+- 2026-04-10 15:12 KST: `CX-03` completed as a roadmap architecture decision only; verification was limited to layout consistency against current template embedding, CLI package placement, and protected-path constraints.
 
 ## Upstream Strategy
 
