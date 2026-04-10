@@ -642,6 +642,10 @@ func runTemplateSyncWithReporter(cmd *cobra.Command, reporter project.ProgressRe
 		}
 	}
 
+	if err := finalizeTemplateSyncManifest(projectRoot, mgr); err != nil {
+		return fmt.Errorf("finalize manifest: %w", err)
+	}
+
 	_, _ = fmt.Fprintf(out, "\n%s Template sync complete.\n", symSuccess())
 
 	_, _ = fmt.Fprintln(out)
@@ -651,6 +655,37 @@ func runTemplateSyncWithReporter(cmd *cobra.Command, reporter project.ProgressRe
 	// Ensure global settings.json has required env variables
 	if err := ensureGlobalSettingsEnv(); err != nil {
 		_, _ = fmt.Fprintf(out, "Warning: Failed to update global settings env: %v\n", err)
+	}
+
+	return nil
+}
+
+// finalizeTemplateSyncManifest persists the final on-disk state after template
+// deployment, config restore, and merge steps have completed.
+func finalizeTemplateSyncManifest(projectRoot string, mgr manifest.Manager) error {
+	mf := mgr.Manifest()
+	if mf == nil {
+		return fmt.Errorf("manifest not loaded")
+	}
+
+	mf.Version = version.GetVersion()
+	mf.DeployedAt = time.Now().UTC().Format(time.RFC3339)
+
+	for relPath, entry := range mf.Files {
+		currentHash, err := manifest.HashFile(filepath.Join(projectRoot, filepath.Clean(relPath)))
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return fmt.Errorf("hash %s: %w", relPath, err)
+		}
+		entry.DeployedHash = currentHash
+		entry.CurrentHash = currentHash
+		mf.Files[relPath] = entry
+	}
+
+	if err := mgr.Save(); err != nil {
+		return err
 	}
 
 	return nil
