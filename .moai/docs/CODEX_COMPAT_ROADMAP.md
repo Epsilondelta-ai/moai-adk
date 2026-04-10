@@ -124,7 +124,7 @@ When this roadmap is complete:
 
 ### CX-04 Codex Template Scaffold
 
-- Status: `PENDING`
+- Status: `DONE`
 - Goal: Add Codex template source files without disturbing existing Claude templates.
 - Why:
   Codex support should be provisioned as generated assets, like Claude support.
@@ -491,6 +491,25 @@ Template:
 - Follow-up:
   - `CX-04` should scaffold `internal/template/templates/.codex/**` exactly under the fixed layout and must not reopen root-path or package-placement decisions.
 
+### 2026-04-10 15:21 KST - CX-04 Codex Template Scaffold
+
+- Status: `IN_PROGRESS` -> `DONE`
+- Summary:
+  - Added the first tracked Codex source template subtree at `internal/template/templates/.codex/skills/moai/SKILL.md`.
+  - Kept the scaffold intentionally minimal and plain Markdown so `CX-05` can evolve the same file path into the real `$moai` skill contract without template-path churn.
+  - Extended embedded-filesystem and deployer tests to assert that the new `.codex/**` sibling tree is embedded, listed, and deployed alongside existing `.claude/**` assets.
+- Files touched:
+  - `.moai/docs/CODEX_COMPAT_ROADMAP.md`
+  - `internal/template/templates/.codex/skills/moai/SKILL.md`
+  - `internal/template/embed_test.go`
+  - `internal/template/deployer_test.go`
+  - `internal/template/deployer_mode_test.go`
+- Verification:
+  - `go test ./internal/template/...`
+- Follow-up:
+  - `CX-05` must preserve `.codex/skills/moai/SKILL.md` as the reserved `$moai` entrypoint path and replace only the skeletal content.
+  - `CX-06` must provision Codex assets additively from `internal/template/templates/.codex/**` without widening Claude-owned template roots.
+
 ## Verification Log
 
 Use this section to record concrete verification results.
@@ -511,6 +530,7 @@ Template:
 - 2026-04-10 14:32 KST: `CX-01` completed as a source audit and roadmap update only; no code-path tests were required or run.
 - 2026-04-10 14:53 KST: `CX-02` completed as a roadmap architecture decision only; verification was limited to document completeness and path classification consistency.
 - 2026-04-10 15:12 KST: `CX-03` completed as a roadmap architecture decision only; verification was limited to layout consistency against current template embedding, CLI package placement, and protected-path constraints.
+- 2026-04-10 15:21 KST: `CX-04` added `internal/template/templates/.codex/skills/moai/SKILL.md` as the reserved Codex skill scaffold and verified embedded/listed/deployed behavior with `go test ./internal/template/...`.
 
 ## Upstream Strategy
 

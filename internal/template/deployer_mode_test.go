@@ -463,6 +463,9 @@ func TestModeAwareDeployer_Deploy(t *testing.T) {
 			".claude/skills/moai/SKILL.md": &fstest.MapFile{
 				Data: []byte("# MoAI Core Skill"),
 			},
+			".codex/skills/moai/SKILL.md": &fstest.MapFile{
+				Data: []byte("# MoAI Codex Skill Scaffold"),
+			},
 		}
 		tmplCtx := NewTemplateContext(
 			WithProject("testproject", root),
@@ -478,6 +481,7 @@ func TestModeAwareDeployer_Deploy(t *testing.T) {
 		expectedFiles := []string{
 			".claude/agents/moai/expert-backend.md",
 			".claude/skills/moai/SKILL.md",
+			".codex/skills/moai/SKILL.md",
 		}
 		for _, f := range expectedFiles {
 			absPath := filepath.Join(root, f)

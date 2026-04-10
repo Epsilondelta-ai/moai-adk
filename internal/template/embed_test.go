@@ -93,6 +93,36 @@ func TestEmbeddedTemplates_SkillDefinitions(t *testing.T) {
 	}
 }
 
+func TestEmbeddedTemplates_CodexSkillScaffold(t *testing.T) {
+	t.Parallel()
+
+	fsys, err := EmbeddedTemplates()
+	if err != nil {
+		t.Fatalf("EmbeddedTemplates() error: %v", err)
+	}
+
+	entries, err := fs.ReadDir(fsys, ".codex/skills/moai")
+	if err != nil {
+		t.Fatalf("ReadDir(.codex/skills/moai) error: %v", err)
+	}
+	if len(entries) != 1 || entries[0].Name() != "SKILL.md" {
+		t.Fatalf("expected only SKILL.md in .codex scaffold, got %v", entries)
+	}
+
+	data, err := fs.ReadFile(fsys, ".codex/skills/moai/SKILL.md")
+	if err != nil {
+		t.Fatalf("read .codex/skills/moai/SKILL.md: %v", err)
+	}
+
+	content := string(data)
+	if !strings.Contains(content, "`$moai`") {
+		t.Error("Codex scaffold should reserve the $moai entrypoint")
+	}
+	if !strings.Contains(content, "CX-05") {
+		t.Error("Codex scaffold should hand off implementation to CX-05")
+	}
+}
+
 func TestEmbeddedTemplates_RuleFiles(t *testing.T) {
 	t.Parallel()
 

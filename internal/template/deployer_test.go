@@ -25,6 +25,9 @@ func testFS() fstest.MapFS {
 		".gitignore": &fstest.MapFile{
 			Data: []byte("node_modules/\n.env\n"),
 		},
+		".codex/skills/moai/SKILL.md": &fstest.MapFile{
+			Data: []byte("# MoAI Codex Skill Scaffold"),
+		},
 	}
 }
 
@@ -57,6 +60,7 @@ func TestDeployerDeploy(t *testing.T) {
 			".claude/agents/moai/expert-backend.md",
 			"CLAUDE.md",
 			".gitignore",
+			".codex/skills/moai/SKILL.md",
 		}
 		for _, f := range expectedFiles {
 			absPath := filepath.Join(root, f)
@@ -162,6 +166,18 @@ func TestDeployerExtractTemplate(t *testing.T) {
 		}
 	})
 
+	t.Run("existing_codex_template", func(t *testing.T) {
+		d := NewDeployer(testFS())
+
+		data, err := d.ExtractTemplate(".codex/skills/moai/SKILL.md")
+		if err != nil {
+			t.Fatalf("ExtractTemplate error: %v", err)
+		}
+		if string(data) != "# MoAI Codex Skill Scaffold" {
+			t.Errorf("content = %q, want %q", string(data), "# MoAI Codex Skill Scaffold")
+		}
+	})
+
 	t.Run("nonexistent_template", func(t *testing.T) {
 		d := NewDeployer(testFS())
 
@@ -183,8 +199,8 @@ func TestDeployerListTemplates(t *testing.T) {
 		d := NewDeployer(testFS())
 		list := d.ListTemplates()
 
-		if len(list) != 4 {
-			t.Fatalf("ListTemplates() returned %d items, want 4", len(list))
+		if len(list) != 5 {
+			t.Fatalf("ListTemplates() returned %d items, want 5", len(list))
 		}
 
 		expected := map[string]bool{
@@ -192,6 +208,7 @@ func TestDeployerListTemplates(t *testing.T) {
 			".claude/agents/moai/expert-backend.md": true,
 			"CLAUDE.md":                             true,
 			".gitignore":                            true,
+			".codex/skills/moai/SKILL.md":           true,
 		}
 		for _, item := range list {
 			if !expected[item] {
