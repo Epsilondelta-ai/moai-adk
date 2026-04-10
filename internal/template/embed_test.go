@@ -93,7 +93,7 @@ func TestEmbeddedTemplates_SkillDefinitions(t *testing.T) {
 	}
 }
 
-func TestEmbeddedTemplates_CodexSkillScaffold(t *testing.T) {
+func TestEmbeddedTemplates_CodexSkillContract(t *testing.T) {
 	t.Parallel()
 
 	fsys, err := EmbeddedTemplates()
@@ -115,11 +115,26 @@ func TestEmbeddedTemplates_CodexSkillScaffold(t *testing.T) {
 	}
 
 	content := string(data)
-	if !strings.Contains(content, "`$moai`") {
-		t.Error("Codex scaffold should reserve the $moai entrypoint")
+	for _, marker := range []string{
+		"# `$moai` Codex Entry Point",
+		"## Supported Invocations",
+		"`$moai plan`",
+		"`$moai run`",
+		"`$moai sync`",
+		".moai/project/product.md",
+		".moai/specs/**",
+		".moai/state/**",
+		"Claude hook execution",
+	} {
+		if !strings.Contains(content, marker) {
+			t.Errorf("Codex skill missing marker %q", marker)
+		}
 	}
-	if !strings.Contains(content, "CX-05") {
-		t.Error("Codex scaffold should hand off implementation to CX-05")
+	if strings.Contains(content, "Scaffold") {
+		t.Error("Codex skill should not regress to scaffold content")
+	}
+	if strings.Contains(content, "CX-05 must extend") {
+		t.Error("Codex skill should no longer contain scaffold handoff text")
 	}
 }
 

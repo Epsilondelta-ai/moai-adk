@@ -5,11 +5,26 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"testing/fstest"
 
 	"github.com/modu-ai/moai-adk/internal/manifest"
 )
+
+const testCodexSkillContract = `# $moai Codex Entry Point
+
+## Supported Invocations
+
+### $moai plan
+- Read .moai/project/** and .moai/plans/**
+
+### $moai run
+- Read .moai/specs/** and .moai/state/**
+
+### $moai sync
+- Read .moai/docs/CODEX_COMPAT_ROADMAP.md
+`
 
 func testFS() fstest.MapFS {
 	return fstest.MapFS{
@@ -26,7 +41,7 @@ func testFS() fstest.MapFS {
 			Data: []byte("node_modules/\n.env\n"),
 		},
 		".codex/skills/moai/SKILL.md": &fstest.MapFile{
-			Data: []byte("# MoAI Codex Skill Scaffold"),
+			Data: []byte(testCodexSkillContract),
 		},
 	}
 }
@@ -81,6 +96,17 @@ func TestDeployerDeploy(t *testing.T) {
 			}
 			if entry.TemplateHash == "" {
 				t.Errorf("entry %q has empty TemplateHash", f)
+			}
+		}
+
+		data, err := os.ReadFile(filepath.Join(root, ".codex/skills/moai/SKILL.md"))
+		if err != nil {
+			t.Fatalf("ReadFile codex skill error: %v", err)
+		}
+		content := string(data)
+		for _, marker := range []string{"$moai plan", "$moai run", "$moai sync", ".moai/specs/**"} {
+			if !strings.Contains(content, marker) {
+				t.Errorf("deployed Codex skill missing marker %q", marker)
 			}
 		}
 	})
@@ -173,8 +199,14 @@ func TestDeployerExtractTemplate(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ExtractTemplate error: %v", err)
 		}
-		if string(data) != "# MoAI Codex Skill Scaffold" {
-			t.Errorf("content = %q, want %q", string(data), "# MoAI Codex Skill Scaffold")
+		content := string(data)
+		for _, marker := range []string{"$moai plan", "$moai run", "$moai sync", ".moai/docs/CODEX_COMPAT_ROADMAP.md"} {
+			if !strings.Contains(content, marker) {
+				t.Errorf("Codex template missing marker %q", marker)
+			}
+		}
+		if strings.Contains(content, "Scaffold") {
+			t.Errorf("Codex template regressed to scaffold content: %q", content)
 		}
 	})
 

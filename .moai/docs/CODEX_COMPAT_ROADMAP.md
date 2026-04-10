@@ -54,8 +54,8 @@ When this roadmap is complete:
 | CX-01 | Codex Surface Audit | DONE | - |
 | CX-02 | Shared/Core Boundary Definition | DONE | CX-01 |
 | CX-03 | Codex Adapter Layout | DONE | CX-02 |
-| CX-04 | Codex Template Scaffold | PENDING | CX-03 |
-| CX-05 | `$moai` Skill Entry Point | PENDING | CX-04 |
+| CX-04 | Codex Template Scaffold | DONE | CX-03 |
+| CX-05 | `$moai` Skill Entry Point | DONE | CX-04 |
 | CX-06 | Init and Update Provisioning | PENDING | CX-04 |
 | CX-07 | Codex Workflow Prompt Pack | PENDING | CX-05 |
 | CX-08 | Manifest and Drift Policy | PENDING | CX-06 |
@@ -141,7 +141,7 @@ When this roadmap is complete:
 
 ### CX-05 `$moai` Skill Entry Point
 
-- Status: `PENDING`
+- Status: `DONE`
 - Goal: Make Codex able to invoke MoAI workflows through `$moai`.
 - Why:
   This is the primary UX requirement.
@@ -510,6 +510,26 @@ Template:
   - `CX-05` must preserve `.codex/skills/moai/SKILL.md` as the reserved `$moai` entrypoint path and replace only the skeletal content.
   - `CX-06` must provision Codex assets additively from `internal/template/templates/.codex/**` without widening Claude-owned template roots.
 
+### 2026-04-10 15:33 KST - CX-05 `$moai` Skill Entry Point
+
+- Status: `IN_PROGRESS` -> `DONE`
+- Summary:
+  - Replaced the reserved Codex scaffold at `internal/template/templates/.codex/skills/moai/SKILL.md` with the first real `$moai` entry contract for Codex.
+  - Defined bare `$moai` as the dispatcher and re-entry surface, then documented how `$moai plan`, `$moai run`, and `$moai sync` should read shared state from `.moai/**`.
+  - Recorded Codex-specific constraints explicitly so the entrypoint does not imply Claude-only hooks, slash commands, launcher behavior, or statusline parity.
+  - Tightened template regression tests so embedded, extracted, and deployed Codex skill content must retain the route markers and `.moai/**` guidance instead of falling back to scaffold text.
+- Files touched:
+  - `.moai/docs/CODEX_COMPAT_ROADMAP.md`
+  - `internal/template/templates/.codex/skills/moai/SKILL.md`
+  - `internal/template/embed_test.go`
+  - `internal/template/deployer_test.go`
+  - `internal/template/deployer_mode_test.go`
+- Verification:
+  - `go test ./internal/template/...`
+- Follow-up:
+  - `CX-06` should provision the new `.codex/skills/moai/SKILL.md` asset through `moai init` and `moai update` without changing Claude-owned paths.
+  - `CX-07` should extend this entry contract into deeper Codex workflow prompt packs while keeping `.moai/**` as the shared workflow-state authority.
+
 ## Verification Log
 
 Use this section to record concrete verification results.
@@ -531,6 +551,7 @@ Template:
 - 2026-04-10 14:53 KST: `CX-02` completed as a roadmap architecture decision only; verification was limited to document completeness and path classification consistency.
 - 2026-04-10 15:12 KST: `CX-03` completed as a roadmap architecture decision only; verification was limited to layout consistency against current template embedding, CLI package placement, and protected-path constraints.
 - 2026-04-10 15:21 KST: `CX-04` added `internal/template/templates/.codex/skills/moai/SKILL.md` as the reserved Codex skill scaffold and verified embedded/listed/deployed behavior with `go test ./internal/template/...`.
+- 2026-04-10 15:33 KST: `CX-05` replaced the Codex skill scaffold with the real `$moai` entry contract, strengthened template regression coverage around routing and `.moai/**` handoff markers, and verified the change with `go test ./internal/template/...`.
 
 ## Upstream Strategy
 

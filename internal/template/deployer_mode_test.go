@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -464,7 +465,7 @@ func TestModeAwareDeployer_Deploy(t *testing.T) {
 				Data: []byte("# MoAI Core Skill"),
 			},
 			".codex/skills/moai/SKILL.md": &fstest.MapFile{
-				Data: []byte("# MoAI Codex Skill Scaffold"),
+				Data: []byte(testCodexSkillContract),
 			},
 		}
 		tmplCtx := NewTemplateContext(
@@ -487,6 +488,17 @@ func TestModeAwareDeployer_Deploy(t *testing.T) {
 			absPath := filepath.Join(root, f)
 			if _, err := os.Stat(absPath); err != nil {
 				t.Errorf("expected file %q in project: %v", f, err)
+			}
+		}
+
+		data, err := os.ReadFile(filepath.Join(root, ".codex/skills/moai/SKILL.md"))
+		if err != nil {
+			t.Fatalf("ReadFile codex skill error: %v", err)
+		}
+		content := string(data)
+		for _, marker := range []string{"$moai plan", "$moai run", "$moai sync"} {
+			if !strings.Contains(content, marker) {
+				t.Errorf("deployed Codex skill missing marker %q", marker)
 			}
 		}
 	})
