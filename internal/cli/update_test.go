@@ -482,6 +482,77 @@ func TestRunTemplateSyncWithReporter_InstallsMissingCodexSkillAndTracksManifest(
 
 	assertCodexSkillMatchesTemplate(t, tmpDir)
 	assertCodexSkillManifestEntry(t, tmpDir)
+	assertCodexWorkflowPackMatchesTemplate(t, tmpDir)
+	assertCodexWorkflowManifestEntries(t, tmpDir)
+}
+
+func TestRunTemplateSyncWithReporter_RestoresDeletedCodexWorkflowDoc(t *testing.T) {
+	tmpDir := t.TempDir()
+	writeUpdateProjectScaffold(t, tmpDir)
+
+	origDir, _ := os.Getwd()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
+
+	t.Setenv("HOME", tmpDir)
+
+	cmd := &cobra.Command{Use: "test"}
+	cmd.Flags().Bool("force", false, "")
+	cmd.Flags().Bool("yes", true, "")
+	cmd.Flags().Bool("config", false, "")
+	_ = cmd.Flags().Set("yes", "true")
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetContext(context.Background())
+
+	if err := runTemplateSyncWithReporter(cmd, nil, true); err != nil {
+		t.Fatalf("initial runTemplateSyncWithReporter() error = %v", err)
+	}
+
+	deletedRelPath := ".codex/skills/moai/workflows/run.md"
+	deletedPath := filepath.Join(tmpDir, filepath.FromSlash(deletedRelPath))
+	if err := os.Remove(deletedPath); err != nil {
+		t.Fatalf("remove deleted workflow doc: %v", err)
+	}
+
+	if err := cmd.Flags().Set("force", "true"); err != nil {
+		t.Fatalf("set force flag: %v", err)
+	}
+	if err := runTemplateSyncWithReporter(cmd, nil, true); err != nil {
+		t.Fatalf("second runTemplateSyncWithReporter() error = %v", err)
+	}
+
+	assertCodexWorkflowPackMatchesTemplate(t, tmpDir)
+	assertCodexWorkflowManifestEntries(t, tmpDir)
+
+	wantContent := codexWorkflowTemplateContent(t, "run.md")
+	gotContent, err := os.ReadFile(deletedPath)
+	if err != nil {
+		t.Fatalf("read restored workflow doc: %v", err)
+	}
+	if string(gotContent) != string(wantContent) {
+		t.Fatal("deleted Codex workflow doc was not restored from embedded templates")
+	}
+
+	mgr := manifest.NewManager()
+	if _, err := mgr.Load(tmpDir); err != nil {
+		t.Fatalf("reload manifest error = %v", err)
+	}
+	entry, ok := mgr.GetEntry(deletedRelPath)
+	if !ok {
+		t.Fatal("manifest missing restored workflow entry")
+	}
+	if entry.Provenance != manifest.TemplateManaged {
+		t.Fatalf("restored workflow provenance = %q, want %q", entry.Provenance, manifest.TemplateManaged)
+	}
+	if entry.TemplateHash == "" || entry.DeployedHash == "" || entry.CurrentHash == "" {
+		t.Fatal("restored workflow manifest hashes should all be populated")
+	}
+	if entry.CurrentHash != entry.DeployedHash {
+		t.Fatal("restored workflow should finish as overwrite-safe template-managed content")
+	}
 }
 
 func TestRunTemplateSyncWithReporter_RefreshesCodexSkillAndManifest(t *testing.T) {
@@ -734,6 +805,32 @@ func codexSkillTemplateContent(t *testing.T) []byte {
 	return content
 }
 
+func codexWorkflowDocNames() []string {
+	return []string{
+		"project.md",
+		"plan.md",
+		"run.md",
+		"sync.md",
+		"review.md",
+		"clean.md",
+		"loop.md",
+	}
+}
+
+func codexWorkflowTemplateContent(t *testing.T, name string) []byte {
+	t.Helper()
+
+	embedded, err := template.EmbeddedTemplates()
+	if err != nil {
+		t.Fatalf("EmbeddedTemplates() error = %v", err)
+	}
+	content, err := fs.ReadFile(embedded, filepath.ToSlash(filepath.Join(".codex/skills/moai/workflows", name)))
+	if err != nil {
+		t.Fatalf("read embedded codex workflow %s: %v", name, err)
+	}
+	return content
+}
+
 func assertCodexSkillMatchesTemplate(t *testing.T, root string) {
 	t.Helper()
 
@@ -767,6 +864,44 @@ func assertCodexSkillManifestEntry(t *testing.T, root string) {
 	mf := mgr.Manifest()
 	if mf == nil || mf.Version == "" || mf.DeployedAt == "" {
 		t.Fatal("manifest version and deployed_at should be persisted after update")
+	}
+}
+
+func assertCodexWorkflowPackMatchesTemplate(t *testing.T, root string) {
+	t.Helper()
+
+	for _, name := range codexWorkflowDocNames() {
+		wantContent := codexWorkflowTemplateContent(t, name)
+		gotContent, err := os.ReadFile(filepath.Join(root, ".codex", "skills", "moai", "workflows", name))
+		if err != nil {
+			t.Fatalf("read deployed codex workflow %s: %v", name, err)
+		}
+		if string(gotContent) != string(wantContent) {
+			t.Fatalf("deployed codex workflow %s content does not match embedded template", name)
+		}
+	}
+}
+
+func assertCodexWorkflowManifestEntries(t *testing.T, root string) {
+	t.Helper()
+
+	mgr := manifest.NewManager()
+	if _, err := mgr.Load(root); err != nil {
+		t.Fatalf("manifest Load() error = %v", err)
+	}
+
+	for _, name := range codexWorkflowDocNames() {
+		relPath := filepath.ToSlash(filepath.Join(".codex/skills/moai/workflows", name))
+		entry, ok := mgr.GetEntry(relPath)
+		if !ok {
+			t.Fatalf("manifest missing codex workflow entry %s", relPath)
+		}
+		if entry.Provenance != manifest.TemplateManaged {
+			t.Fatalf("codex workflow %s provenance = %q, want %q", relPath, entry.Provenance, manifest.TemplateManaged)
+		}
+		if entry.TemplateHash == "" || entry.CurrentHash == "" || entry.DeployedHash == "" {
+			t.Fatalf("codex workflow %s manifest hashes should all be populated", relPath)
+		}
 	}
 }
 

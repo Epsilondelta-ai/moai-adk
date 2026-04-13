@@ -60,7 +60,7 @@ When this roadmap is complete:
 | CX-07 | Codex Workflow Prompt Pack | DONE | CX-05 |
 | CX-08 | Manifest and Drift Policy | DONE | CX-06 |
 | CX-09 | Codex Runtime Helpers | DONE | CX-06 |
-| CX-10 | Verification Matrix | PENDING | CX-05, CX-06, CX-07, CX-08, CX-09 |
+| CX-10 | Verification Matrix | DONE | CX-05, CX-06, CX-07, CX-08, CX-09 |
 | CX-11 | Upstream Merge Playbook | PENDING | CX-10 |
 
 ## Task Details
@@ -246,21 +246,38 @@ When this roadmap is complete:
 
 ### CX-10 Verification Matrix
 
-- Status: `PENDING`
+- Status: `DONE`
 - Goal: Verify the Codex adapter works on an already initialized MoAI project and does not regress Claude support.
 - Why:
   This change spans templates, provisioning, prompt assets, and possibly CLI.
 - Inputs:
   - CX-05 through CX-09
 - Outputs:
-  - Verification checklist under `Verification Log`
+  - Verification matrix in this section plus concrete execution notes under `Verification Log`
 - Minimum Checks:
   - Existing `.moai` project can receive Codex assets
+  - Fresh `init` still provisions Codex assets
+  - Repeated `update` cycles preserve the expected manifest state for untouched, drifted, deleted, and deprecated `.codex/**` files
   - `$moai` skill is discoverable in Codex
   - Core workflows can be invoked from Codex
+  - `moai codex doctor` succeeds for ready projects and fails clearly for missing/incomplete Codex state
   - `go test ./...` passes
 - Completion Criteria:
   - Results are recorded with pass/fail notes
+
+#### CX-10 Verification Matrix
+
+| Scenario | Setup State | Command Or Test Entrypoint | Expected Result | Actual Result | Status |
+| --- | --- | --- | --- | --- | --- |
+| Existing `.moai` project receives Codex assets via shared `update` | `.moai/config/sections/` and `.moai/manifest.json` exist; `.codex/**` absent | `go test ./internal/cli/... -run TestRunTemplateSyncWithReporter_InstallsMissingCodexSkillAndTracksManifest` | `update` deploys `.codex/skills/moai/SKILL.md` plus the seven workflow docs and records them as `template_managed` | Passed; the test now asserts the full workflow pack matches embedded templates and every `.codex/skills/moai/workflows/*.md` manifest entry is present with hashes | PASS |
+| Fresh `init` provisions Codex assets | empty project root | `go test ./internal/core/project/... -run TestInit_DeploysCodexSkillAndTracksManifest` | `init` writes the Codex skill and records it in `.moai/manifest.json` as `template_managed` | Passed; deployed skill bytes matched the embedded template and manifest hashes were populated | PASS |
+| Repeated `update` keeps untouched Codex assets overwrite-safe and restores locally deleted active files | initialized project with deployed `.codex/**`; one workflow doc deleted before forced re-sync | `go test ./internal/cli/... -run TestRunTemplateSyncWithReporter_RestoresDeletedCodexWorkflowDoc` | forced repeat `update` restores the deleted active workflow doc and leaves the untouched workflow pack `template_managed` | Passed; `run.md` was restored from embedded templates and the full workflow pack revalidated as `template_managed` on the second cycle | PASS |
+| Drifted Codex assets stay protected as local changes | tracked Codex skill edited after deployment | `go test ./internal/cli/... -run TestRunTemplateSyncWithReporter_PreservesModifiedCodexSkillAsUserModified` | local edits survive `update`; manifest flips to `user_modified` with distinct current vs deployed hashes | Passed; preserved content stayed on disk and manifest provenance/hashes matched the drift policy | PASS |
+| Deprecated Codex assets stay preserved instead of being silently removed | manifest contains a previously managed Codex path missing from the active template set | `go test ./internal/cli/... -run TestFinalizeTemplateSyncManifest_MarksRemovedTemplateEntriesDeprecated` | missing embedded path remains tracked as `deprecated` with preserved current hash | Passed; legacy Codex entry finalized as `deprecated` and kept its preserved file hash | PASS |
+| `$moai` discoverability and workflow-pack completeness are shipped in the deployed Codex surface | embedded template filesystem | `go test ./internal/template/... -run 'TestEmbeddedTemplates_CodexSkillContract|TestEmbeddedTemplates_CodexWorkflowPack'` | Codex skill advertises `$moai` routes and all seven workflow docs exist with shared-state guidance | Passed; skill markers and every required workflow document were asserted directly from embedded templates | PASS |
+| `moai codex doctor` reports readiness for success and failure states, including `--json` | ready fixture, missing `.codex/**` fixture, incomplete workflow-pack fixture, missing `.moai/**` fixture | `go test ./internal/codex/... ./internal/cli/... -run 'TestInspectorInspect_AllChecksPass|TestInspectorInspect_MissingCodexAssetsFailsReadiness|TestInspectorInspect_MissingWorkflowDocsReportsNames|TestWriteCodexDoctorReport_TextOutput|TestWriteCodexDoctorReport_JSONOutput'` | human-readable and JSON output surface success, missing shared state, missing Codex assets, and incomplete workflow-pack failures clearly | Passed; readiness, missing-asset, incomplete-workflow, and JSON-report paths all matched expectations | PASS |
+| Codex command registration stays additive and shared CLI paths still register cleanly | root command tree | `go test ./internal/cli/... -run 'TestRootCmd_HelpOutput|TestCodexCmd_IsSubcommandOfRoot|TestCodexCmd_HelpListsDoctor|TestInitCmd_IsSubcommandOfRoot|TestUpdateCmd_IsSubcommandOfRoot'` | `codex` appears under the root command without breaking existing project commands | Passed; root help still lists `init`, `update`, `doctor`, `status`, and `codex`, and the Codex subtree exposes `doctor` | PASS |
+| Repository-wide regression sweep | entire repo | `go test ./...` | additive Codex work does not break existing Claude-facing or shared package behavior | Passed on 2026-04-13; the full Go test suite completed successfully | PASS |
 
 ### CX-11 Upstream Merge Playbook
 
@@ -594,6 +611,22 @@ Template:
   - `CX-09` should add helper support only if prompt-only contracts prove insufficient for workflows like `loop` or `clean`.
   - `CX-10` should verify Codex-side discoverability and invocation coverage for all seven workflow routes.
 
+### 2026-04-13 14:00 KST - CX-10 Verification Matrix
+
+- Status: `IN_PROGRESS` -> `DONE`
+- Summary:
+  - Expanded `CX-10` from a short checklist into a rerunnable verification matrix that maps upgrade, fresh-init, manifest-state, readiness, discoverability, and non-regression commitments to concrete tests.
+  - Strengthened `update` regression coverage so an already initialized `.moai` project now proves full Codex workflow-pack deployment on first sync and active workflow-file restoration on a forced repeat sync.
+  - Re-ran the targeted Codex/CLI/template/manifest/project suites and the repository-wide `go test ./...` sweep; all passed.
+- Files touched:
+  - `.moai/docs/CODEX_COMPAT_ROADMAP.md`
+  - `internal/cli/update_test.go`
+- Verification:
+  - `go test ./internal/cli/... ./internal/core/project/... ./internal/codex/... ./internal/template/... ./internal/manifest/...`
+  - `go test ./...`
+- Follow-up:
+  - `CX-11` should treat this matrix and verification log as the compatibility baseline for future upstream merge and drift checks.
+
 ## Verification Log
 
 Use this section to record concrete verification results.
@@ -620,6 +653,14 @@ Template:
 - 2026-04-10 16:24 KST: `CX-07` added the seven-file Codex workflow prompt pack, updated `$moai` routing to delegate into it, and verified embedded/listed/deployed coverage with `go test ./internal/template/...`.
 - 2026-04-13 15:02 KST: `CX-08` updated shared template-sync behavior so drifted managed files are backed up before force deployment, restored after deploy, and finalized into deterministic provenance states. Untouched files now remain overwrite-safe, preserved local edits finalize as `user_modified`, upstream-removed template paths finalize as `deprecated`, and prior `user_created` collisions keep their protected status. Verified with `go test ./internal/manifest/... ./internal/template/... ./internal/cli/...`.
 - 2026-04-13 16:10 KST: `CX-09` added `moai codex doctor` plus a narrow `--json` mode backed by `internal/codex/**` readiness checks for `.moai/**`, `.codex/skills/moai/SKILL.md`, and the Codex workflow pack. The task explicitly rejected `moai codex sync` and left the default `moai doctor` surface Claude-oriented. Verified with `go test ./internal/codex/... ./internal/cli/... ./internal/template/...`.
+- 2026-04-13 14:00 KST: `CX-10` replaced the old checklist with a concrete verification matrix that now records setup state, rerunnable commands, expected outcomes, actual outcomes, and pass/fail notes for upgrade, fresh-init, manifest-state, readiness, and non-regression checks.
+- 2026-04-13 14:00 KST: PASS `go test ./internal/core/project/... -run TestInit_DeploysCodexSkillAndTracksManifest` verified fresh `init` deploys the Codex skill and records it as `template_managed` in `.moai/manifest.json`.
+- 2026-04-13 14:00 KST: PASS `go test ./internal/cli/... -run 'TestRunTemplateSyncWithReporter_InstallsMissingCodexSkillAndTracksManifest|TestRunTemplateSyncWithReporter_RestoresDeletedCodexWorkflowDoc|TestRunTemplateSyncWithReporter_PreservesModifiedCodexSkillAsUserModified|TestFinalizeTemplateSyncManifest_MarksRemovedTemplateEntriesDeprecated'` verified upgrade install, repeated-update overwrite safety, deleted active-file restoration, drift preservation, and deprecated-path handling for `.codex/**`.
+- 2026-04-13 14:00 KST: PASS `go test ./internal/template/... -run 'TestEmbeddedTemplates_CodexSkillContract|TestEmbeddedTemplates_CodexWorkflowPack'` verified `$moai` discoverability markers and the complete seven-file Codex workflow pack in the shipped template surface.
+- 2026-04-13 14:00 KST: PASS `go test ./internal/codex/... ./internal/cli/... -run 'TestInspectorInspect_AllChecksPass|TestInspectorInspect_MissingCodexAssetsFailsReadiness|TestInspectorInspect_MissingWorkflowDocsReportsNames|TestWriteCodexDoctorReport_TextOutput|TestWriteCodexDoctorReport_JSONOutput'` verified `moai codex doctor` success output plus negative readiness reporting for missing `.moai/**`, missing `.codex/**`, incomplete workflow packs, and `--json` payloads.
+- 2026-04-13 14:00 KST: PASS `go test ./internal/cli/... -run 'TestRootCmd_HelpOutput|TestCodexCmd_IsSubcommandOfRoot|TestCodexCmd_HelpListsDoctor|TestInitCmd_IsSubcommandOfRoot|TestUpdateCmd_IsSubcommandOfRoot'` verified Codex command discoverability and shared CLI registration without breaking existing project commands.
+- 2026-04-13 14:00 KST: PASS `go test ./internal/cli/... ./internal/core/project/... ./internal/codex/... ./internal/template/... ./internal/manifest/...` completed successfully after the new workflow-pack verification tests were added.
+- 2026-04-13 14:00 KST: PASS `go test ./...` completed successfully as the final repository-wide Claude/Codex non-regression sweep.
 
 ## Upstream Strategy
 
