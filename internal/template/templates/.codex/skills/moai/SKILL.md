@@ -1,3 +1,9 @@
+---
+name: moai
+description: MoAI Codex entry point that routes `$moai` requests and shared `.moai/**` state to the appropriate Codex workflow.
+argument-hint: "[subcommand] [args] | \"natural language task\""
+---
+
 # `$moai` Codex Entry Point
 
 Use this skill when the user invokes `$moai`, asks to continue a MoAI workflow, or needs shared MoAI state interpreted from `.moai/**` inside Codex.
