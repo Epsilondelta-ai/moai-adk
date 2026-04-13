@@ -36,7 +36,7 @@ const testCodexSkillContract = `# $moai Codex Entry Point
 - Read .moai/specs/** and .moai/state/**
 
 ### $moai sync
-- Read .moai/docs/CODEX_COMPAT_ROADMAP.md
+- Read .moai/project/** and .moai/state/**
 `
 
 func testFS() fstest.MapFS {
@@ -66,7 +66,7 @@ func testFS() fstest.MapFS {
 			Data: []byte("# Workflow: `run`\n\nRead .moai/specs/** and .moai/state/**\n"),
 		},
 		".codex/skills/moai/workflows/sync.md": &fstest.MapFile{
-			Data: []byte("# Workflow: `sync`\n\nRead .moai/docs/CODEX_COMPAT_ROADMAP.md\n"),
+			Data: []byte("# Workflow: `sync`\n\nRead .moai/project/** and .moai/state/**\n"),
 		},
 		".codex/skills/moai/workflows/review.md": &fstest.MapFile{
 			Data: []byte("# Workflow: `review`\n\nReview current changes with .moai/specs/** context\n"),
@@ -241,10 +241,13 @@ func TestDeployerExtractTemplate(t *testing.T) {
 			t.Fatalf("ExtractTemplate error: %v", err)
 		}
 		content := string(data)
-		for _, marker := range []string{"$moai project", "$moai plan", "$moai run", "$moai sync", "workflows/loop.md", ".moai/docs/CODEX_COMPAT_ROADMAP.md"} {
+		for _, marker := range []string{"$moai project", "$moai plan", "$moai run", "$moai sync", "workflows/loop.md", ".moai/project/**", ".moai/state/**"} {
 			if !strings.Contains(content, marker) {
 				t.Errorf("Codex template missing marker %q", marker)
 			}
+		}
+		if strings.Contains(content, "CODEX_COMPAT_ROADMAP") {
+			t.Errorf("Codex template should not depend on the compatibility roadmap: %q", content)
 		}
 		if strings.Contains(content, "Scaffold") {
 			t.Errorf("Codex template regressed to scaffold content: %q", content)

@@ -14,13 +14,13 @@ This file is the canonical Codex-side router for MoAI. It keeps the entry contra
 
 Inspect shared project state in this order before choosing a workflow:
 
-1. `.moai/docs/CODEX_COMPAT_ROADMAP.md`
-2. `.moai/project/product.md`
-3. `.moai/project/structure.md`
-4. `.moai/project/tech.md`
-5. `.moai/specs/**`
-6. `.moai/plans/**`
-7. `.moai/state/**`
+1. `.moai/project/product.md`
+2. `.moai/project/structure.md`
+3. `.moai/project/tech.md`
+4. `.moai/specs/**`
+5. `.moai/plans/**`
+6. `.moai/state/**`
+7. relevant `.moai/docs/**` notes only when the task is documentation- or setup-specific
 
 If a referenced file or directory does not exist, continue with the remaining sources and state the missing context briefly.
 
@@ -46,7 +46,7 @@ Treat bare `$moai` as the top-level dispatcher and re-entry surface.
 - If the user names a `SPEC-...` item or asks to implement approved work, route to `$moai run` and open `workflows/run.md`.
 - If the user asks to understand the project, regenerate project docs, or recover missing baseline context, route to `$moai project` and open `workflows/project.md`.
 - If the user asks to define work, scope a feature, or create a plan/spec, route to `$moai plan` and open `workflows/plan.md`.
-- If the user asks to reconcile docs, roadmap notes, codemaps, or project drift, route to `$moai sync` and open `workflows/sync.md`.
+- If the user asks to reconcile docs, shared-state notes, codemaps, or project drift, route to `$moai sync` and open `workflows/sync.md`.
 - If the user asks for a code review or risk scan, route to `$moai review` and open `workflows/review.md`.
 - If the user asks to remove dead code or stale artifacts safely, route to `$moai clean` and open `workflows/clean.md`.
 - If the user asks to keep fixing, retry, or iterate until stable, route to `$moai loop` and open `workflows/loop.md`.
@@ -66,7 +66,7 @@ Use `workflows/run.md` for implementation against an approved spec, plan, or exp
 
 ### `$moai sync`
 
-Use `workflows/sync.md` for documentation synchronization, roadmap alignment, and `.moai/**` state reconciliation after planning or implementation.
+Use `workflows/sync.md` for documentation synchronization and `.moai/**` state reconciliation after planning or implementation.
 
 ### `$moai review`
 
