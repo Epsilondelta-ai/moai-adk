@@ -131,7 +131,9 @@ func (d *deployer) Deploy(ctx context.Context, projectRoot string, m manifest.Ma
 			if _, statErr := os.Stat(destPath); statErr == nil {
 				// File exists — check manifest for provenance
 				if entry, found := m.GetEntry(destRelPath); found {
-					if entry.Provenance == manifest.UserModified || entry.Provenance == manifest.UserCreated {
+					if entry.Provenance == manifest.UserModified ||
+						entry.Provenance == manifest.UserCreated ||
+						entry.Provenance == manifest.Deprecated {
 						// Respect user files
 						return nil
 					}

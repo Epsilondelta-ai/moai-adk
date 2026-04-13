@@ -415,6 +415,8 @@ func runTemplateSyncWithReporter(cmd *cobra.Command, reporter project.ProgressRe
 	// Create deployer with renderer and force update enabled for template sync
 	// This ensures template files are rendered (.tmpl -> actual file) and updated even if they exist
 	deployer := template.NewDeployerWithRendererAndForceUpdate(embedded, renderer, true)
+	activeTemplatePaths := makePathSet(deployer.ListTemplates())
+	preSyncFiles := maps.Clone(mgr.Manifest().Files)
 
 	// Analyze merge and get user confirmation
 	analysis := analyzeMergeChanges(deployer, projectRoot)
@@ -531,6 +533,8 @@ func runTemplateSyncWithReporter(cmd *cobra.Command, reporter project.ProgressRe
 	var gitignoreBackup []byte
 	// Backups of mergeable files for 3-way merge after deploy
 	var mergeableBackups []fileBackup
+	// Backups of tracked template files that must not be left overwritten.
+	var protectedTemplateBackups []fileBackup
 
 	// collectMergeableFiles returns a list of files that should be merged
 	// using the 3-way merge engine during update.
@@ -582,6 +586,20 @@ func runTemplateSyncWithReporter(cmd *cobra.Command, reporter project.ProgressRe
 					mergeableBackups = append(mergeableBackups, fileBackup{path: mf, data: data})
 				}
 			}
+			protectedBackups, protectErr := collectProtectedTemplateBackups(
+				projectRoot,
+				mgr,
+				activeTemplatePaths,
+				makePathSet(append([]string{".gitignore"}, mergeableFiles...)),
+			)
+			if protectErr != nil {
+				_, _ = fmt.Fprintf(out, "\r  %s Backup failed: %v\n", symError(), protectErr)
+				if reporter != nil {
+					reporter.StepError(protectErr)
+				}
+				return protectErr
+			}
+			protectedTemplateBackups = protectedBackups
 			if reporter != nil {
 				reporter.StepComplete("Configuration backed up")
 			}
@@ -623,6 +641,11 @@ func runTemplateSyncWithReporter(cmd *cobra.Command, reporter project.ProgressRe
 					_, _ = fmt.Fprintf(out, "  %s File merge warning: %v\n", symWarning(), err)
 				}
 			}
+			if len(protectedTemplateBackups) > 0 {
+				if err := restoreProtectedFiles(projectRoot, protectedTemplateBackups, out); err != nil {
+					_, _ = fmt.Fprintf(out, "  %s File restore warning: %v\n", symWarning(), err)
+				}
+			}
 		default:
 			// Execute normal step
 			if err := step.execute(); err != nil {
@@ -642,7 +665,7 @@ func runTemplateSyncWithReporter(cmd *cobra.Command, reporter project.ProgressRe
 		}
 	}
 
-	if err := finalizeTemplateSyncManifest(projectRoot, mgr); err != nil {
+	if err := finalizeTemplateSyncManifest(projectRoot, mgr, preSyncFiles, activeTemplatePaths); err != nil {
 		return fmt.Errorf("finalize manifest: %w", err)
 	}
 
@@ -662,10 +685,25 @@ func runTemplateSyncWithReporter(cmd *cobra.Command, reporter project.ProgressRe
 
 // finalizeTemplateSyncManifest persists the final on-disk state after template
 // deployment, config restore, and merge steps have completed.
-func finalizeTemplateSyncManifest(projectRoot string, mgr manifest.Manager) error {
+func finalizeTemplateSyncManifest(
+	projectRoot string,
+	mgr manifest.Manager,
+	previousFiles map[string]manifest.FileEntry,
+	activeTemplatePaths map[string]struct{},
+) error {
 	mf := mgr.Manifest()
 	if mf == nil {
 		return fmt.Errorf("manifest not loaded")
+	}
+	if previousFiles == nil {
+		previousFiles = maps.Clone(mf.Files)
+	}
+	if activeTemplatePaths == nil {
+		var err error
+		activeTemplatePaths, err = loadEmbeddedTemplatePathSet()
+		if err != nil {
+			return err
+		}
 	}
 
 	mf.Version = version.GetVersion()
@@ -675,17 +713,139 @@ func finalizeTemplateSyncManifest(projectRoot string, mgr manifest.Manager) erro
 		currentHash, err := manifest.HashFile(filepath.Join(projectRoot, filepath.Clean(relPath)))
 		if err != nil {
 			if os.IsNotExist(err) {
+				entry.CurrentHash = ""
+				if previousEntry, ok := previousFiles[relPath]; ok && previousEntry.Provenance == manifest.UserCreated {
+					entry.Provenance = manifest.UserCreated
+				} else if _, active := activeTemplatePaths[relPath]; !active {
+					entry.Provenance = manifest.Deprecated
+				} else {
+					entry.Provenance = manifest.UserModified
+				}
+				mf.Files[relPath] = entry
 				continue
 			}
 			return fmt.Errorf("hash %s: %w", relPath, err)
 		}
-		entry.DeployedHash = currentHash
 		entry.CurrentHash = currentHash
+
+		previousEntry, hadPrevious := previousFiles[relPath]
+		if _, active := activeTemplatePaths[relPath]; !active {
+			if hadPrevious && previousEntry.Provenance == manifest.UserCreated {
+				entry.Provenance = manifest.UserCreated
+			} else {
+				entry.Provenance = manifest.Deprecated
+			}
+			mf.Files[relPath] = entry
+			continue
+		}
+
+		switch {
+		case hadPrevious && previousEntry.Provenance == manifest.UserCreated:
+			entry.Provenance = manifest.UserCreated
+		case currentHash == entry.DeployedHash:
+			entry.Provenance = manifest.TemplateManaged
+		default:
+			entry.Provenance = manifest.UserModified
+		}
+
 		mf.Files[relPath] = entry
 	}
 
 	if err := mgr.Save(); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func makePathSet(paths []string) map[string]struct{} {
+	set := make(map[string]struct{}, len(paths))
+	for _, path := range paths {
+		set[path] = struct{}{}
+	}
+	return set
+}
+
+func loadEmbeddedTemplatePathSet() (map[string]struct{}, error) {
+	embedded, err := template.EmbeddedTemplates()
+	if err != nil {
+		return nil, fmt.Errorf("load embedded templates: %w", err)
+	}
+	return makePathSet(template.NewDeployer(embedded).ListTemplates()), nil
+}
+
+func collectProtectedTemplateBackups(
+	projectRoot string,
+	mgr manifest.Manager,
+	activeTemplatePaths map[string]struct{},
+	excludedPaths map[string]struct{},
+) ([]fileBackup, error) {
+	mf := mgr.Manifest()
+	if mf == nil {
+		return nil, fmt.Errorf("manifest not loaded")
+	}
+
+	changes, err := mgr.DetectChanges()
+	if err != nil {
+		return nil, fmt.Errorf("detect tracked changes: %w", err)
+	}
+
+	changedPaths := make(map[string]struct{}, len(changes))
+	for _, change := range changes {
+		changedPaths[change.Path] = struct{}{}
+	}
+
+	var backups []fileBackup
+	for relPath, entry := range mf.Files {
+		if _, active := activeTemplatePaths[relPath]; !active {
+			continue
+		}
+		if strings.HasPrefix(relPath, ".moai/config/") {
+			continue
+		}
+		if _, excluded := excludedPaths[relPath]; excluded {
+			continue
+		}
+
+		_, isChanged := changedPaths[relPath]
+		shouldProtect := isChanged ||
+			entry.Provenance == manifest.UserModified ||
+			entry.Provenance == manifest.UserCreated ||
+			entry.Provenance == manifest.Deprecated
+		if !shouldProtect {
+			continue
+		}
+
+		data, err := os.ReadFile(filepath.Join(projectRoot, filepath.Clean(relPath)))
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return nil, fmt.Errorf("backup protected file %s: %w", relPath, err)
+		}
+
+		backups = append(backups, fileBackup{path: relPath, data: data})
+	}
+
+	return backups, nil
+}
+
+func restoreProtectedFiles(projectRoot string, backups []fileBackup, out io.Writer) error {
+	var restoredCount int
+	for _, fb := range backups {
+		destPath := filepath.Join(projectRoot, fb.path)
+		if err := os.MkdirAll(filepath.Dir(destPath), defs.DirPerm); err != nil {
+			return fmt.Errorf("restore protected file %s mkdir: %w", fb.path, err)
+		}
+		if err := os.WriteFile(destPath, fb.data, defs.FilePerm); err != nil {
+			return fmt.Errorf("restore protected file %s: %w", fb.path, err)
+		}
+		_, _ = fmt.Fprintf(out, "  %s %s local content preserved\n", symSuccess(), fb.path)
+		restoredCount++
+	}
+
+	if restoredCount > 0 {
+		_, _ = fmt.Fprintf(out, "  %s Preserved %d tracked file(s) with local drift\n", symSuccess(), restoredCount)
 	}
 
 	return nil

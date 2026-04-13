@@ -58,7 +58,7 @@ When this roadmap is complete:
 | CX-05 | `$moai` Skill Entry Point | DONE | CX-04 |
 | CX-06 | Init and Update Provisioning | DONE | CX-04 |
 | CX-07 | Codex Workflow Prompt Pack | DONE | CX-05 |
-| CX-08 | Manifest and Drift Policy | PENDING | CX-06 |
+| CX-08 | Manifest and Drift Policy | DONE | CX-06 |
 | CX-09 | Codex Runtime Helpers | PENDING | CX-06 |
 | CX-10 | Verification Matrix | PENDING | CX-05, CX-06, CX-07, CX-08, CX-09 |
 | CX-11 | Upstream Merge Playbook | PENDING | CX-10 |
@@ -196,7 +196,7 @@ When this roadmap is complete:
 
 ### CX-08 Manifest and Drift Policy
 
-- Status: `PENDING`
+- Status: `DONE`
 - Goal: Decide how Codex-generated files are tracked and updated safely.
 - Why:
   Asset drift will happen. The system needs deterministic update behavior.
@@ -209,6 +209,16 @@ When this roadmap is complete:
   - Template-managed versus user-modified policy is defined for Codex assets
   - Update overwrite rules are documented
   - Safe regeneration behavior is defined
+- Final Policy:
+  - Active template paths that finish update with final bytes equal to the just-deployed template remain `template_managed` and are overwrite-safe on the next update.
+  - Active template paths whose final bytes differ from the just-deployed template are drifted. They persist as `user_modified`, keep `deployed_hash` pointing at the last template bytes written, and update `current_hash` to the real final on-disk bytes.
+  - Previously protected collisions (`user_created`) are restored after force deployment and remain `user_created`; they are never silently reclassified as pristine template output.
+  - Locally deleted active template files are restored from the current template during update. Deletion is not treated as persistent opt-out for managed Codex assets.
+  - Tracked template paths that disappear from the embedded template set are preserved in place and marked `deprecated` so the next update will not treat them as active overwrite targets.
+  - `CX-08` intentionally keeps the existing manifest shape. The durable state model is expressed through provenance transitions plus the existing `template_hash`, `deployed_hash`, and `current_hash` fields instead of adding new metadata.
+- Follow-up:
+  - `CX-10` should verify repeated update cycles for untouched, drifted, deleted, and deprecated `.codex/**` files against the recorded manifest states.
+  - `CX-11` should document that deprecated Codex assets are preserved intentionally and may require manual cleanup when upstream removes a workflow file permanently.
 
 ### CX-09 Codex Runtime Helpers
 
@@ -600,6 +610,7 @@ Template:
 - 2026-04-10 15:33 KST: `CX-05` replaced the Codex skill scaffold with the real `$moai` entry contract, strengthened template regression coverage around routing and `.moai/**` handoff markers, and verified the change with `go test ./internal/template/...`.
 - 2026-04-10 16:00 KST: `CX-06` locked Codex asset provisioning into the real `init`/`update` lifecycle with manifest persistence and regression coverage via `go test ./internal/core/project/... ./internal/cli/... ./internal/template/...`.
 - 2026-04-10 16:24 KST: `CX-07` added the seven-file Codex workflow prompt pack, updated `$moai` routing to delegate into it, and verified embedded/listed/deployed coverage with `go test ./internal/template/...`.
+- 2026-04-13 15:02 KST: `CX-08` updated shared template-sync behavior so drifted managed files are backed up before force deployment, restored after deploy, and finalized into deterministic provenance states. Untouched files now remain overwrite-safe, preserved local edits finalize as `user_modified`, upstream-removed template paths finalize as `deprecated`, and prior `user_created` collisions keep their protected status. Verified with `go test ./internal/manifest/... ./internal/template/... ./internal/cli/...`.
 
 ## Upstream Strategy
 
