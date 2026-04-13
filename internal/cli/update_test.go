@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -553,6 +554,126 @@ func TestRunTemplateSyncWithReporter_RefreshesCodexSkillAndManifest(t *testing.T
 	}
 	if entry.Provenance != manifest.TemplateManaged {
 		t.Fatalf("codex skill provenance = %q, want %q", entry.Provenance, manifest.TemplateManaged)
+	}
+}
+
+func TestRunTemplateSyncWithReporter_PreservesModifiedCodexSkillAsUserModified(t *testing.T) {
+	tmpDir := t.TempDir()
+	writeUpdateProjectScaffold(t, tmpDir)
+
+	originalContent := codexSkillTemplateContent(t)
+	customContent := append([]byte(nil), originalContent...)
+	customContent = append(customContent, []byte("\n<!-- local customization -->\n")...)
+
+	skillPath := filepath.Join(tmpDir, ".codex", "skills", "moai", "SKILL.md")
+	if err := os.MkdirAll(filepath.Dir(skillPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(skillPath, originalContent, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	mgr := manifest.NewManager()
+	if _, err := mgr.Load(tmpDir); err != nil {
+		t.Fatalf("manifest Load() error = %v", err)
+	}
+	originalHash := manifest.HashBytes(originalContent)
+	if err := mgr.Track(".codex/skills/moai/SKILL.md", manifest.TemplateManaged, originalHash); err != nil {
+		t.Fatalf("Track() codex skill error = %v", err)
+	}
+	if err := mgr.Save(); err != nil {
+		t.Fatalf("Save() manifest error = %v", err)
+	}
+
+	if err := os.WriteFile(skillPath, customContent, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	origDir, _ := os.Getwd()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
+
+	t.Setenv("HOME", tmpDir)
+
+	cmd := &cobra.Command{Use: "test"}
+	cmd.Flags().Bool("force", false, "")
+	cmd.Flags().Bool("yes", true, "")
+	cmd.Flags().Bool("config", false, "")
+	_ = cmd.Flags().Set("yes", "true")
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetContext(context.Background())
+
+	if err := runTemplateSyncWithReporter(cmd, nil, true); err != nil {
+		t.Fatalf("runTemplateSyncWithReporter() error = %v", err)
+	}
+
+	gotContent, err := os.ReadFile(skillPath)
+	if err != nil {
+		t.Fatalf("read preserved codex skill: %v", err)
+	}
+	if string(gotContent) != string(customContent) {
+		t.Fatal("codex skill local modifications were not preserved")
+	}
+
+	if _, err := mgr.Load(tmpDir); err != nil {
+		t.Fatalf("reload manifest error = %v", err)
+	}
+	entry, ok := mgr.GetEntry(".codex/skills/moai/SKILL.md")
+	if !ok {
+		t.Fatal("manifest missing codex skill entry after preservation")
+	}
+	if entry.Provenance != manifest.UserModified {
+		t.Fatalf("codex skill provenance = %q, want %q", entry.Provenance, manifest.UserModified)
+	}
+	if entry.CurrentHash != manifest.HashBytes(customContent) {
+		t.Fatal("manifest current hash should reflect preserved codex skill content")
+	}
+	if entry.CurrentHash == entry.DeployedHash {
+		t.Fatal("manifest deployed hash should remain distinct from preserved codex skill content")
+	}
+	if entry.TemplateHash == "" || entry.DeployedHash == "" {
+		t.Fatal("manifest template/deployed hashes should remain populated")
+	}
+}
+
+func TestFinalizeTemplateSyncManifest_MarksRemovedTemplateEntriesDeprecated(t *testing.T) {
+	tmpDir := t.TempDir()
+	writeUpdateProjectScaffold(t, tmpDir)
+
+	legacyPath := filepath.Join(tmpDir, ".codex", "skills", "moai", "legacy.md")
+	legacyContent := []byte("# legacy workflow\n")
+	if err := os.MkdirAll(filepath.Dir(legacyPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(legacyPath, legacyContent, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	mgr := manifest.NewManager()
+	if _, err := mgr.Load(tmpDir); err != nil {
+		t.Fatalf("manifest Load() error = %v", err)
+	}
+	legacyHash := manifest.HashBytes(legacyContent)
+	if err := mgr.Track(".codex/skills/moai/legacy.md", manifest.TemplateManaged, legacyHash); err != nil {
+		t.Fatalf("Track() legacy codex file error = %v", err)
+	}
+
+	if err := finalizeTemplateSyncManifest(tmpDir, mgr, maps.Clone(mgr.Manifest().Files), nil); err != nil {
+		t.Fatalf("finalizeTemplateSyncManifest() error = %v", err)
+	}
+
+	entry, ok := mgr.GetEntry(".codex/skills/moai/legacy.md")
+	if !ok {
+		t.Fatal("manifest missing legacy entry after finalize")
+	}
+	if entry.Provenance != manifest.Deprecated {
+		t.Fatalf("legacy codex provenance = %q, want %q", entry.Provenance, manifest.Deprecated)
+	}
+	if entry.CurrentHash != legacyHash {
+		t.Fatal("deprecated entry current hash should reflect preserved file content")
 	}
 }
 
