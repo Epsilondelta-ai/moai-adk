@@ -18,6 +18,7 @@ If project docs are missing, treat the repository itself as the fallback source 
 ## Expected Behavior
 
 - Determine whether the request is project discovery, project-doc refresh, or missing-context recovery.
+- When missing-context recovery may really be an unprovisioned Codex setup, run `moai codex doctor` first so `.moai/**` and `.codex/**` readiness is explicit.
 - Read enough of the codebase to describe product purpose, structure, and technology choices accurately.
 - Create or update `.moai/project/product.md`, `.moai/project/structure.md`, and `.moai/project/tech.md` when they are missing or stale.
 - Update `.moai/project/codemaps/**` only when the repository already uses codemaps or the user explicitly asks for architecture mapping.

@@ -60,7 +60,7 @@ func TestRootCmd_HelpOutput(t *testing.T) {
 	}
 
 	// Verify core subcommands are registered
-	requiredCommands := []string{"version", "init", "doctor", "status"}
+	requiredCommands := []string{"version", "init", "doctor", "status", "codex"}
 	for _, cmd := range requiredCommands {
 		if !strings.Contains(output, cmd) {
 			t.Errorf("root --help should list %q subcommand", cmd)
