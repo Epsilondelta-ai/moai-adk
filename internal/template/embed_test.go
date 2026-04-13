@@ -105,8 +105,13 @@ func TestEmbeddedTemplates_CodexSkillContract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadDir(.codex/skills/moai) error: %v", err)
 	}
-	if len(entries) != 1 || entries[0].Name() != "SKILL.md" {
-		t.Fatalf("expected only SKILL.md in .codex scaffold, got %v", entries)
+
+	names := make(map[string]bool, len(entries))
+	for _, entry := range entries {
+		names[entry.Name()] = true
+	}
+	if !names["SKILL.md"] || !names["workflows"] {
+		t.Fatalf("expected Codex skill root to contain SKILL.md and workflows/, got %v", entries)
 	}
 
 	data, err := fs.ReadFile(fsys, ".codex/skills/moai/SKILL.md")
@@ -117,10 +122,17 @@ func TestEmbeddedTemplates_CodexSkillContract(t *testing.T) {
 	content := string(data)
 	for _, marker := range []string{
 		"# `$moai` Codex Entry Point",
+		"## Workflow Pack",
 		"## Supported Invocations",
+		"`$moai project`",
 		"`$moai plan`",
 		"`$moai run`",
 		"`$moai sync`",
+		"`$moai review`",
+		"`$moai clean`",
+		"`$moai loop`",
+		"workflows/project.md",
+		"workflows/loop.md",
 		".moai/project/product.md",
 		".moai/specs/**",
 		".moai/state/**",
@@ -135,6 +147,47 @@ func TestEmbeddedTemplates_CodexSkillContract(t *testing.T) {
 	}
 	if strings.Contains(content, "CX-05 must extend") {
 		t.Error("Codex skill should no longer contain scaffold handoff text")
+	}
+}
+
+func TestEmbeddedTemplates_CodexWorkflowPack(t *testing.T) {
+	t.Parallel()
+
+	fsys, err := EmbeddedTemplates()
+	if err != nil {
+		t.Fatalf("EmbeddedTemplates() error: %v", err)
+	}
+
+	entries, err := fs.ReadDir(fsys, ".codex/skills/moai/workflows")
+	if err != nil {
+		t.Fatalf("ReadDir(.codex/skills/moai/workflows) error: %v", err)
+	}
+
+	expected := map[string][]string{
+		"project.md": {"# Workflow: `project`", ".moai/project/**", "## Codex Constraints", "## Handoff"},
+		"plan.md":    {"# Workflow: `plan`", ".moai/plans/**", ".moai/specs/**", "## Codex Constraints"},
+		"run.md":     {"# Workflow: `run`", ".moai/specs/SPEC-*/spec.md", ".moai/state/**", "## Handoff"},
+		"sync.md":    {"# Workflow: `sync`", ".moai/docs/CODEX_COMPAT_ROADMAP.md", ".moai/project/**", "## Codex Constraints"},
+		"review.md":  {"# Workflow: `review`", ".moai/specs/**", "file and line references", "## Handoff"},
+		"clean.md":   {"# Workflow: `clean`", ".moai/project/structure.md", "verification", "## Codex Constraints"},
+		"loop.md":    {"# Workflow: `loop`", ".moai/state/**", "diagnose, edit, verify", "## Handoff"},
+	}
+
+	if len(entries) != len(expected) {
+		t.Fatalf("expected %d Codex workflow docs, got %d", len(expected), len(entries))
+	}
+
+	for name, markers := range expected {
+		data, err := fs.ReadFile(fsys, ".codex/skills/moai/workflows/"+name)
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		content := string(data)
+		for _, marker := range markers {
+			if !strings.Contains(content, marker) {
+				t.Errorf("%s missing marker %q", name, marker)
+			}
+		}
 	}
 }
 

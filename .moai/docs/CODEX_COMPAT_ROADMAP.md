@@ -57,7 +57,7 @@ When this roadmap is complete:
 | CX-04 | Codex Template Scaffold | DONE | CX-03 |
 | CX-05 | `$moai` Skill Entry Point | DONE | CX-04 |
 | CX-06 | Init and Update Provisioning | DONE | CX-04 |
-| CX-07 | Codex Workflow Prompt Pack | PENDING | CX-05 |
+| CX-07 | Codex Workflow Prompt Pack | DONE | CX-05 |
 | CX-08 | Manifest and Drift Policy | PENDING | CX-06 |
 | CX-09 | Codex Runtime Helpers | PENDING | CX-06 |
 | CX-10 | Verification Matrix | PENDING | CX-05, CX-06, CX-07, CX-08, CX-09 |
@@ -173,7 +173,7 @@ When this roadmap is complete:
 
 ### CX-07 Codex Workflow Prompt Pack
 
-- Status: `PENDING`
+- Status: `DONE`
 - Goal: Recreate MoAI workflow behavior in Codex at the prompt/skill level.
 - Why:
   Claude hook semantics cannot simply be assumed in Codex.
@@ -548,6 +548,34 @@ Template:
   - `CX-08` should decide whether files restored or merged after update should remain `template_managed` or move to a stricter drift-state classification.
   - `CX-09` can stay focused on Codex runtime/helper gaps; provisioning no longer needs extra lifecycle-specific entrypoints.
 
+### 2026-04-10 16:24 KST - CX-07 Codex Workflow Prompt Pack
+
+- Status: `IN_PROGRESS` -> `DONE`
+- Summary:
+  - Added a Codex-owned workflow prompt pack under `internal/template/templates/.codex/skills/moai/workflows/` for `project`, `plan`, `run`, `sync`, `review`, `clean`, and `loop`.
+  - Reworked the top-level Codex `$moai` skill into a dispatcher that routes re-entry through the new workflow docs instead of keeping all workflow guidance inline.
+  - Translated the Claude-side workflow surface into Codex-native contracts that point to shared `.moai/**` state and explicitly drop Claude-only assumptions such as slash commands, hooks, AskUserQuestion flows, task APIs, and agent-team promises.
+  - Strengthened embedded/deploy/extract tests so the multi-file Codex workflow pack must exist, contain shared-state markers, and deploy correctly as a supported template asset set.
+- Files touched:
+  - `.moai/docs/CODEX_COMPAT_ROADMAP.md`
+  - `internal/template/templates/.codex/skills/moai/SKILL.md`
+  - `internal/template/templates/.codex/skills/moai/workflows/project.md`
+  - `internal/template/templates/.codex/skills/moai/workflows/plan.md`
+  - `internal/template/templates/.codex/skills/moai/workflows/run.md`
+  - `internal/template/templates/.codex/skills/moai/workflows/sync.md`
+  - `internal/template/templates/.codex/skills/moai/workflows/review.md`
+  - `internal/template/templates/.codex/skills/moai/workflows/clean.md`
+  - `internal/template/templates/.codex/skills/moai/workflows/loop.md`
+  - `internal/template/embed_test.go`
+  - `internal/template/deployer_test.go`
+  - `internal/template/deployer_mode_test.go`
+- Verification:
+  - `go test ./internal/template/...`
+- Follow-up:
+  - `CX-08` should decide the drift/update policy now that the Codex adapter owns a multi-file workflow pack rather than a single skill file.
+  - `CX-09` should add helper support only if prompt-only contracts prove insufficient for workflows like `loop` or `clean`.
+  - `CX-10` should verify Codex-side discoverability and invocation coverage for all seven workflow routes.
+
 ## Verification Log
 
 Use this section to record concrete verification results.
@@ -571,6 +599,7 @@ Template:
 - 2026-04-10 15:21 KST: `CX-04` added `internal/template/templates/.codex/skills/moai/SKILL.md` as the reserved Codex skill scaffold and verified embedded/listed/deployed behavior with `go test ./internal/template/...`.
 - 2026-04-10 15:33 KST: `CX-05` replaced the Codex skill scaffold with the real `$moai` entry contract, strengthened template regression coverage around routing and `.moai/**` handoff markers, and verified the change with `go test ./internal/template/...`.
 - 2026-04-10 16:00 KST: `CX-06` locked Codex asset provisioning into the real `init`/`update` lifecycle with manifest persistence and regression coverage via `go test ./internal/core/project/... ./internal/cli/... ./internal/template/...`.
+- 2026-04-10 16:24 KST: `CX-07` added the seven-file Codex workflow prompt pack, updated `$moai` routing to delegate into it, and verified embedded/listed/deployed coverage with `go test ./internal/template/...`.
 
 ## Upstream Strategy
 
