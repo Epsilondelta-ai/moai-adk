@@ -14,7 +14,20 @@ import (
 
 const testCodexSkillContract = `# $moai Codex Entry Point
 
+## Workflow Pack
+
+- workflows/project.md
+- workflows/plan.md
+- workflows/run.md
+- workflows/sync.md
+- workflows/review.md
+- workflows/clean.md
+- workflows/loop.md
+
 ## Supported Invocations
+
+### $moai project
+- Read .moai/project/**
 
 ### $moai plan
 - Read .moai/project/** and .moai/plans/**
@@ -42,6 +55,27 @@ func testFS() fstest.MapFS {
 		},
 		".codex/skills/moai/SKILL.md": &fstest.MapFile{
 			Data: []byte(testCodexSkillContract),
+		},
+		".codex/skills/moai/workflows/project.md": &fstest.MapFile{
+			Data: []byte("# Workflow: `project`\n\nRead .moai/project/**\n"),
+		},
+		".codex/skills/moai/workflows/plan.md": &fstest.MapFile{
+			Data: []byte("# Workflow: `plan`\n\nRead .moai/plans/** and .moai/specs/**\n"),
+		},
+		".codex/skills/moai/workflows/run.md": &fstest.MapFile{
+			Data: []byte("# Workflow: `run`\n\nRead .moai/specs/** and .moai/state/**\n"),
+		},
+		".codex/skills/moai/workflows/sync.md": &fstest.MapFile{
+			Data: []byte("# Workflow: `sync`\n\nRead .moai/docs/CODEX_COMPAT_ROADMAP.md\n"),
+		},
+		".codex/skills/moai/workflows/review.md": &fstest.MapFile{
+			Data: []byte("# Workflow: `review`\n\nReview current changes with .moai/specs/** context\n"),
+		},
+		".codex/skills/moai/workflows/clean.md": &fstest.MapFile{
+			Data: []byte("# Workflow: `clean`\n\nClean stale code using .moai/project/structure.md\n"),
+		},
+		".codex/skills/moai/workflows/loop.md": &fstest.MapFile{
+			Data: []byte("# Workflow: `loop`\n\nIterate using .moai/state/**\n"),
 		},
 	}
 }
@@ -76,6 +110,13 @@ func TestDeployerDeploy(t *testing.T) {
 			"CLAUDE.md",
 			".gitignore",
 			".codex/skills/moai/SKILL.md",
+			".codex/skills/moai/workflows/project.md",
+			".codex/skills/moai/workflows/plan.md",
+			".codex/skills/moai/workflows/run.md",
+			".codex/skills/moai/workflows/sync.md",
+			".codex/skills/moai/workflows/review.md",
+			".codex/skills/moai/workflows/clean.md",
+			".codex/skills/moai/workflows/loop.md",
 		}
 		for _, f := range expectedFiles {
 			absPath := filepath.Join(root, f)
@@ -104,7 +145,7 @@ func TestDeployerDeploy(t *testing.T) {
 			t.Fatalf("ReadFile codex skill error: %v", err)
 		}
 		content := string(data)
-		for _, marker := range []string{"$moai plan", "$moai run", "$moai sync", ".moai/specs/**"} {
+		for _, marker := range []string{"$moai project", "$moai plan", "$moai run", "$moai sync", "workflows/review.md", ".moai/specs/**"} {
 			if !strings.Contains(content, marker) {
 				t.Errorf("deployed Codex skill missing marker %q", marker)
 			}
@@ -200,13 +241,28 @@ func TestDeployerExtractTemplate(t *testing.T) {
 			t.Fatalf("ExtractTemplate error: %v", err)
 		}
 		content := string(data)
-		for _, marker := range []string{"$moai plan", "$moai run", "$moai sync", ".moai/docs/CODEX_COMPAT_ROADMAP.md"} {
+		for _, marker := range []string{"$moai project", "$moai plan", "$moai run", "$moai sync", "workflows/loop.md", ".moai/docs/CODEX_COMPAT_ROADMAP.md"} {
 			if !strings.Contains(content, marker) {
 				t.Errorf("Codex template missing marker %q", marker)
 			}
 		}
 		if strings.Contains(content, "Scaffold") {
 			t.Errorf("Codex template regressed to scaffold content: %q", content)
+		}
+	})
+
+	t.Run("existing_codex_workflow_template", func(t *testing.T) {
+		d := NewDeployer(testFS())
+
+		data, err := d.ExtractTemplate(".codex/skills/moai/workflows/run.md")
+		if err != nil {
+			t.Fatalf("ExtractTemplate error: %v", err)
+		}
+		content := string(data)
+		for _, marker := range []string{"# Workflow: `run`", ".moai/specs/**", ".moai/state/**"} {
+			if !strings.Contains(content, marker) {
+				t.Errorf("Codex workflow template missing marker %q", marker)
+			}
 		}
 	})
 
@@ -231,16 +287,23 @@ func TestDeployerListTemplates(t *testing.T) {
 		d := NewDeployer(testFS())
 		list := d.ListTemplates()
 
-		if len(list) != 5 {
-			t.Fatalf("ListTemplates() returned %d items, want 5", len(list))
+		if len(list) != 12 {
+			t.Fatalf("ListTemplates() returned %d items, want 12", len(list))
 		}
 
 		expected := map[string]bool{
-			".claude/settings.json":                 true,
-			".claude/agents/moai/expert-backend.md": true,
-			"CLAUDE.md":                             true,
-			".gitignore":                            true,
-			".codex/skills/moai/SKILL.md":           true,
+			".claude/settings.json":                   true,
+			".claude/agents/moai/expert-backend.md":   true,
+			"CLAUDE.md":                               true,
+			".gitignore":                              true,
+			".codex/skills/moai/SKILL.md":             true,
+			".codex/skills/moai/workflows/project.md": true,
+			".codex/skills/moai/workflows/plan.md":    true,
+			".codex/skills/moai/workflows/run.md":     true,
+			".codex/skills/moai/workflows/sync.md":    true,
+			".codex/skills/moai/workflows/review.md":  true,
+			".codex/skills/moai/workflows/clean.md":   true,
+			".codex/skills/moai/workflows/loop.md":    true,
 		}
 		for _, item := range list {
 			if !expected[item] {

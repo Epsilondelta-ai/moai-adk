@@ -122,6 +122,49 @@ func TestModeAwareDeployer_Deploy(t *testing.T) {
 		}
 	})
 
+	t.Run("deploys_codex_workflow_pack", func(t *testing.T) {
+		root, mgr := setupDeployProject(t)
+		fs := fstest.MapFS{
+			".codex/skills/moai/SKILL.md": &fstest.MapFile{
+				Data: []byte("# `$moai` Codex Entry Point\n\nSee workflows/project.md and workflows/run.md\n"),
+			},
+			".codex/skills/moai/workflows/project.md": &fstest.MapFile{
+				Data: []byte("# Workflow: `project`\n\nRead .moai/project/**\n"),
+			},
+			".codex/skills/moai/workflows/run.md": &fstest.MapFile{
+				Data: []byte("# Workflow: `run`\n\nRead .moai/specs/** and .moai/state/**\n"),
+			},
+		}
+		d := NewDeployerWithMode(fs, "", "")
+
+		err := d.Deploy(context.Background(), root, mgr, nil)
+		if err != nil {
+			t.Fatalf("Deploy error: %v", err)
+		}
+
+		for _, f := range []string{
+			".codex/skills/moai/SKILL.md",
+			".codex/skills/moai/workflows/project.md",
+			".codex/skills/moai/workflows/run.md",
+		} {
+			absPath := filepath.Join(root, f)
+			if _, err := os.Stat(absPath); err != nil {
+				t.Errorf("expected file %q to exist: %v", f, err)
+			}
+		}
+
+		data, err := os.ReadFile(filepath.Join(root, ".codex/skills/moai/SKILL.md"))
+		if err != nil {
+			t.Fatalf("ReadFile codex skill error: %v", err)
+		}
+		content := string(data)
+		for _, marker := range []string{"workflows/project.md", "workflows/run.md"} {
+			if !strings.Contains(content, marker) {
+				t.Errorf("deployed Codex skill missing marker %q", marker)
+			}
+		}
+	})
+
 	t.Run("creates_intermediate_directories", func(t *testing.T) {
 		root, mgr := setupDeployProject(t)
 		fs := fstest.MapFS{
