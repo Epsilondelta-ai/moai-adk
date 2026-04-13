@@ -59,7 +59,7 @@ When this roadmap is complete:
 | CX-06 | Init and Update Provisioning | DONE | CX-04 |
 | CX-07 | Codex Workflow Prompt Pack | DONE | CX-05 |
 | CX-08 | Manifest and Drift Policy | DONE | CX-06 |
-| CX-09 | Codex Runtime Helpers | PENDING | CX-06 |
+| CX-09 | Codex Runtime Helpers | DONE | CX-06 |
 | CX-10 | Verification Matrix | PENDING | CX-05, CX-06, CX-07, CX-08, CX-09 |
 | CX-11 | Upstream Merge Playbook | PENDING | CX-10 |
 
@@ -222,19 +222,27 @@ When this roadmap is complete:
 
 ### CX-09 Codex Runtime Helpers
 
-- Status: `PENDING`
+- Status: `DONE`
 - Goal: Add any helper CLI/runtime support needed specifically for Codex workflows.
 - Why:
   Some capabilities may need local helpers even if the main interface is a skill.
 - Inputs:
   - CX-06
-- Possible Scope:
+- Shipped Scope:
   - `moai codex doctor`
+  - `moai codex doctor --json`
+- Rejected Scope For Now:
   - `moai codex sync`
-  - helper output for skill consumption
+  - widening the shared `moai doctor` surface with Codex-specific readiness semantics
 - Completion Criteria:
   - Only necessary helpers are added
   - Helper scope remains Codex-specific and additive
+- Outcome Notes:
+  - The audited workflow pack already relies on repo-local commands for implementation, sync, review, and cleanup, so the main repeatability gap was readiness discovery rather than orchestration.
+  - `moai codex doctor` now checks shared `.moai/**` state plus deployed `.codex/skills/moai/**` assets under the reserved Codex seams.
+  - `--json` is the only machine-friendly output mode added because it supports skill consumption without introducing a second command.
+  - `moai codex sync` stays deferred because `moai update` already owns template synchronization and no unique Codex-only sync behavior was proven.
+  - `CX-10` should verify command discoverability plus positive/negative readiness output for missing `.moai/**`, missing `.codex/**`, and incomplete workflow packs.
 
 ### CX-10 Verification Matrix
 
@@ -611,6 +619,7 @@ Template:
 - 2026-04-10 16:00 KST: `CX-06` locked Codex asset provisioning into the real `init`/`update` lifecycle with manifest persistence and regression coverage via `go test ./internal/core/project/... ./internal/cli/... ./internal/template/...`.
 - 2026-04-10 16:24 KST: `CX-07` added the seven-file Codex workflow prompt pack, updated `$moai` routing to delegate into it, and verified embedded/listed/deployed coverage with `go test ./internal/template/...`.
 - 2026-04-13 15:02 KST: `CX-08` updated shared template-sync behavior so drifted managed files are backed up before force deployment, restored after deploy, and finalized into deterministic provenance states. Untouched files now remain overwrite-safe, preserved local edits finalize as `user_modified`, upstream-removed template paths finalize as `deprecated`, and prior `user_created` collisions keep their protected status. Verified with `go test ./internal/manifest/... ./internal/template/... ./internal/cli/...`.
+- 2026-04-13 16:10 KST: `CX-09` added `moai codex doctor` plus a narrow `--json` mode backed by `internal/codex/**` readiness checks for `.moai/**`, `.codex/skills/moai/SKILL.md`, and the Codex workflow pack. The task explicitly rejected `moai codex sync` and left the default `moai doctor` surface Claude-oriented. Verified with `go test ./internal/codex/... ./internal/cli/... ./internal/template/...`.
 
 ## Upstream Strategy
 

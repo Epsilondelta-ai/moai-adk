@@ -86,4 +86,5 @@ Use `workflows/loop.md` for iterative diagnose-fix-verify cycles when one pass i
 - Do not claim Claude slash-command parity.
 - Do not assume Claude hook execution, launcher wrappers, statusline assets, AskUserQuestion flows, or Claude agent catalogs exist.
 - Route work through this skill document, the workflow pack, and the shared `.moai/**` state instead of Claude-only runtime features.
+- If Codex readiness is unclear, prefer `moai codex doctor` before assuming `.moai/**` or `.codex/**` assets are missing.
 - If a workflow would benefit from a helper that Codex does not yet have, state the limitation directly and continue with the best repo-local/manual path instead of pretending parity exists.

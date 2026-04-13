@@ -8,6 +8,9 @@ const (
 	// ClaudeDir is the hidden directory that stores Claude Code configuration.
 	ClaudeDir = ".claude"
 
+	// CodexDir is the hidden directory that stores Codex configuration.
+	CodexDir = ".codex"
+
 	// BackupsDir is the directory where project backups are stored.
 	BackupsDir = ".moai-backups"
 )
