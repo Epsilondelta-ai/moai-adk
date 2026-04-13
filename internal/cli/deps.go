@@ -20,10 +20,18 @@ import (
 	"github.com/modu-ai/moai-adk/internal/hook/security"
 	"github.com/modu-ai/moai-adk/internal/loop"
 	lsphook "github.com/modu-ai/moai-adk/internal/lsp/hook"
+	"github.com/modu-ai/moai-adk/internal/lsp/gopls"
 	"github.com/modu-ai/moai-adk/internal/ralph"
 	"github.com/modu-ai/moai-adk/internal/resilience"
 	"github.com/modu-ai/moai-adk/internal/update"
 	"github.com/modu-ai/moai-adk/pkg/version"
+)
+
+const (
+	// githubReleasesURL is the GitHub API endpoint for moai-adk releases.
+	githubReleasesURL = "https://api.github.com/repos/modu-ai/moai-adk/releases"
+	// githubLatestReleaseURL is the GitHub API endpoint for the latest moai-adk release.
+	githubLatestReleaseURL = githubReleasesURL + "/latest"
 )
 
 // Dependencies holds all domain-level services used by CLI commands.
@@ -66,7 +74,36 @@ func InitDependencies() {
 		homeDir = os.TempDir()
 	}
 	loopStorage := loop.NewFileStorage(filepath.Join(homeDir, ".moai", "state", "loop"))
-	loopCtrl := loop.NewLoopController(loopStorage, ralphEngine, &noopFeedbackGenerator{}, ralphCfg.MaxIterations)
+	// Use GoFeedbackGenerator for real test/lint feedback collection.
+	// Falls back gracefully: if go test/vet fail or timeout, feedback is partial.
+	cwd, _ := os.Getwd()
+
+	// GOPLS-BRIDGE-001: gopls bridge wiring
+	// lsp.yaml에서 gopls 브릿지 설정을 로드하고, 활성화되어 있으면 bridge를 생성한다.
+	// gopls 바이너리가 없거나 설정이 비활성화된 경우 bridge=nil로 fallback한다.
+	lspConfigPath := filepath.Join(cwd, ".moai", "config", "sections", "lsp.yaml")
+	goplsCfg, cfgErr := gopls.LoadConfig(lspConfigPath)
+	var goplsBridge loop.GoplsBridge
+	if cfgErr != nil {
+		slog.Warn("gopls 설정 로드 실패, LSP 진단 비활성화",
+			"path", lspConfigPath,
+			"error", cfgErr,
+		)
+	} else if goplsCfg.Enabled {
+		// context.Background()를 사용한다: bridge는 프로세스 수명 동안 유지된다.
+		bridge, bridgeErr := gopls.NewBridge(context.Background(), cwd, goplsCfg)
+		if bridgeErr != nil {
+			slog.Warn("gopls bridge 초기화 실패, LSP 진단 비활성화", "error", bridgeErr)
+		} else if bridge != nil {
+			goplsBridge = bridge
+			slog.Info("gopls bridge 활성화됨", "binary", goplsCfg.Binary)
+		}
+	} else {
+		slog.Info("gopls bridge 비활성화됨 (lsp.yaml: enabled=false)")
+	}
+
+	feedbackGen := loop.NewGoFeedbackGeneratorWithBridge(cwd, goplsBridge)
+	loopCtrl := loop.NewLoopController(loopStorage, ralphEngine, feedbackGen, ralphCfg.MaxIterations)
 
 	deps = &Dependencies{
 		Config:         config.NewConfigManager(),
@@ -78,9 +115,6 @@ func InitDependencies() {
 	// Hook registry requires a ConfigProvider; use ConfigManager
 	reg := hook.NewRegistry(deps.Config)
 	deps.HookRegistry = reg
-
-	// Determine current working directory once.
-	cwd, _ := os.Getwd()
 
 	// Enable observability when configured (REQ-OBS-001).
 	// Reads the project-relative observability config; gracefully skips on error.
@@ -97,8 +131,18 @@ func InitDependencies() {
 	})
 
 	// Initialize LSP diagnostics collector and AST analyzer.
-	// LSP client is nil (not yet integrated); fallback CLI tools are used.
+	// GOPLS-BRIDGE-001: gopls bridge가 활성화된 경우 hook 레이어의 LSP 클라이언트는
+	// 여전히 nil이다 — hook/lsp는 별도 통합 경로이며 bridge와 분리되어 있다.
+	// @MX:NOTE: [AUTO] goplsBridge (loop 레이어)와 lsphook LSP 클라이언트(hook 레이어)는
+	// 별개 경로다. 전자는 Feedback.Diagnostics를 채우고, 후자는 PostTool 훅을 담당한다.
 	fallbackDiags := lsphook.NewFallbackDiagnosticsWithCircuitBreaker(lspCircuitBreaker)
+	if goplsBridge == nil {
+		slog.Warn("gopls bridge 비활성화 — quality gates fall back to CLI tools only",
+			"impact", "gopls-backed diagnostics are disabled; phase-aware LSP gates bypassed",
+			"fallback", "go vet, go test, golangci-lint, ast-grep",
+			"gopls_bridge_status", "disabled",
+		)
+	}
 	diagnosticsCollector := lsphook.NewDiagnosticsCollector(nil, fallbackDiags)
 
 	// Initialize ast-grep analyzer (ScanFile returns empty results if sg CLI is absent)
@@ -117,7 +161,7 @@ func InitDependencies() {
 	secPolicy := hook.DefaultSecurityPolicy()
 	secPolicy.MergeExtraPatterns(security.LoadExtraSecurityConfig(cwd))
 	deps.HookRegistry.Register(hook.NewPreToolHandlerWithScanner(deps.Config, secPolicy, securityScanner))
-	deps.HookRegistry.Register(hook.NewPostToolHandlerWithAstgrep(diagnosticsCollector, astAnalyzer))
+	deps.HookRegistry.Register(hook.NewPostToolHandlerWithMxValidatorAndTimeout(diagnosticsCollector, astAnalyzer, cwd, 500*time.Millisecond))
 	deps.HookRegistry.Register(hook.NewCompactHandler())
 	deps.HookRegistry.Register(hook.NewPostToolUseFailureHandler())
 	deps.HookRegistry.Register(hook.NewNotificationHandler())
@@ -136,6 +180,10 @@ func InitDependencies() {
 	deps.HookRegistry.Register(hook.NewPermissionDeniedHandler())
 	deps.HookRegistry.Register(hook.NewConfigChangeHandler())
 	deps.HookRegistry.Register(hook.NewCwdChangedHandler())
+	deps.HookRegistry.Register(hook.NewFileChangedHandler())
+	deps.HookRegistry.Register(hook.NewElicitationHandler())
+	deps.HookRegistry.Register(hook.NewElicitationResultHandler())
+	deps.HookRegistry.Register(hook.NewSetupHandler())
 }
 
 // enableObservabilityIfConfigured reads observability config and enables
@@ -210,7 +258,7 @@ func (d *Dependencies) EnsureUpdate() error {
 	// - MOAI_UPDATE_URL: custom GitHub API URL
 	// - Default: GitHub releases based on version
 	currentVersion := version.GetVersion()
-	updateSource := os.Getenv("MOAI_UPDATE_SOURCE")
+	updateSource := os.Getenv(config.EnvUpdateSource)
 
 	// Get current binary path for updater and rollback
 	binaryPath, err := os.Executable()
@@ -221,7 +269,7 @@ func (d *Dependencies) EnsureUpdate() error {
 	if updateSource == "local" {
 		// Local file-based updates
 		localConfig := update.LocalConfig{
-			ReleasesDir:    os.Getenv("MOAI_RELEASES_DIR"),
+			ReleasesDir:    os.Getenv(config.EnvReleasesDir),
 			CurrentVersion: currentVersion,
 		}
 		d.UpdateChecker = update.NewLocalChecker(localConfig)
@@ -235,7 +283,7 @@ func (d *Dependencies) EnsureUpdate() error {
 	}
 
 	// Remote GitHub updates
-	apiURL := os.Getenv("MOAI_UPDATE_URL")
+	apiURL := os.Getenv(config.EnvUpdateURL)
 	if apiURL == "" {
 		// Check if this is a development or pre-release version
 		isDevVersion := currentVersion == "dev" ||
@@ -246,10 +294,10 @@ func (d *Dependencies) EnsureUpdate() error {
 
 		if isDevVersion {
 			// Dev/RC version: use moai-go-v2 branch releases (tagged with go-v prefix)
-			apiURL = "https://api.github.com/repos/modu-ai/moai-adk/releases"
+			apiURL = githubReleasesURL
 		} else {
 			// Production version: use main branch releases
-			apiURL = "https://api.github.com/repos/modu-ai/moai-adk/releases/latest"
+			apiURL = githubLatestReleaseURL
 		}
 	}
 
@@ -349,12 +397,4 @@ func buildAutoUpdateFunc() hook.AutoUpdateFunc {
 	}
 }
 
-// noopFeedbackGenerator is a default implementation that returns an empty Feedback without
-// any actual collection. Used to satisfy loop.FeedbackGenerator when no feedback source
-// is available during CLI execution.
-type noopFeedbackGenerator struct{}
-
-func (n *noopFeedbackGenerator) Collect(_ context.Context) (*loop.Feedback, error) {
-	return &loop.Feedback{}, nil
-}
 

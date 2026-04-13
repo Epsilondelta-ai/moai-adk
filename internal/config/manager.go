@@ -53,7 +53,7 @@ func (m *ConfigManager) Load(projectRoot string) (*Config, error) {
 	configDir := filepath.Join(filepath.Clean(projectRoot), defs.MoAIDir)
 
 	// Support MOAI_CONFIG_DIR environment variable override
-	if envDir := os.Getenv("MOAI_CONFIG_DIR"); envDir != "" {
+	if envDir := os.Getenv(EnvConfigDir); envDir != "" {
 		configDir = filepath.Clean(envDir)
 	}
 
@@ -88,7 +88,7 @@ func (m *ConfigManager) LoadRaw(projectRoot string) (*Config, error) {
 	defer m.mu.Unlock()
 
 	configDir := filepath.Join(filepath.Clean(projectRoot), defs.MoAIDir)
-	if envDir := os.Getenv("MOAI_CONFIG_DIR"); envDir != "" {
+	if envDir := os.Getenv(EnvConfigDir); envDir != "" {
 		configDir = filepath.Clean(envDir)
 	}
 
@@ -107,6 +107,8 @@ func (m *ConfigManager) LoadRaw(projectRoot string) (*Config, error) {
 	return cfg, nil
 }
 
+// @MX:ANCHOR: [AUTO] Get is the primary configuration accessor used by hooks, CLI commands, and loop controller
+// @MX:REASON: fan_in=18 across 10 files, the single read path for in-memory config; returning nil before Load() causes silent nil-deref in callers — guard logic must not be removed
 // Get returns the current in-memory configuration.
 // Returns nil if the manager has not been initialized via Load().
 func (m *ConfigManager) Get() *Config {
@@ -144,6 +146,8 @@ func (m *ConfigManager) SetSection(name string, value any) error {
 	return m.setSectionLocked(name, value)
 }
 
+// @MX:ANCHOR: [AUTO] Save is the config persistence path — atomic multi-section write to disk
+// @MX:REASON: fan_in=12 across 4 files (profile sync, project initializer, CLI); atomic write via temp+rename is critical for data integrity — do not replace with direct os.WriteFile
 // Save persists the current configuration to disk atomically.
 // Each section is saved to its corresponding YAML file using
 // temp file + os.Rename for atomic writes.
@@ -202,7 +206,7 @@ func (m *ConfigManager) Reload() error {
 	}
 
 	configDir := filepath.Join(filepath.Clean(m.root), defs.MoAIDir)
-	if envDir := os.Getenv("MOAI_CONFIG_DIR"); envDir != "" {
+	if envDir := os.Getenv(EnvConfigDir); envDir != "" {
 		configDir = filepath.Clean(envDir)
 	}
 
@@ -351,16 +355,16 @@ func (m *ConfigManager) setSectionLocked(name string, value any) error {
 // applyEnvOverrides applies environment variable overrides to the configuration.
 // Environment variables have higher priority than file-based values.
 func applyEnvOverrides(cfg *Config) {
-	if mode := os.Getenv("MOAI_DEVELOPMENT_MODE"); mode != "" {
+	if mode := os.Getenv(EnvDevelopmentMode); mode != "" {
 		cfg.Quality.DevelopmentMode = models.DevelopmentMode(mode)
 	}
-	if level := os.Getenv("MOAI_LOG_LEVEL"); level != "" {
+	if level := os.Getenv(EnvLogLevel); level != "" {
 		cfg.System.LogLevel = level
 	}
-	if format := os.Getenv("MOAI_LOG_FORMAT"); format != "" {
+	if format := os.Getenv(EnvLogFormat); format != "" {
 		cfg.System.LogFormat = format
 	}
-	if noColor := os.Getenv("MOAI_NO_COLOR"); noColor == "true" || noColor == "1" {
+	if noColor := os.Getenv(EnvNoColor); noColor == "true" || noColor == "1" {
 		cfg.System.NoColor = true
 	}
 }

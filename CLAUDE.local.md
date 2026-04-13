@@ -2,7 +2,7 @@
 
 > **Purpose**: Essential guide for local moai-adk-go development
 > **Audience**: GOOS (local developer only)
-> **Last Updated**: 2026-02-20
+> **Last Updated**: 2026-04-11
 
 ---
 
@@ -133,39 +133,13 @@ moai-adk-go uses Go's `go:embed` directive:
 
 ## 3. Code Standards
 
-### Language: English Only
+Language policy는 `.claude/rules/moai/development/coding-standards.md`에 정의 (auto-loaded).
 
-**Source Code (Go):**
+### Go-Specific (이 프로젝트 전용)
+
+- File naming: `snake_case.go`, `snake_case_test.go`
+- Error wrapping: `fmt.Errorf("operation: %w", err)` (string concatenation 금지)
 - All code, comments, godoc in English
-- Package names: lowercase, single word
-- Exported names: PascalCase
-- Private names: camelCase
-- Constants: PascalCase or UPPER_SNAKE_CASE
-- Commit messages: English (Conventional Commits)
-
-**Configuration Files (English ONLY):**
-- Command files (.claude/commands/**/*.md): English only
-- Agent definitions (.claude/agents/**/*.md): English only
-- Skill definitions (.claude/skills/**/*.md): English only
-- Hook scripts (.claude/hooks/**/*.sh): English only
-- CLAUDE.md: English only
-
-**Why**: Command/agent/skill files are code, not user-facing content. They are read by Claude Code (English-based) and must be in English for consistent behavior.
-
-**User-facing vs Internal:**
-- User-facing: README, CHANGELOG, documentation (can be localized)
-- Internal: Commands, agents, skills, hooks (MUST be English)
-
-### Go-Specific Standards
-
-**File Naming:**
-- Go files: `snake_case.go` (e.g., `template_deployer.go`)
-- Test files: `snake_case_test.go` (e.g., `settings_test.go`)
-
-**Error Handling:**
-- Always wrap errors with context: `fmt.Errorf("operation: %w", err)`
-- Use error wrapping, not string concatenation
-- All godoc comments in English
 
 ---
 
@@ -510,58 +484,7 @@ git commit -m "feat(template): update SKILL.md"
 
 ---
 
-## 11. Directory Structure
-
-```
-moai-adk-go/
-├── cmd/                        # Main application entry points
-│   └── moai/                   # CLI command
-│       └── main.go             # Entry point
-├── internal/                   # Private application code
-│   ├── cli/                    # CLI commands
-│   │   ├── init.go             # moai init command
-│   │   ├── update.go           # moai update command
-│   │   └── ...
-│   ├── core/                   # Core business logic
-│   │   └── project/            # Project management
-│   ├── foundation/             # Foundation utilities
-│   ├── hook/                   # Hook system
-│   ├── manifest/               # Template manifest
-│   ├── merge/                  # 3-way merge
-│   ├── template/               # Template system
-│   │   ├── templates/          # SOURCE: Edit templates here ⭐
-│   │   │   ├── .claude/        # Claude Code config templates
-│   │   │   │   ├── agents/     # Agent definitions
-│   │   │   │   ├── commands/   # Slash commands
-│   │   │   │   ├── hooks/      # Hook scripts
-│   │   │   │   ├── output-styles/ # Output styles
-│   │   │   │   ├── rules/      # Rules
-│   │   │   │   └── skills/     # Skill definitions
-│   │   │   ├── .moai/          # MoAI config templates
-│   │   │   │   └── config/     # Config templates
-│   │   │   ├── CLAUDE.md       # Main execution directives
-│   │   │   └── *.tmpl          # Template files
-│   │   ├── deployer.go         # Template deployment
-│   │   ├── renderer.go         # Template rendering
-│   │   ├── settings.go         # settings.json generation
-│   │   └── embedded.go         # Generated: DO NOT EDIT
-│   └── ...
-├── pkg/                        # Public libraries
-│   ├── models/                 # Data models
-│   └── version/                # Version info
-├── .claude/                    # Local Claude Code config (NOT in template)
-├── .moai/                      # Local MoAI state (NOT in template)
-├── CLAUDE.md                   # Synced from templates
-├── CLAUDE.local.md             # This file (local only)
-├── go.mod                      # Go module definition
-├── go.sum                      # Go module checksums
-├── Makefile                    # Build commands
-└── README.md                   # Project documentation
-```
-
----
-
-## 12. Frequent Issues and Solutions
+## 11. Frequent Issues and Solutions
 
 ### Issue: Templates not updated after editing
 
@@ -587,368 +510,117 @@ ls -la internal/template/embedded.go
 
 ---
 
-## 13. Reference
+---
 
-- CLAUDE.md: Alfred execution directives
-- README.md: Project overview
-- Skill("moai-foundation-core"): Execution rules
-- Skill("moai-foundation-claude"): Plugin development, sandboxing
-- Go Code Review Comments: https://github.com/golang/go/wiki/CodeReviewComments
-- Effective Go: https://go.dev/doc/effective_go
+## 12. YAML Frontmatter 빠른 참조
+
+범용 형식 규칙은 `.claude/rules/moai/development/` 내 `skill-authoring.md`, `agent-authoring.md`에 정의.
+
+### 로컬 개발 체크리스트
+
+- [ ] `tools:`, `allowed-tools:` → CSV string (공백 구분 절대 금지)
+- [ ] `skills:` → YAML array (유일한 예외)
+- [ ] `metadata.*` → quoted string
+- [ ] Template 수정 후 `make build` 실행
+- [ ] Local copy (`.claude/`)도 동기화
+
+탐지 스크립트: `memory/audit_sweep_patterns.md` Pattern A 참조.
 
 ---
 
-## 15. Multi-Model Architecture (Claude Code 2.1.50+)
+## 13. GLM Integration Testing
 
-### Three Distinct Concepts
+### [HARD] Dev 프로젝트에서 GLM 통합 테스트 실행 금지
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  1. Model Policy (moai init --model-policy)                     │
-│  ├── CLI sets each agent's model field individually             │
-│  ├── Source: internal/template/model_policy.go                  │
-│  └── Mapping: [high_model, medium_model, low_model] per agent   │
-├─────────────────────────────────────────────────────────────────┤
-│  2. Model Field (Agent Definition)                              │
-│  ├── Values: inherit, opus, sonnet, haiku                       │
-│  ├── NEVER use: glm, high, medium, low                          │
-│  └── Set by: moai init --model-policy or manual edit            │
-├─────────────────────────────────────────────────────────────────┤
-│  3. CG Mode (CLI Commands)                                      │
-│  ├── moai cc: Claude-only                                       │
-│  ├── moai glm: GLM-only                                         │
-│  └── moai cg: Claude Leader + GLM Teammates (tmux isolation)    │
-└─────────────────────────────────────────────────────────────────┘
-```
+`moai cc`/`moai glm` 커맨드 플로우는 실제 settings 파일을 수정하므로 dev project에서 절대 실행 금지.
 
-### Model Policy Reference
-
-```bash
-moai init --model-policy high      # opus/sonnet/haiku per agent
-moai init --model-policy medium    # opus/sonnet/haiku per agent (default)
-moai init --model-policy low       # sonnet/haiku only (no opus)
-moai update -c --model-policy high # Update existing project
-```
-
-Key agent mappings (see model_policy.go for full list):
-- Always opus (high/medium): manager-spec, manager-strategy, expert-security
-- Always haiku (all policies): manager-quality, manager-git, team-researcher, team-quality
-- manager-docs: sonnet/haiku (docs are lightweight)
-
-### GLM Configuration
-
-GLM is configured via environment variable overrides in ~/.claude/settings.json:
-```json
-{"env": {
-  "ANTHROPIC_DEFAULT_HAIKU_MODEL": "glm-4.7-air",
-  "ANTHROPIC_DEFAULT_SONNET_MODEL": "glm-4.7",
-  "ANTHROPIC_DEFAULT_OPUS_MODEL": "glm-5.1"
-}}
-```
-
-Reference: https://docs.z.ai/devpack/tool/claude
-
-### Mode Selection Matrix
-
-| Command | Leader | Workers | Use Case |
-|---------|--------|---------|----------|
-| `moai cc` | Claude | Claude | Complex work, high quality |
-| `moai glm` | GLM | GLM | Cost optimization |
-| `moai cg` | Claude | GLM | Best balance (tmux isolation) |
-
-### Agent Definition Pattern
-
-```yaml
-# CORRECT
-model: inherit              # Uses user's choice or GLM (CG/GLM mode)
-# model: opus              # Also OK (set by model_policy.go)
-
-# WRONG
-model: glm                  # NEVER: GLM is not a model field value
-model: high                 # NEVER: This is a CLI flag, not a model value
-```
+- Unit tests: dev project (`go test ./...`), `t.TempDir()` 내 파일만
+- Integration tests: `/tmp/test-project`에서 `claude -p`로 실행
+- Auth token: `loadGLMKey()` (reads `~/.moai/.env.glm`), 없으면 `t.Skip()`
+- 금지: `t.Setenv("HOME", tmpDir)` (병렬 테스트 오염), 하드코딩 fake key
 
 ---
 
-## 16. Claude Code 2.1.50 Worktree Integration
+## 14. 하드코딩 방지
 
-MoAI-ADK uses two complementary worktree systems:
-- **Claude Native** (`.claude/worktrees/`): Ephemeral, session-scoped, used by agents with `isolation: worktree`
-- **MoAI Worktree** (`.moai/worktrees/`): Persistent, SPEC-scoped, used for multi-session development
+### [HARD] Go 코드 (internal/, pkg/) 하드코딩 금지
 
-For complete details including agent configuration, development checklist, and troubleshooting, see @.claude/rules/moai/workflow/worktree-integration.md.
+- URL, 모델명, 조직명, API 헤더 → `const`로 추출
+- 환경변수명 → `internal/config/envkeys.go`에 상수 정의 후 참조
+- 임계값 → `config/defaults.go`에 단일 원천 정의, 중복 금지
+- 크로스 플랫폼 → `$HOME`, `HOMEBREW_PREFIX` 등 환경변수 우선
 
----
+### [HARD] .sh.tmpl 폴백 경로에 `.HomeDir` 금지
 
-## 17. iTerm2 Notification (작업 완료 알림)
+`.HomeDir`/`.GoBinPath`는 `moai init` 시점의 절대 경로로 굳어짐. 폴백에는 `$HOME` 사용:
+- Primary: `{{posixPath .GoBinPath}}/moai` (OK, init-time)
+- Fallback: `$HOME/go/bin/moai` (MUST use `$HOME`)
+- `renderer.go`: `$HOME`은 `claudeCodePassthroughTokens`에 이미 등록
 
-### Claude Code Hooks로 알림 소리 설정
+### 하드코딩 허용 영역
 
-Claude Code의 `Notification` 이벤트를 활용하여 작업 완료 시 macOS 시스템 사운드를 재생한다.
-`Notification` 이벤트는 Claude Code가 사용자 입력을 기다릴 때 (작업 완료 포함) 발생한다.
-
-**`.claude/settings.local.json`에 추가:**
-```json
-{
-  "hooks": {
-    "Notification": [{
-      "hooks": [{
-        "type": "command",
-        "command": "afplay /System/Library/Sounds/Glass.aiff",
-        "timeout": 5
-      }]
-    }]
-  }
-}
-```
-
-### 사용 가능한 시스템 사운드
-
-```bash
-ls /System/Library/Sounds/
-# Glass.aiff, Ping.aiff, Pop.aiff, Purr.aiff,
-# Sosumi.aiff, Submarine.aiff, Tink.aiff
-```
-
-### 대안: iTerm2 Triggers
-
-iTerm2 → Settings → Profiles → Advanced → Triggers:
-- Regular Expression: 완료 메시지 패턴
-- Action: Run Command
-- Parameters: `afplay /System/Library/Sounds/Glass.aiff`
+`CLAUDE.local.md`, `settings.local.json`, `_test.go` (t.TempDir() 내).
 
 ---
 
-## 18. Claude Code YAML Frontmatter Guide
+## 15. 템플릿 언어 중립성
 
-### [HARD] Claude Code Frontmatter Format Rules
+### [HARD] `internal/template/templates/` 하위는 16개 언어 동등 취급
 
-Claude Code의 rule, agent, skill 파일에서 YAML frontmatter를 작성할 때 반드시 지켜야 하는 규칙들.
+도구의 구현 언어(Go)와 사용자 프로젝트 언어는 별개. 템플릿은 모든 사용자를 위한 것.
 
-**배경**: Claude Code의 내부 YAML 파서는 일부 필드에서 YAML 배열 지원을 개선하고 있다. v2.1.84 이상에서는 여러 필드가 YAML 배열을 지원한다.
+- 언어 편향 허용: `CLAUDE.local.md`, `settings.local.json`, 로컬 `.moai/config/`
+- 언어 편향 금지: `internal/template/templates/**` 전체
 
-### Rules (.claude/rules/**/*.md)
+### 16개 지원 언어 (모두 동등)
 
-**`paths` 필드**: CSV 문자열 권장 (호환성), YAML 배열도 지원됨 (v2.1.84+).
-
-```yaml
-# RECOMMENDED - CSV string
----
-paths: "**/*.go,**/go.mod,**/go.sum"
----
-
-# ALSO OK - YAML array (supported since v2.1.84)
----
-paths:
-  - "**/*.go"
-  - "**/go.mod"
----
+```
+go, python, typescript, javascript, rust, java, kotlin, csharp,
+ruby, php, elixir, cpp, scala, r, flutter, swift
 ```
 
-MoAI convention: 기존 규칙과의 일관성을 위해 CSV 형식 계속 사용.
+Dart/Flutter 캐논 이름: **"flutter"** (not "dart").
 
-### Agents (.claude/agents/**/*.md)
+### 체크리스트 (템플릿 수정 시)
 
-**`tools` 필드**: 반드시 CSV 문자열 사용. YAML 배열 사용 금지.
+- [ ] 특정 언어를 "PRIMARY"로 배치하지 않았는가?
+- [ ] 16개 언어가 동등 수준으로 나열되어 있는가?
+- [ ] 특정 언어만 "enabled", 나머지 "planned"로 격하하지 않았는가?
+- [ ] project_markers 기반 자동 감지 로직이 포함되어 있는가?
+- [ ] 로컬 config와 템플릿이 달라도 정상 (같으면 오히려 의심)
 
-```yaml
-# CORRECT
-tools: Read, Write, Edit, Grep, Glob, Bash
-
-# WRONG
-tools:
-  - Read
-  - Write
-  - Edit
-```
-
-**`skills` 필드**: YAML 배열 사용 (예외적으로 배열이 정상 동작).
-
-```yaml
-# CORRECT - skills는 YAML 배열
-skills:
-  - moai-lang-go
-  - moai-domain-backend
-```
-
-**`model` 필드 값**: `inherit`, `opus`, `sonnet`, `haiku` 중 하나만 사용.
-
-**`permissionMode` 필드 값**: `default`, `acceptEdits`, `delegate`, `dontAsk`, `bypassPermissions`, `plan` 중 하나만 사용.
-
-**`initialPrompt` 필드**: Agent가 시작할 때 자동으로 제출할 초기 프롬프트. 사용자 입력을 기다리지 않고 즉시 작업을 시작할 수 있음 (v2.1.83+).
-
-```yaml
-# CORRECT
-initialPrompt: "Analyze the following code for performance issues: @.src/"
-
-# Agent가 시작되면 위의 프롬프트가 자동으로 제출됨
-```
-
-### Skills (.claude/skills/**/*.md)
-
-**`allowed-tools` 필드**: 반드시 CSV 문자열 사용. YAML 배열 사용 금지.
-
-```yaml
-# CORRECT
-allowed-tools: Read, Grep, Glob, Bash, mcp__context7__resolve-library-id
-
-# WRONG
-allowed-tools:
-  - Read
-  - Grep
-```
-
-**`description` 필드**: YAML folded scalar (>) 사용 권장.
-
-```yaml
-# CORRECT
-description: >
-  Multi-line description here.
-  Uses YAML folded scalar for readability.
-
-# ALSO OK (pipe scalar)
-description: |
-  Multi-line description here.
-  Preserves line breaks.
-```
-
-**`metadata` 값**: 모든 값은 반드시 quoted string.
-
-```yaml
-# CORRECT
-metadata:
-  version: "1.0.0"
-  category: "workflow"
-
-# WRONG - unquoted values
-metadata:
-  version: 1.0.0
-  category: workflow
-```
-
-### Quick Reference Table
-
-| 파일 유형 | 필드 | 형식 | 예시 |
-|-----------|------|------|------|
-| Rules | `paths` | CSV string | `paths: "**/*.go,**/go.mod"` |
-| Agents | `tools` | CSV string | `tools: Read, Write, Edit` |
-| Agents | `disallowedTools` | CSV string | `disallowedTools: Task, WebSearch` |
-| Agents | `initialPrompt` | String | `initialPrompt: "Analyze the code: @.src/"` |
-| Agents | `skills` | YAML array | `skills:\n  - moai-lang-go` |
-| Skills | `allowed-tools` | CSV string | `allowed-tools: Read, Grep` |
-| Skills | `effort` | String | `effort: low` |
-| Skills | `metadata.*` | Quoted strings | `version: "1.0.0"` |
-
-### Validation Checklist
-
-새 규칙/에이전트/스킬 파일을 생성하거나 수정할 때:
-
-- [ ] `paths:` 필드가 CSV string 형식인지 확인
-- [ ] `tools:` 필드가 CSV string 형식인지 확인
-- [ ] `allowed-tools:` 필드가 CSV string 형식인지 확인
-- [ ] `metadata:` 모든 값이 quoted string인지 확인
-- [ ] Template 수정 후 `make build` 실행했는지 확인
-- [ ] Local copy (`.claude/`)도 동일하게 수정했는지 확인
+상세 교훈: `memory/lessons.md` #5 참조.
 
 ---
 
-## 19. GLM Integration Testing Rules
+## 16. 오케스트레이터 자가 점검
 
-### [HARD] Never Run GLM Integration Tests in the Dev Project
+### [HARD] 자가 점검 3 질문 (복잡 작업 시작 전 필수)
 
-Running `go test ./internal/cli/` in the development project can invoke `moai cc` / `moai glm` command flows that modify **real settings files**:
+1. 이 작업은 전문 에이전트의 고유 도메인인가?
+2. 해당 전문 에이전트가 카탈로그에 존재하는가? (CLAUDE.md Section 4)
+3. 직접 수행보다 위임이 품질/독립성/편향 방지에 유리한가?
 
-- `.claude/settings.local.json` in the project root
-- `~/.claude/settings.local.json` (global)
+**3개 모두 YES → 직접 수행 금지**. AskUserQuestion으로 위임 방식 확인 후 실행.
 
-This is destructive and can wipe auth tokens or GLM configuration.
+### 수량 기반 트리거
 
-### Unit Tests vs Integration Tests
+- 같은 종류 파일 **5+** 생성 → 전문가 위임 강제
+- Go 코드 **500+ LOC** 신규 → `expert-backend` 강제
+- 에이전트/스킬 **3+** 생성 → `builder-agent`/`builder-skill` 강제
 
-| Test Type | Where to Run | What's Allowed |
-|-----------|-------------|----------------|
-| Unit tests (function-level) | Dev project (`go test ./...`) | File manipulation in `t.TempDir()` only |
-| Integration tests (full command) | `/tmp/test-project` via `claude -p` | Full `moai cc`, `moai glm`, `moai cg` |
+### 허용되는 직접 수행
 
-### Rule: Use `~/.moai/.env.glm` for Auth Token Tests
+Typo/포맷 수정, 설정 1개 편집, 사용자 명시 요청, 위임 대상 부재, 오케스트레이션 자체, git 작업, `/tmp` 작업.
 
-Unit tests that verify ANTHROPIC_AUTH_TOKEN preservation must:
-1. Load the real key via `loadGLMKey()` (reads `~/.moai/.env.glm`)
-2. Skip with `t.Skip()` if the key is not configured
-3. Never hardcode fake keys like `"test-key-123"` in test fixtures
+### 순서: Rule 5 → §16 → Rule 1
 
-```go
-// CORRECT: Load from ~/.moai/.env.glm
-realKey := loadGLMKey()
-if realKey == "" {
-    t.Skip("~/.moai/.env.glm not configured")
-}
+Rule 5(WHAT) → §16(WHO) → Rule 1(HOW) → 실행
 
-// WRONG: Hardcoded fake key
-"ANTHROPIC_AUTH_TOKEN": "test-key-123"
-```
-
-### Rule: Integration Testing with `/tmp` + `claude -p`
-
-For full command integration tests:
-```bash
-# 1. Create a temp test project
-mkdir -p /tmp/moai-test-project && cd /tmp/moai-test-project
-
-# 2. Initialize with moai
-moai init .
-
-# 3. Test with claude -p (pipe/programmatic mode)
-claude -p "moai cc should restore Claude mode" --output-format json
-
-# 4. Verify the settings file
-cat .claude/settings.local.json
-```
-
-### What NOT to Do
-
-```bash
-# WRONG: Runs moai cc on the real dev project, modifies real settings
-go test -run TestCCCmd_Execution ./internal/cli/
-
-# WRONG: Any test that reads/writes to dev project's .claude/ directory
-# WRONG: t.Setenv("HOME", tmpDir) — affects all parallel tests
-```
-
----
-
----
-
-## 20. Template Path Hardcoding Prevention
-
-### [HARD] Never Use `.HomeDir` or `.GoBinPath` for Fallback Paths in Shell Templates
-
-Shell script templates (`.sh.tmpl`) that need to reference the user's home directory or Go bin path MUST use shell environment variables (`$HOME`) instead of Go template variables (`.HomeDir`, `.GoBinPath`).
-
-**Why**: `.HomeDir` and `.GoBinPath` are resolved at `moai init` time on the host machine and baked into generated scripts as absolute paths (e.g., `/Users/username/go/bin`). When the project is cloned or opened on another OS or by another user, these hardcoded paths silently fail.
-
-**Rule for fallback binary lookups in `.sh.tmpl`:**
-
-```bash
-# WRONG: bakes in macOS absolute path at init time
-if [ -f "{{posixPath .HomeDir}}/go/bin/moai" ]; then
-
-# CORRECT: resolved at runtime per OS/user
-if [ -f "$HOME/go/bin/moai" ]; then
-```
-
-**`.GoBinPath` is still valid** for the primary path injection (the first detected path at `moai init`), because it is the most specific location. But the `$HOME/go/bin` fallback MUST use `$HOME`.
-
-**Checklist when editing any `.sh.tmpl` file:**
-- [ ] Primary path: `{{posixPath .GoBinPath}}/moai` — OK (init-time detection)
-- [ ] Fallback path: `$HOME/go/bin/moai` — MUST use `$HOME`, not `{{posixPath .HomeDir}}/go/bin`
-- [ ] User-local path: `$HOME/.local/bin/moai` — MUST use `$HOME`
-- [ ] After editing template: run `make build` to regenerate embedded files
-
-**`renderer.go` passthrough**: `$HOME` is already in `claudeCodePassthroughTokens`, so the unexpanded token validator will not reject it.
+상세 교훈 및 5 Whys: `memory/lessons.md` #4 참조.
 
 ---
 
 **Status**: Active (Local Development)
-**Version**: 1.7.0 (Template Path Hardcoding Prevention added)
-**Last Updated**: 2026-03-18
+**Version**: 3.0.0 (51KB → 최적화, §12-16 압축, 역사 memory 이동)
+**Last Updated**: 2026-04-11
