@@ -61,7 +61,7 @@ When this roadmap is complete:
 | CX-08 | Manifest and Drift Policy | DONE | CX-06 |
 | CX-09 | Codex Runtime Helpers | DONE | CX-06 |
 | CX-10 | Verification Matrix | DONE | CX-05, CX-06, CX-07, CX-08, CX-09 |
-| CX-11 | Upstream Merge Playbook | PENDING | CX-10 |
+| CX-11 | Upstream Merge Playbook | DONE | CX-10 |
 
 ## Task Details
 
@@ -281,7 +281,7 @@ When this roadmap is complete:
 
 ### CX-11 Upstream Merge Playbook
 
-- Status: `PENDING`
+- Status: `DONE`
 - Goal: Document how to keep rebasing or merging upstream with minimal conflict.
 - Why:
   Long-term maintainability is a stated requirement.
@@ -627,6 +627,21 @@ Template:
 - Follow-up:
   - `CX-11` should treat this matrix and verification log as the compatibility baseline for future upstream merge and drift checks.
 
+### 2026-04-13 16:42 KST - CX-11 Upstream Merge Playbook
+
+- Status: `IN_PROGRESS` -> `DONE`
+- Summary:
+  - Replaced the short `Upstream Strategy` policy stub with a repository-specific merge playbook tied to the ownership map, protected paths, Codex-owned paths, and shared conflict seams already defined by `CX-02` through `CX-10`.
+  - Converted ownership classes into merge authority rules so Claude-owned paths default to upstream authority, Codex-owned additive paths default to preserving local Codex work, and shared seams require manual reconciliation against additive Codex expectations.
+  - Added an ordered merge-review sequence with concrete checkpoints for shared seam review, deprecated asset handling, targeted verification, and escalation to the full `go test ./...` sweep when meaningful shared surfaces changed.
+  - Documented that deprecated Codex-managed assets are intentionally preserved after upstream template removal and may require explicit manual cleanup instead of automatic conflict resolution.
+- Files touched:
+  - `.moai/docs/CODEX_COMPAT_ROADMAP.md`
+- Verification:
+  - Reviewed the updated roadmap against the existing `File Ownership Map`, `Protected Paths`, `CX-08` manifest policy, and `CX-10` verification matrix to confirm the playbook now names authority classes, conflict hotspots, merge order, review checkpoints, and deprecated-asset handling explicitly.
+- Follow-up:
+  - Future upstream syncs should append merge-specific notes here whenever a protected Claude-owned path requires a non-additive local deviation.
+
 ## Verification Log
 
 Use this section to record concrete verification results.
@@ -661,16 +676,147 @@ Template:
 - 2026-04-13 14:00 KST: PASS `go test ./internal/cli/... -run 'TestRootCmd_HelpOutput|TestCodexCmd_IsSubcommandOfRoot|TestCodexCmd_HelpListsDoctor|TestInitCmd_IsSubcommandOfRoot|TestUpdateCmd_IsSubcommandOfRoot'` verified Codex command discoverability and shared CLI registration without breaking existing project commands.
 - 2026-04-13 14:00 KST: PASS `go test ./internal/cli/... ./internal/core/project/... ./internal/codex/... ./internal/template/... ./internal/manifest/...` completed successfully after the new workflow-pack verification tests were added.
 - 2026-04-13 14:00 KST: PASS `go test ./...` completed successfully as the final repository-wide Claude/Codex non-regression sweep.
+- 2026-04-13 16:42 KST: `CX-11` completed as a roadmap merge-playbook update only; verification was limited to document completeness against the recorded ownership map, protected-path list, `CX-08` deprecated-asset policy, and `CX-10` verification baseline.
 
 ## Upstream Strategy
 
-Target merge policy:
+This section is the default operating playbook for future upstream rebases or merges.
 
-- Keep upstream as authority for Claude adapter behavior.
-- Avoid moving or renaming upstream Claude files.
-- Add Codex support in clearly owned additive paths.
-- Refactor shared code only when the refactor reduces future additive diff size.
-- If a broad refactor is tempting, first record why additive extension is insufficient.
+### 1. Merge Authority By Path Class
+
+- Upstream authority by default:
+  - `.claude/**`
+  - `internal/template/templates/.claude/**`
+  - `internal/template/templates/CLAUDE.md`
+  - `internal/hook/**`
+  - `internal/profile/profile.go`
+  - `internal/profile/preferences.go`
+  - `internal/cli/cc.go`
+  - `internal/cli/cg.go`
+  - `internal/cli/glm.go`
+  - `internal/cli/launcher.go`
+  - `internal/cli/hook.go`
+  - `internal/cli/statusline.go`
+  - `internal/cli/profile.go`
+  - `internal/cli/profile_setup.go`
+  - `internal/cli/profile_setup_translations.go`
+  - `internal/statusline/**`
+- Local Codex authority by default:
+  - `.codex/**`
+  - `internal/template/templates/.codex/**`
+  - `internal/cli/codex.go`
+  - `internal/codex/**`
+- Case-by-case manual review:
+  - `.moai/**`
+  - `internal/config/**`
+  - `internal/manifest/**`
+  - `internal/loop/**`
+  - `internal/workflow/**`
+  - `internal/mcp/**`
+  - `internal/core/git/**`
+  - `internal/core/project/**`
+  - `internal/core/quality/**`
+  - `internal/foundation/**`
+  - `internal/update/**`
+  - `internal/template/context.go`
+  - `internal/template/deployer*.go`
+  - `internal/template/embed.go`
+  - `internal/template/errors.go`
+  - `internal/template/renderer.go`
+  - `internal/template/settings.go`
+  - `internal/template/validator.go`
+  - `internal/template/templates/.moai/**`
+  - `internal/template/templates/.mcp.json.tmpl`
+  - `internal/cli/init.go`
+  - `internal/cli/update.go`
+  - `internal/profile/sync.go`
+  - `internal/template/templates/`
+
+Authority rules:
+
+- If a conflict is entirely inside an upstream-authority path, take upstream unless the merge would otherwise break an already shipped Codex contract. Any exception must be recorded in `Execution Notes`.
+- If a conflict is entirely inside a local Codex-authority path, preserve local Codex behavior unless upstream introduced a deliberate cross-adapter contract change that the Codex surface must mirror.
+- If a conflict touches a manual-review path, reconcile it additively: keep upstream behavior as the base flow, then reapply the smallest Codex seam needed for `.codex/**`, Codex manifest behavior, or `moai codex doctor`.
+- Do not move, rename, or broaden ownership of Claude-owned paths during conflict resolution just to make a merge easier.
+
+### 2. Expected Conflict Hotspots
+
+- `internal/cli/init.go`
+  Shared project bootstrap path. Conflicts are likely when upstream changes template deployment order, prompts, or initialization defaults while Codex still needs additive asset provisioning.
+- `internal/cli/update.go`
+  Highest-risk shared seam. It carries template sync, manifest finalization, restore behavior, and update reporting used by both adapters.
+- `internal/profile/sync.go`
+  Shared config-section sync seam. Upstream may change profile/config wiring here even though Claude profile storage itself remains protected elsewhere.
+- `internal/template/embed.go`
+  Template enumeration hotspot whenever upstream changes embed rules or template-tree handling.
+- `internal/template/deployer.go`
+  Shared deploy semantics for overwrite, restore, and provenance transitions. This is a primary collision point for Codex asset lifecycle behavior.
+- `internal/template/renderer.go`
+  Shared rendering path where upstream template-context changes can affect Codex and Claude outputs at once.
+- `internal/template/templates/**`
+  Directory-level hotspot because upstream can add, remove, or restructure managed templates while Codex maintains additive `.codex/**` siblings and shared `.moai/**` assets.
+- `internal/manifest/**`
+  Shared state model hotspot because Codex drift, restoration, and deprecated-path handling reuse the same manifest machinery as upstream-managed assets.
+- `.moai/docs/CODEX_COMPAT_ROADMAP.md`
+  Local governance hotspot. Upstream-sync decisions, verification baselines, and protected-path exceptions should keep this file consistent with the current code state.
+
+### 3. Recommended Merge Order
+
+1. Inventory the upstream diff before resolving conflicts.
+   Compare changed paths against `File Ownership Map` and sort them into upstream-authority, local Codex-authority, and manual-review buckets.
+2. Resolve protected Claude-owned paths first.
+   Confirm upstream wins cleanly in protected paths and note any place where a Codex requirement appears to demand a non-additive exception.
+3. Resolve shared seams before touching Codex-owned additive paths.
+   Reconcile `internal/cli/init.go`, `internal/cli/update.go`, `internal/profile/sync.go`, `internal/template/**`, and `internal/manifest/**` so the shared lifecycle still accepts Codex additions without widening Claude ownership.
+4. Reapply Codex-owned additive paths last.
+   After shared flows are stable, recheck `.codex/**`, `internal/template/templates/.codex/**`, `internal/cli/codex.go`, and `internal/codex/**` to ensure local Codex behavior still matches the merged shared contracts.
+5. Review deprecated managed assets explicitly.
+   If upstream removed a Codex-managed template path, keep the tracked deployed file preserved as `deprecated` unless there is an intentional cleanup migration. Preservation is expected behavior, not an automatic merge failure.
+6. Record merge-specific notes before verification.
+   If any protected Claude-owned path required local deviation, or if a shared seam needed a non-obvious additive reconciliation, append the rationale and affected paths to `Execution Notes`.
+
+### 4. Review Checkpoints
+
+- Protected-path checkpoint:
+  Confirm no Claude-owned path was modified for convenience. If one changed, document why additive treatment was impossible.
+- Shared-seam checkpoint:
+  Confirm `init`, `update`, template deployment/rendering, manifest state transitions, and Codex readiness still compose without moving ownership boundaries.
+- Codex-surface checkpoint:
+  Confirm the shipped Codex surface still consists of `.codex/**`, `internal/template/templates/.codex/**`, `internal/cli/codex.go`, and `internal/codex/**`, with no spillover into protected Claude-only paths.
+- Deprecated-asset checkpoint:
+  Distinguish intentional `deprecated` preservation from stale local junk. Preserved files may require manual cleanup in a follow-up change when upstream permanently removes a managed Codex asset.
+
+### 5. Verification Ladder
+
+- Documentation-only or ownership-only merges:
+  Review the affected roadmap and ownership sections for consistency. No code test is required unless a shared runtime path changed.
+- Codex-owned path changes only:
+  Run the targeted Codex readiness and template checks from `CX-10`:
+  - `go test ./internal/template/... -run 'TestEmbeddedTemplates_CodexSkillContract|TestEmbeddedTemplates_CodexWorkflowPack'`
+  - `go test ./internal/codex/... ./internal/cli/... -run 'TestInspectorInspect_AllChecksPass|TestInspectorInspect_MissingCodexAssetsFailsReadiness|TestInspectorInspect_MissingWorkflowDocsReportsNames|TestWriteCodexDoctorReport_TextOutput|TestWriteCodexDoctorReport_JSONOutput'`
+- Shared provisioning or manifest seam changes:
+  Run the targeted lifecycle and drift-policy checks from `CX-10`:
+  - `go test ./internal/core/project/... -run TestInit_DeploysCodexSkillAndTracksManifest`
+  - `go test ./internal/cli/... -run 'TestRunTemplateSyncWithReporter_InstallsMissingCodexSkillAndTracksManifest|TestRunTemplateSyncWithReporter_RestoresDeletedCodexWorkflowDoc|TestRunTemplateSyncWithReporter_PreservesModifiedCodexSkillAsUserModified|TestFinalizeTemplateSyncManifest_MarksRemovedTemplateEntriesDeprecated'`
+  - `go test ./internal/cli/... -run 'TestRootCmd_HelpOutput|TestCodexCmd_IsSubcommandOfRoot|TestCodexCmd_HelpListsDoctor|TestInitCmd_IsSubcommandOfRoot|TestUpdateCmd_IsSubcommandOfRoot'`
+- Any meaningful merge touching shared lifecycle, template plumbing, manifest behavior, or multiple ownership classes:
+  Finish with `go test ./...` as the high-confidence non-regression sweep.
+
+### 6. Deprecated Codex Asset Handling
+
+- If upstream removes a file that was previously deployed from `internal/template/templates/.codex/**`, do not delete the user-facing file automatically during the merge.
+- Keep the manifest entry preserved as `deprecated` unless a deliberate cleanup or migration replaces it.
+- Treat preserved deprecated files as intentional compatibility residue. They can require a manual cleanup commit, release note, or migration step after the merge.
+- Only remove a deprecated asset automatically when the repository has gained an explicit replacement or cleanup rule that has been reviewed as part of the shared manifest policy.
+
+### 7. Exception Handling
+
+- If a merge requires a non-additive change inside a protected Claude-owned path, record:
+  - the exact path
+  - why upstream behavior alone was insufficient
+  - why the change could not be isolated to a shared seam or Codex-owned path
+  - what follow-up should reduce or remove the exception later
+- If repeated exceptions accumulate in the same shared seam, open a follow-up task to shrink that seam rather than normalizing ad hoc divergence.
 
 ## Update Instructions
 
