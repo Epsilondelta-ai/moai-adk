@@ -148,6 +148,9 @@ func TestEmbeddedTemplates_CodexSkillContract(t *testing.T) {
 	if strings.Contains(content, "CX-05 must extend") {
 		t.Error("Codex skill should no longer contain scaffold handoff text")
 	}
+	if strings.Contains(content, "CODEX_COMPAT_ROADMAP") {
+		t.Error("Codex skill should not require the compatibility roadmap")
+	}
 }
 
 func TestEmbeddedTemplates_CodexWorkflowPack(t *testing.T) {
@@ -167,7 +170,7 @@ func TestEmbeddedTemplates_CodexWorkflowPack(t *testing.T) {
 		"project.md": {"# Workflow: `project`", ".moai/project/**", "## Codex Constraints", "## Handoff"},
 		"plan.md":    {"# Workflow: `plan`", ".moai/plans/**", ".moai/specs/**", "## Codex Constraints"},
 		"run.md":     {"# Workflow: `run`", ".moai/specs/SPEC-*/spec.md", ".moai/state/**", "## Handoff"},
-		"sync.md":    {"# Workflow: `sync`", ".moai/docs/CODEX_COMPAT_ROADMAP.md", ".moai/project/**", "## Codex Constraints"},
+		"sync.md":    {"# Workflow: `sync`", ".moai/project/**", ".moai/state/**", "## Codex Constraints"},
 		"review.md":  {"# Workflow: `review`", ".moai/specs/**", "file and line references", "## Handoff"},
 		"clean.md":   {"# Workflow: `clean`", ".moai/project/structure.md", "verification", "## Codex Constraints"},
 		"loop.md":    {"# Workflow: `loop`", ".moai/state/**", "diagnose, edit, verify", "## Handoff"},

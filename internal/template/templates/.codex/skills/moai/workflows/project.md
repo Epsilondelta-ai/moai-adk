@@ -6,11 +6,11 @@ Use this workflow when the user asks to understand the codebase, initialize or r
 
 ## Inspect First
 
-1. `.moai/docs/CODEX_COMPAT_ROADMAP.md`
-2. `.moai/project/product.md`
-3. `.moai/project/structure.md`
-4. `.moai/project/tech.md`
-5. `.moai/project/codemaps/**`
+1. `.moai/project/product.md`
+2. `.moai/project/structure.md`
+3. `.moai/project/tech.md`
+4. `.moai/project/codemaps/**`
+5. relevant `.moai/docs/**` notes when they exist for the requested setup or documentation task
 6. relevant top-level source, config, and test files in the repository
 
 If project docs are missing, treat the repository itself as the fallback source and record which `.moai/project/**` files had to be regenerated.

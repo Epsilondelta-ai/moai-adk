@@ -6,12 +6,12 @@ Use this workflow when the user wants a new plan, a new spec, or a revision to e
 
 ## Inspect First
 
-1. `.moai/docs/CODEX_COMPAT_ROADMAP.md`
-2. `.moai/project/product.md`
-3. `.moai/project/structure.md`
-4. `.moai/project/tech.md`
-5. relevant `.moai/plans/**`
-6. relevant `.moai/specs/**`
+1. `.moai/project/product.md`
+2. `.moai/project/structure.md`
+3. `.moai/project/tech.md`
+4. relevant `.moai/plans/**`
+5. relevant `.moai/specs/**`
+6. relevant `.moai/state/**` when it records active execution context
 7. current repository files related to the requested feature
 
 ## Expected Behavior
@@ -36,4 +36,4 @@ Use this workflow when the user wants a new plan, a new spec, or a revision to e
 
 - Hand off to `run.md` when implementation can begin from an approved plan or spec.
 - Hand off to `project.md` first if `.moai/project/**` is too incomplete to plan responsibly.
-- Hand off to `sync.md` if planning exposed roadmap or documentation drift that should be recorded immediately.
+- Hand off to `sync.md` if planning exposed documentation or shared-state drift that should be recorded immediately.

@@ -2,23 +2,23 @@
 
 ## When To Use
 
-Use this workflow when code, docs, roadmap notes, or recorded workflow state have drifted and the user wants `.moai/**` plus project documentation brought back in line with the current repository.
+Use this workflow when code, docs, or recorded workflow state have drifted and the user wants `.moai/**` plus project documentation brought back in line with the current repository.
 
 ## Inspect First
 
 1. `git status` and relevant diffs
-2. `.moai/docs/CODEX_COMPAT_ROADMAP.md`
-3. `.moai/project/**`
-4. `.moai/specs/**`
-5. `.moai/plans/**`
-6. `.moai/state/**`
+2. `.moai/project/**`
+3. `.moai/specs/**`
+4. `.moai/plans/**`
+5. `.moai/state/**`
+6. relevant `.moai/docs/**` notes when setup or adjacent documentation changed
 7. `README.md` and other user-facing docs affected by the change
 
 ## Expected Behavior
 
 - Identify which documents or state files are now stale relative to the codebase.
 - Update only the artifacts that changed meaningfully, keeping `.moai/**` as the shared source of truth.
-- Record roadmap, progress, or project-doc updates when Codex work changed the documented truth.
+- Record progress or project-doc updates when Codex work changed the documented truth.
 - Surface remaining drift explicitly if some files cannot be reconciled safely in the current turn.
 
 ## Primary Outputs

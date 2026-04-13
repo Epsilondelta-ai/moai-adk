@@ -35,6 +35,6 @@ Use this workflow when the user asks to implement approved work from `.moai/spec
 
 ## Handoff
 
-- Hand off to `sync.md` after implementation when docs or roadmap state need reconciliation.
+- Hand off to `sync.md` after implementation when docs or shared state need reconciliation.
 - Hand off to `loop.md` when the work requires repeated fix-and-verify passes rather than a single implementation pass.
 - Hand off to `review.md` when the user explicitly asks for a risk review before or after landing the change.

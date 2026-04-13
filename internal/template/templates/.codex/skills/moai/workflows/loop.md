@@ -33,4 +33,4 @@ Use this workflow when one pass is unlikely to finish the task cleanly and the u
 ## Handoff
 
 - Hand off to `clean.md` after the fixes stabilize if they exposed dead code or stale files.
-- Hand off to `sync.md` when the final state requires documentation or roadmap reconciliation.
+- Hand off to `sync.md` when the final state requires documentation or shared-state reconciliation.
