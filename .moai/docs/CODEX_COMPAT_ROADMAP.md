@@ -477,7 +477,6 @@ Template:
   - Marked mixed seams that may accept additive extension only in `internal/cli/init.go`, `internal/cli/update.go`, `internal/profile/sync.go`, and shared template plumbing.
 - Files reviewed:
   - `.moai/docs/CODEX_COMPAT_ROADMAP.md`
-  - `.moai/docs/CX-02_SHARED_CORE_BOUNDARY_PLAN.md`
   - `internal/cli/init.go`
   - `internal/cli/update.go`
   - `internal/cli/launcher.go`
@@ -511,7 +510,6 @@ Template:
   - Chose `internal/codex/**` over `internal/runtime/codex/**` because the repository has no existing `internal/runtime/` boundary and introducing one now would be premature generalization.
   - Recorded the allowed shared seams and restated protected Claude-owned paths so `CX-04`, `CX-05`, `CX-06`, and `CX-09` can proceed without reopening layout ownership.
 - Files reviewed:
-  - `.moai/docs/CX-03_CODEX_ADAPTER_LAYOUT_PLAN.md`
   - `.moai/docs/CODEX_COMPAT_ROADMAP.md`
   - `internal/cli/root.go`
   - `internal/cli/init.go`
