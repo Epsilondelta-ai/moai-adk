@@ -1,3 +1,6 @@
+import { closeSync, existsSync, openSync, readdirSync, readSync, statSync } from "node:fs";
+import { homedir } from "node:os";
+import { basename, join } from "node:path";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 export interface QuotaSnapshot {
@@ -9,15 +12,21 @@ export interface QuotaSnapshot {
 	provider?: string;
 	source?: string;
 	headerKeys?: string[];
+	observedAt?: number;
+	codexSessionFile?: string;
+	planType?: string;
 }
 
 let latestQuota: QuotaSnapshot = {};
+let codexCacheLastChecked = 0;
 
 export function getQuotaSnapshot(): QuotaSnapshot {
+	refreshQuotaFromCodexSessionCache();
 	return { ...latestQuota };
 }
 
 export function getQuotaDiagnostics(): string {
+	refreshQuotaFromCodexSessionCache();
 	const headerKeys = latestQuota.headerKeys ?? [];
 	const lines = [
 		"MoAI Pi quota diagnostics",
@@ -26,6 +35,9 @@ export function getQuotaDiagnostics(): string {
 		`ST: ${formatDiagnosticQuota(latestQuota.shortWindowPercent, latestQuota.shortWindowLabel)}`,
 		`7D: ${formatDiagnosticQuota(latestQuota.weeklyWindowPercent, latestQuota.weeklyWindowLabel)}`,
 		`headerKeys: ${headerKeys.length > 0 ? headerKeys.join(", ") : "none"}`,
+		`observedAt: ${latestQuota.observedAt ? new Date(latestQuota.observedAt).toISOString() : "unknown"}`,
+		`codexSession: ${latestQuota.codexSessionFile ? basename(latestQuota.codexSessionFile) : "none"}`,
+		`planType: ${latestQuota.planType ?? "unknown"}`,
 	];
 
 	if (!latestQuota.source) {
@@ -36,6 +48,8 @@ export function getQuotaDiagnostics(): string {
 	} else if (latestQuota.source === "headers-without-rate-limit") {
 		lines.push("diagnosis: response headers were observed, but no supported rate-limit quota headers were present.");
 		lines.push("action: add mappings for any provider-specific quota headers shown above, if available.");
+	} else if (latestQuota.source?.includes("codex-session-cache")) {
+		lines.push("diagnosis: using the latest Codex session rate_limits cache, matching the data source behind Codex/oh-my-codex quota display.");
 	} else if (latestQuota.shortWindowPercent === undefined) {
 		lines.push("diagnosis: provider headers were observed, but short-window quota was not present.");
 	} else if (latestQuota.weeklyWindowPercent === undefined) {
@@ -65,17 +79,23 @@ export function updateQuotaFromHeaders(headers: unknown, ctx: ExtensionContext):
 	const shortQuota = tokenQuota ?? requestQuota;
 	const resetAt = resetFromHeaders(normalized);
 	const headerKeys = Object.keys(normalized).sort();
+	const source = shortQuota || weeklyQuota
+		? "provider-headers"
+		: latestQuota.source?.includes("codex-session-cache")
+			? `codex-session-cache+${headerKeys.length > 0 ? "headers-without-rate-limit" : "headers-unavailable"}`
+			: headerKeys.length > 0 ? "headers-without-rate-limit" : "headers-unavailable";
 
 	latestQuota = {
 		...latestQuota,
 		provider: ctx.model?.provider,
-		source: shortQuota || weeklyQuota ? "provider-headers" : headerKeys.length > 0 ? "headers-without-rate-limit" : "headers-unavailable",
-		shortWindowPercent: shortQuota?.percent,
-		shortWindowLabel: shortQuota?.label,
-		weeklyWindowPercent: weeklyQuota?.percent,
-		weeklyWindowLabel: weeklyQuota?.label,
+		source,
+		shortWindowPercent: shortQuota?.percent ?? latestQuota.shortWindowPercent,
+		shortWindowLabel: shortQuota?.label ?? latestQuota.shortWindowLabel,
+		weeklyWindowPercent: weeklyQuota?.percent ?? latestQuota.weeklyWindowPercent,
+		weeklyWindowLabel: weeklyQuota?.label ?? latestQuota.weeklyWindowLabel,
 		resetAt: resetAt ?? latestQuota.resetAt,
 		headerKeys,
+		observedAt: Date.now(),
 	};
 }
 
@@ -89,6 +109,32 @@ export function updateQuotaFromRetryAfter(headers: unknown, ctx: ExtensionContex
 		source: "retry-after",
 		shortWindowPercent: 100,
 		resetAt: Date.now() + retryAfter * 1000,
+		observedAt: Date.now(),
+	};
+}
+
+export function refreshQuotaFromCodexSessionCache(options: { force?: boolean } = {}): void {
+	const now = Date.now();
+	if (!options.force && now - codexCacheLastChecked < 30_000) return;
+	codexCacheLastChecked = now;
+
+	const observed = readLatestCodexRateLimits();
+	if (!observed) return;
+
+	const shortWindowPercent = latestQuota.shortWindowPercent ?? observed.shortWindowPercent;
+	const weeklyWindowPercent = latestQuota.weeklyWindowPercent ?? observed.weeklyWindowPercent;
+	if (shortWindowPercent === undefined && weeklyWindowPercent === undefined) return;
+
+	latestQuota = {
+		...latestQuota,
+		provider: latestQuota.provider ?? "codex",
+		source: latestQuota.source === "provider-headers" ? "provider-headers+codex-session-cache" : "codex-session-cache",
+		shortWindowPercent,
+		weeklyWindowPercent,
+		resetAt: latestQuota.resetAt ?? observed.resetAt,
+		observedAt: observed.observedAt,
+		codexSessionFile: observed.file,
+		planType: observed.planType,
 	};
 }
 
@@ -125,6 +171,122 @@ function quotaFromLimitRemaining(headers: Record<string, string>, pairs: Array<[
 		}
 	}
 	return undefined;
+}
+
+interface CodexRateLimitObservation {
+	shortWindowPercent?: number;
+	weeklyWindowPercent?: number;
+	resetAt?: number;
+	observedAt: number;
+	file: string;
+	planType?: string;
+}
+
+function readLatestCodexRateLimits(): CodexRateLimitObservation | undefined {
+	const sessionsRoot = join(homedir(), ".codex", "sessions");
+	if (!existsSync(sessionsRoot)) return undefined;
+	for (const file of recentJsonlFiles(sessionsRoot, 24)) {
+		const observed = readRateLimitsFromJsonlTail(file);
+		if (observed) return observed;
+	}
+	return undefined;
+}
+
+function recentJsonlFiles(root: string, limit: number): string[] {
+	const files: Array<{ path: string; mtimeMs: number }> = [];
+	const visit = (dir: string, depth: number) => {
+		if (depth > 6) return;
+		let entries: string[];
+		try {
+			entries = readdirSync(dir);
+		} catch {
+			return;
+		}
+		for (const entry of entries) {
+			const path = join(dir, entry);
+			let stat;
+			try {
+				stat = statSync(path);
+			} catch {
+				continue;
+			}
+			if (stat.isDirectory()) visit(path, depth + 1);
+			else if (entry.endsWith(".jsonl")) files.push({ path, mtimeMs: stat.mtimeMs });
+		}
+	};
+	visit(root, 0);
+	return files.sort((a, b) => b.mtimeMs - a.mtimeMs).slice(0, limit).map((file) => file.path);
+}
+
+function readRateLimitsFromJsonlTail(file: string): CodexRateLimitObservation | undefined {
+	let fd: number | undefined;
+	try {
+		const stat = statSync(file);
+		const length = Math.min(stat.size, 512 * 1024);
+		const buffer = Buffer.alloc(length);
+		fd = openSync(file, "r");
+		readSync(fd, buffer, 0, length, stat.size - length);
+		const lines = buffer.toString("utf8").split(/\r?\n/);
+		for (let i = lines.length - 1; i >= 0; i--) {
+			const line = lines[i]?.trim();
+			if (!line || !line.includes("rate_limits")) continue;
+			const observation = codexRateLimitObservationFromLine(line, file);
+			if (observation) return observation;
+		}
+	} catch {
+		return undefined;
+	} finally {
+		if (fd !== undefined) {
+			try {
+				closeSync(fd);
+			} catch {
+				// Ignore close errors for best-effort cache reads.
+			}
+		}
+	}
+	return undefined;
+}
+
+function codexRateLimitObservationFromLine(line: string, file: string): CodexRateLimitObservation | undefined {
+	let entry: any;
+	try {
+		entry = JSON.parse(line);
+	} catch {
+		return undefined;
+	}
+	const payload = entry?.payload ?? entry;
+	const rateLimits = payload?.rate_limits ?? entry?.rate_limits;
+	if (!rateLimits || typeof rateLimits !== "object") return undefined;
+
+	const primary = rateLimits.primary;
+	const secondary = rateLimits.secondary;
+	const shortWindowPercent = percentFromCodexLimit(primary);
+	const weeklyWindowPercent = percentFromCodexLimit(secondary);
+	if (shortWindowPercent === undefined && weeklyWindowPercent === undefined) return undefined;
+
+	return {
+		shortWindowPercent,
+		weeklyWindowPercent,
+		resetAt: resetAtFromCodexLimit(primary),
+		observedAt: Date.parse(entry?.timestamp) || Date.now(),
+		file,
+		planType: typeof rateLimits.plan_type === "string" ? rateLimits.plan_type : undefined,
+	};
+}
+
+function percentFromCodexLimit(limit: unknown): number | undefined {
+	if (!limit || typeof limit !== "object") return undefined;
+	const used = (limit as { used_percent?: unknown }).used_percent;
+	const value = typeof used === "number" ? used : typeof used === "string" ? Number(used) : undefined;
+	return value !== undefined && Number.isFinite(value) ? clamp(Math.round(value)) : undefined;
+}
+
+function resetAtFromCodexLimit(limit: unknown): number | undefined {
+	if (!limit || typeof limit !== "object") return undefined;
+	const resetsAt = (limit as { resets_at?: unknown }).resets_at;
+	const value = typeof resetsAt === "number" ? resetsAt : typeof resetsAt === "string" ? Number(resetsAt) : undefined;
+	if (value === undefined || !Number.isFinite(value)) return undefined;
+	return value > 10_000_000_000 ? value : value * 1000;
 }
 
 function resetFromHeaders(headers: Record<string, string>): number | undefined {
