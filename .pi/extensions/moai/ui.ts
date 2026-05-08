@@ -31,13 +31,13 @@ export function renderMoaiUI(ctx: ExtensionContext): void {
 		dispose: footerData.onBranchChange(() => tui.requestRender()),
 		invalidate() {},
 		render(width: number) {
-			const lines = buildClaudeStyleStatusLines(ctx, footerData.getGitBranch() || undefined);
+			const lines = buildClaudeStyleStatusLines(ctx, footerData.getGitBranch() || undefined, width);
 			return lines.map((line) => footerTheme.fg("accent", truncateToWidth(line, width)));
 		},
 	}));
 }
 
-function buildClaudeStyleStatusLines(ctx: ExtensionContext, fallbackBranch?: string): string[] {
+function buildClaudeStyleStatusLines(ctx: ExtensionContext, fallbackBranch?: string, width = 120): string[] {
 	const model = modelLabel(ctx);
 	const piVersion = currentState.piVersion || getPiVersion();
 	const moaiVersion = versionLabel();
@@ -54,9 +54,89 @@ function buildClaudeStyleStatusLines(ctx: ExtensionContext, fallbackBranch?: str
 	const untracked = currentState.gitUntracked ?? 0;
 
 	return [
-		`🤖 ${model} │ 🔅 v${stripV(piVersion)} │ 🗿 ${moaiVersion} │ ⏳ ${elapsed} │ 💬 ${outputStyle}`,
-		`CW: ${batteryIcon(contextPct)} ${bar(contextPct, 10)} ${contextPct}% │ ST: ${batteryIcon(shortPct)} ${bar(shortPct, 10)} ${shortPct}% │ 7D: ${batteryIcon(weeklyPct)} ${bar(weeklyPct, 10)} ${weeklyPct}%`,
+		...buildHeaderLines({ model, piVersion, moaiVersion, elapsed, outputStyle }, width),
+		...buildQuotaLines({ contextPct, shortPct, weeklyPct }, width),
 		`📁 ${projectName} │ 🔀 ${branch} │ 📊 +${added} M${modified} ?${untracked}`,
+	];
+}
+
+interface HeaderParts {
+	model: string;
+	piVersion: string;
+	moaiVersion: string;
+	elapsed: string;
+	outputStyle: string;
+}
+
+interface QuotaParts {
+	contextPct: number;
+	shortPct: number;
+	weeklyPct: number;
+}
+
+function buildHeaderLines(parts: HeaderParts, width: number): string[] {
+	const full = `🤖 ${parts.model} │ 🔅 v${stripV(parts.piVersion)} │ 🗿 ${parts.moaiVersion} │ ⏳ ${parts.elapsed} │ 💬 ${parts.outputStyle}`;
+	if (displayWidth(full) <= width) return [full];
+
+	const compactModel = compactModelLabel(parts.model, Math.max(10, Math.min(18, width - 20)));
+	const primary = `⏳ ${parts.elapsed} │ 🤖 ${compactModel} │ 💬 ${parts.outputStyle}`;
+	const version = `🔅 v${stripV(parts.piVersion)} │ 🗿 ${parts.moaiVersion}`;
+	return displayWidth(primary) <= width
+		? [primary, version]
+		: [`⏳ ${parts.elapsed} │ 💬 ${parts.outputStyle}`, `🤖 ${compactModel} │ ${version}`];
+}
+
+function buildQuotaLines(parts: QuotaParts, width: number): string[] {
+	const full = `${usageSegment("CW:", parts.contextPct, 10)} │ ${usageSegment("ST:", parts.shortPct, 10)} │ ${usageSegment("7D:", parts.weeklyPct, 10)}`;
+	if (displayWidth(full) <= width) return [full];
+
+	const barWidth = width < 24 ? 0 : Math.max(4, Math.min(10, Math.floor((width - 14) / 2)));
+	return [
+		usageSegment("CW:", parts.contextPct, barWidth),
+		usageSegment("ST:", parts.shortPct, barWidth),
+		usageSegment("7D:", parts.weeklyPct, barWidth),
+	];
+}
+
+function usageSegment(label: string, percent: number, barWidth: number): string {
+	const usageBar = barWidth > 0 ? ` ${bar(percent, barWidth)}` : "";
+	return `${label} ${batteryIcon(percent)}${usageBar} ${percent}%`;
+}
+
+function compactModelLabel(model: string, limit: number): string {
+	const compact = model.replace(/\s*\(1M context\)/i, "").trim();
+	if (displayWidth(compact) <= limit) return compact;
+	return `${compact.slice(0, Math.max(1, limit - 1)).trim()}…`;
+}
+
+function displayWidth(value: string): number {
+	return Array.from(value).length;
+}
+
+export function __testBuildFooterLines(input: {
+	model?: string;
+	piVersion?: string;
+	moaiVersion?: string;
+	elapsed?: string;
+	contextPct?: number;
+	shortPct?: number;
+	weeklyPct?: number;
+}, width: number): string[] {
+	return [
+		...buildHeaderLines(
+			{
+				model: input.model ?? "Opus 4.7 (1M context)",
+				piVersion: input.piVersion ?? "2.1.50",
+				moaiVersion: input.moaiVersion ?? "v2.8.0",
+				elapsed: input.elapsed ?? "1h 23m",
+				outputStyle: "MoAI",
+			},
+			width,
+		),
+		...buildQuotaLines(
+			{ contextPct: input.contextPct ?? 30, shortPct: input.shortPct ?? 0, weeklyPct: input.weeklyPct ?? 0 },
+			width,
+		),
 	];
 }
 
