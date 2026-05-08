@@ -676,6 +676,7 @@ func persistSessionEvent(req Request, eventName string) error {
 		state.LeafID = req.Session.LeafID
 		state.Mode = req.Session.Mode
 	}
+	ensureSessionStartedAt(state, eventName)
 	state.LastEvent = eventName
 	if specID, _ := req.Payload["activeSpecId"].(string); specID != "" {
 		state.ActiveSpecID = specID
@@ -731,6 +732,22 @@ func unsupportedClaudeHookEvents() []string {
 
 func nowRFC3339() string {
 	return time.Now().UTC().Format(time.RFC3339)
+}
+
+func ensureSessionStartedAt(state *sessionstate.State, eventName string) {
+	if state.Data == nil {
+		state.Data = map[string]any{}
+	}
+	if existing := int64FromAny(state.Data["sessionStartedAt"]); existing > 0 {
+		return
+	}
+	if startedAt := sessionStartedAtFromSessionFile(state.SessionFile); startedAt > 0 {
+		state.Data["sessionStartedAt"] = startedAt
+		return
+	}
+	if eventName == "session_start" {
+		state.Data["sessionStartedAt"] = time.Now().UTC().UnixMilli()
+	}
 }
 
 func firstNonEmptyString(values ...string) string {

@@ -239,9 +239,21 @@ func latestClipboardImage() string {
 
 func sessionStartedAt(cwd string) int64 {
 	path := filepath.Join(cwd, ".moai", "runtime", "pi-session.json")
-	info, err := os.Stat(path)
-	if err == nil {
-		return info.ModTime().UnixMilli()
+	bytes, err := os.ReadFile(path)
+	if err != nil {
+		return time.Now().UTC().UnixMilli()
+	}
+	var state struct {
+		SessionFile string         `json:"sessionFile"`
+		Data        map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(bytes, &state); err == nil {
+		if startedAt := int64FromAny(state.Data["sessionStartedAt"]); startedAt > 0 {
+			return startedAt
+		}
+		if startedAt := sessionStartedAtFromSessionFile(state.SessionFile); startedAt > 0 {
+			return startedAt
+		}
 	}
 	return time.Now().UTC().UnixMilli()
 }
