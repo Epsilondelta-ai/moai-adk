@@ -45,8 +45,8 @@ function buildClaudeStyleStatusLines(ctx: ExtensionContext, fallbackBranch?: str
 	const outputStyle = "MoAI";
 	const contextPct = contextPercent(ctx);
 	const quota = getQuotaSnapshot();
-	const shortPct = percentValue(quota.shortWindowPercent ?? currentState.shortWindowPercent);
-	const weeklyPct = percentValue(quota.weeklyWindowPercent ?? currentState.weeklyWindowPercent);
+	const shortPct = percentValue(quota.shortWindowPercent);
+	const weeklyPct = percentValue(quota.weeklyWindowPercent);
 	const branch = currentState.gitBranch || fallbackBranch || "no-branch";
 	const projectName = currentState.projectName || basename(ctx.cwd);
 	const added = currentState.gitAdded ?? 0;
@@ -55,7 +55,7 @@ function buildClaudeStyleStatusLines(ctx: ExtensionContext, fallbackBranch?: str
 
 	return [
 		...buildHeaderLines({ model, piVersion, moaiVersion, elapsed, outputStyle }, width),
-		...buildQuotaLines({ contextPct, shortPct, weeklyPct }, width),
+		...buildQuotaLines({ contextPct, shortPct, weeklyPct, shortLabel: quota.shortWindowLabel, weeklyLabel: quota.weeklyWindowLabel }, width),
 		`📁 ${projectName} │ 🔀 ${branch} │ 📊 +${added} M${modified} ?${untracked}`,
 	];
 }
@@ -70,8 +70,10 @@ interface HeaderParts {
 
 interface QuotaParts {
 	contextPct: number;
-	shortPct: number;
-	weeklyPct: number;
+	shortPct?: number;
+	weeklyPct?: number;
+	shortLabel?: string;
+	weeklyLabel?: string;
 }
 
 function buildHeaderLines(parts: HeaderParts, width: number): string[] {
@@ -87,20 +89,22 @@ function buildHeaderLines(parts: HeaderParts, width: number): string[] {
 }
 
 function buildQuotaLines(parts: QuotaParts, width: number): string[] {
-	const full = `${usageSegment("CW:", parts.contextPct, 10)} │ ${usageSegment("ST:", parts.shortPct, 10)} │ ${usageSegment("7D:", parts.weeklyPct, 10)}`;
+	const full = `${usageSegment("CW:", parts.contextPct, 10)} │ ${usageSegment("ST:", parts.shortPct, 10, parts.shortLabel)} │ ${usageSegment("7D:", parts.weeklyPct, 10, parts.weeklyLabel)}`;
 	if (displayWidth(full) <= width) return [full];
 
 	const barWidth = width < 24 ? 0 : Math.max(4, Math.min(10, Math.floor((width - 14) / 2)));
 	return [
 		usageSegment("CW:", parts.contextPct, barWidth),
-		usageSegment("ST:", parts.shortPct, barWidth),
-		usageSegment("7D:", parts.weeklyPct, barWidth),
+		usageSegment("ST:", parts.shortPct, barWidth, parts.shortLabel),
+		usageSegment("7D:", parts.weeklyPct, barWidth, parts.weeklyLabel),
 	];
 }
 
-function usageSegment(label: string, percent: number, barWidth: number): string {
+function usageSegment(label: string, percent: number | undefined, barWidth: number, quotaLabel?: string): string {
+	if (percent === undefined) return `${label} ?`;
 	const usageBar = barWidth > 0 ? ` ${bar(percent, barWidth)}` : "";
-	return `${label} ${batteryIcon(percent)}${usageBar} ${percent}%`;
+	const labelSuffix = quotaLabel ? ` ${quotaLabel}` : ` ${percent}%`;
+	return `${label} ${batteryIcon(percent)}${usageBar}${labelSuffix}`;
 }
 
 function compactModelLabel(model: string, limit: number): string {
@@ -134,7 +138,7 @@ export function __testBuildFooterLines(input: {
 			width,
 		),
 		...buildQuotaLines(
-			{ contextPct: input.contextPct ?? 30, shortPct: input.shortPct ?? 0, weeklyPct: input.weeklyPct ?? 0 },
+			{ contextPct: input.contextPct ?? 30, shortPct: input.shortPct, weeklyPct: input.weeklyPct },
 			width,
 		),
 	];
@@ -197,8 +201,8 @@ function bar(percent: number, width: number): string {
 	return `${"█".repeat(filled)}${"░".repeat(width - filled)}`;
 }
 
-function percentValue(value: unknown): number {
-	return typeof value === "number" ? clamp(Math.round(value)) : 0;
+function percentValue(value: unknown): number | undefined {
+	return typeof value === "number" ? clamp(Math.round(value)) : undefined;
 }
 
 function batteryIcon(percent: number): string {
