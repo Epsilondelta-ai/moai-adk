@@ -1,7 +1,7 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { isToolCallEventType } from "@earendil-works/pi-coding-agent";
 import { callBridge } from "./bridge.js";
-import { updateQuotaFromHeaders, updateQuotaFromRetryAfter } from "./quota.js";
+import { getQuotaDiagnostics, updateQuotaFromHeaders, updateQuotaFromRetryAfter } from "./quota.js";
 import { shouldInjectMoaiOutputStyle, moaiOutputStylePrompt } from "./output-style.js";
 import { refreshMoaiUI } from "./ui.js";
 
@@ -144,6 +144,9 @@ export function registerEvents(pi: ExtensionAPI): void {
 		updateQuotaFromHeaders(event.headers, ctx);
 		if (event.status === 429) {
 			updateQuotaFromRetryAfter(event.headers, ctx);
+		}
+		if (process.env.MOAI_PI_QUOTA_DEBUG === "1") {
+			ctx.ui.notify(getQuotaDiagnostics(), "info");
 		}
 		await forwardEvent(ctx, "after_provider_response", { status: event.status }, { signal: ctx.signal });
 		await refreshMoaiUI(ctx, { phase: event.status === 429 ? "rate_limited" : "provider_response" });

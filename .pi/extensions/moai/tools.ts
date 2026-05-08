@@ -3,6 +3,7 @@ import { StringEnum } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
 import { callBridge, bridgeResponseText } from "./bridge.js";
 import { registerInteractionTool } from "./interaction.js";
+import { getQuotaDiagnostics, getQuotaSnapshot } from "./quota.js";
 
 const EmptyParams = Type.Object({});
 
@@ -75,6 +76,20 @@ export function registerTools(pi: ExtensionAPI): void {
 		async execute(_toolCallId, _params, signal, _onUpdate, ctx) {
 			const response = await callBridge(ctx, { kind: "doctor" }, { signal });
 			return { content: [{ type: "text", text: bridgeResponseText(response) }], details: response };
+		},
+	});
+
+	pi.registerTool({
+		name: "moai_quota_debug",
+		label: "MoAI Quota Debug",
+		description: "Show quota diagnostics captured from the last Pi provider response.",
+		promptSnippet: "Inspect MoAI Pi quota diagnostics",
+		parameters: EmptyParams,
+		async execute() {
+			return {
+				content: [{ type: "text", text: getQuotaDiagnostics() }],
+				details: getQuotaSnapshot(),
+			};
 		},
 	});
 

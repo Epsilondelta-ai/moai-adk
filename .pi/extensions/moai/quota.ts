@@ -17,6 +17,33 @@ export function getQuotaSnapshot(): QuotaSnapshot {
 	return { ...latestQuota };
 }
 
+export function getQuotaDiagnostics(): string {
+	const headerKeys = latestQuota.headerKeys ?? [];
+	const lines = [
+		"MoAI Pi quota diagnostics",
+		`provider: ${latestQuota.provider ?? "unknown"}`,
+		`source: ${latestQuota.source ?? "not-observed"}`,
+		`ST: ${formatDiagnosticQuota(latestQuota.shortWindowPercent, latestQuota.shortWindowLabel)}`,
+		`7D: ${formatDiagnosticQuota(latestQuota.weeklyWindowPercent, latestQuota.weeklyWindowLabel)}`,
+		`headerKeys: ${headerKeys.length > 0 ? headerKeys.join(", ") : "none"}`,
+	];
+
+	if (!latestQuota.source) {
+		lines.push("diagnosis: no provider response has been observed by the extension yet.");
+	} else if (latestQuota.source === "headers-unavailable") {
+		lines.push("diagnosis: Pi/provider did not expose response headers to the extension.");
+		lines.push("action: ST/7D cannot be computed for this provider transport until Pi exposes quota metadata or response headers.");
+	} else if (latestQuota.source === "headers-without-rate-limit") {
+		lines.push("diagnosis: response headers were observed, but no supported rate-limit quota headers were present.");
+		lines.push("action: add mappings for any provider-specific quota headers shown above, if available.");
+	} else if (latestQuota.shortWindowPercent === undefined) {
+		lines.push("diagnosis: provider headers were observed, but short-window quota was not present.");
+	} else if (latestQuota.weeklyWindowPercent === undefined) {
+		lines.push("diagnosis: short-window quota is available; weekly quota was not exposed by the provider.");
+	}
+	return lines.join("\n");
+}
+
 export function updateQuotaFromHeaders(headers: unknown, ctx: ExtensionContext): void {
 	const normalized = normalizeHeaders(headers);
 	const tokenQuota = quotaFromLimitRemaining(normalized, [
@@ -112,6 +139,11 @@ function resetFromHeaders(headers: Record<string, string>): number | undefined {
 		if (!Number.isNaN(parsed)) return parsed;
 	}
 	return undefined;
+}
+
+function formatDiagnosticQuota(percent: number | undefined, label: string | undefined): string {
+	if (percent === undefined) return "unknown";
+	return label ? `${percent}% used (${label} remaining/limit)` : `${percent}% used`;
 }
 
 function formatQuotaNumber(value: number): string {

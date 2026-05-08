@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth } from "@earendil-works/pi-tui";
 import { callBridge } from "./bridge.js";
-import { getQuotaSnapshot } from "./quota.js";
+import { getQuotaDiagnostics, getQuotaSnapshot } from "./quota.js";
 import { normalizeState, type MoaiUIState } from "./state.js";
 
 let currentState: MoaiUIState = {};
@@ -234,5 +234,18 @@ export function registerMoaiUI(pi: ExtensionAPI): void {
 	pi.registerCommand("moai-ui-refresh", {
 		description: "Refresh MoAI footer/widget UI state",
 		handler: async (_args, ctx) => refreshMoaiUI(ctx, { phase: "manual-refresh" }),
+	});
+
+	pi.registerCommand("moai-quota", {
+		description: "Show MoAI Pi quota diagnostics from the last provider response",
+		handler: async (_args, ctx) => {
+			await refreshMoaiUI(ctx, { phase: "quota-diagnostics" });
+			pi.sendMessage({
+				customType: "moai-pi-quota",
+				content: `🤖 MoAI ★ quota diagnostics\n\n${getQuotaDiagnostics()}`,
+				display: true,
+				details: getQuotaSnapshot(),
+			});
+		},
 	});
 }
