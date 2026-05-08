@@ -124,6 +124,18 @@ Pre-execution commands: git status, git diff, git branch, git log, find .moai/sp
 
 ### Phase 0: Pre-Sync Quality Gate
 
+<!-- moai:evolvable-start id="gate-sync-1" -->
+### HUMAN GATE: Pre-Sync Quality
+
+**Previous phase output:** Completed SPEC implementation
+**Approval question:** Is the project in a state where documentation can be synced?
+**Cannot proceed until:**
+- [ ] Working tree is clean or only expected changes present
+- [ ] All tests pass
+- [ ] MX tags validated
+- [ ] No HARD rule violations
+<!-- moai:evolvable-end -->
+
 Purpose: Run the gate workflow (workflows/gate.md) as a fast pre-check before the full deployment readiness verification. Catches lint/format/type errors early and auto-fixes them.
 
 #### Step 0.0.1: Gate Execution
@@ -137,22 +149,50 @@ Purpose: Run the gate workflow (workflows/gate.md) as a fast pre-check before th
 
 Output: gate_report with pass/fail per check category.
 
-### Phase 0.05: Code Simplification Review
+### Phase 0.08: DB Schema Doc Check (Conditional)
 
-Purpose: Run the simplify skill on changed code to catch reuse opportunities, unnecessary complexity, and efficiency issues before the full quality verification pipeline. This mirrors the Run phase's post-REFACTOR simplify step, ensuring sync-only changes also receive simplification review.
+Purpose: Refresh `.moai/project/db/` derived documents (schema.md, erd.mmd, migrations.md) when the sync scope includes migration file changes. Replaces the per-event PostToolUse hook with a batch refresh at milestone boundary — eliminates the ~30-60ms/edit overhead the hook used to incur.
 
-#### Step 0.05.1: Execute Simplify
+Source SPEC: SPEC-DB-SYNC-RELOC-001.
 
-- Invoke Skill("simplify") on all changed files (git diff --name-only against base branch)
-- The simplify skill reviews for: code reuse opportunities, quality issues, and efficiency improvements
-- If issues found: auto-fix and re-run tests to verify no regressions
-- If no issues found: proceed to Phase 0.1
+#### Step 0.08.1: Activation Gate
 
-#### Step 0.05.2: Re-verify After Simplification
+Evaluate all conditions in order; skip the phase if any fails:
 
-- If simplify made changes: run the gate checks again (test + lint + vet) to confirm no regressions
-- If tests fail after simplification: revert simplify changes and proceed without them
-- Log simplify results in sync report (files reviewed, issues found, fixes applied)
+1. `.moai/config/sections/db.yaml` exists (project opted into DB doc management)
+2. `db.enabled: true` in that file
+3. `db.auto_sync: true` in that file
+
+If any condition is not met, skip Phase 0.08 silently and proceed to Phase 0.1.
+
+#### Step 0.08.2: Migration File Diff Detection
+
+Compute the list of migration files changed since the base branch:
+
+- Use `git diff --name-only <base-branch>..HEAD` to collect changed files
+- Filter by the glob patterns in `db.migration_patterns` (typically Prisma schema, Alembic versions, Rails migrations, raw SQL, Supabase, custom)
+- Further exclude paths matching `db.excluded_patterns` (defaults: `.moai/project/db/**`, `.moai/cache/**`, `.moai/logs/**`) to prevent recursion
+
+If the filtered list is empty, skip to Phase 0.1 with log line: "Phase 0.08: no migration files changed, skipping DB doc refresh".
+
+#### Step 0.08.3: Refresh Invocation
+
+Invoke the existing `moai-domain-db-docs` skill with `refresh` mode:
+
+- Input: filtered migration file list, project language, `db.yaml` config
+- Output: updated `.moai/project/db/schema.md`, `erd.mmd`, `migrations.md`; refresh report
+- Changes are staged for the sync commit — no separate commit is created
+
+On refresh failure (parser error, template conflict): log the error, include in sync report under "DB doc refresh warnings", and continue to Phase 0.1. Non-blocking by contract.
+
+#### Step 0.08.4: Advisory Path
+
+When migration files changed but `db.auto_sync: false`:
+
+- Emit one-line advisory to the sync report: "N migration files changed but db.auto_sync is disabled — run `/moai db refresh` manually to update derived docs"
+- Do not invoke refresh automatically — respect user opt-out
+
+Output: phase_result with one of `skipped | refreshed | advised | failed` and the migration file count.
 
 ### Phase 0.1: Deployment Readiness Check
 
@@ -294,7 +334,14 @@ Delegate to expert-security with the security workflow (workflows/security.md) i
 - Only CRITICAL findings block the sync pipeline
 - HIGH findings are reported as warnings in PR description
 - MEDIUM and LOW findings are logged in sync report
-- Dependency scan runs only if package files (go.mod, package.json, requirements.txt, etc.) changed
+
+**Dependency manifest audit (always runs, regardless of whether manifest files changed in this SPEC)**:
+
+Audit ALL of the following manifest files present at project root — dependency surface must be checked at every sync to detect drift from transitive vulnerability changes unrelated to this SPEC:
+`go.mod`, `package.json`, `requirements.txt`, `Cargo.toml`, `pyproject.toml`, `Gemfile`, `composer.json`, `mix.exs`, `Package.swift`, `pubspec.yaml`.
+
+When any manifest is detected, invoke `expert-security` for a dependency vulnerability scan of that manifest.
+Rationale: a transitive vulnerability may have been introduced by an unrelated dependency update since the last sync, even if no manifest file was modified in the current SPEC.
 
 #### Step 0.55.2: Security Gate Decision
 
@@ -540,6 +587,17 @@ For each SPEC associated with the current sync:
 
 #### Step 1.6: User Approval
 
+<!-- moai:evolvable-start id="gate-sync-2" -->
+### HUMAN GATE: Documentation Scope
+
+**Previous phase output:** Divergence analysis showing doc/code drift
+**Approval question:** Which documents should be regenerated?
+**Cannot proceed until:**
+- [ ] User has reviewed divergence report
+- [ ] User has approved document regeneration scope
+- [ ] User has confirmed PR description draft
+<!-- moai:evolvable-end -->
+
 Tool: AskUserQuestion
 
 Display sync plan report and present options:
@@ -648,6 +706,12 @@ Update SPEC status based on lifecycle level and implementation completeness:
 - Level 2 (spec-anchored): Set status to "completed" if all requirements met, or "in-progress" if partial. Schedule next review based on quarterly maintenance policy.
 - Level 3 (spec-as-source): Set status based on implementation-SPEC alignment. Flag discrepancies for resolution.
 
+**Implementation** (SPEC-STATUS-AUTO-001 REQ-4):
+```bash
+moai spec status <SPEC-ID> completed
+```
+Failure to update status does not block the sync workflow (warning only).
+
 Record version changes, status transitions, and divergence summary. Include in sync report.
 
 #### Step 2.4.1: GitHub Issue Status Sync
@@ -743,38 +807,6 @@ Timestamp: ISO-8601 timestamp
 - SPEC Status: [completed|in-progress]
 - Coverage Impact: [change or percentage]
 ```
-
-**Session Boundary Tag Creation:**
-
-After successful commit, create a session boundary tag to enable `/moai context` reconstruction:
-
-```
-git tag -a "moai/SPEC-{ID}/sync-complete" \
-  -m "Sync phase completed
-SPEC: SPEC-XXX
-Docs updated: N files
-Coverage verified: XX%
-Context embedded in: [commit hash]
-Next action: Feature complete or /moai plan for next SPEC"
-```
-
-Tag naming convention: `moai/SPEC-{ID}/sync-complete`
-
-**Context Memory Integration:**
-
-The embedded context enables:
-
-1. **Session Resumption**: When resuming development, `/moai context` retrieves this information automatically
-2. **Decision History**: Future SPECs build on documented decisions
-3. **Pattern Reuse**: Similar documentation patterns are recognized and applied
-4. **Cross-Session Continuity**: Context persists across individual AI sessions
-
-**Implementation Details:**
-
-- Commit message MUST include complete decision/pattern documentation
-- Session boundary tag MUST be created after successful push
-- Context metadata saved to `.moai/state/sync-context-{SPEC-ID}.json` for quick access
-- Tag message MUST reference the commit hash for traceability
 
 #### Step 3.1.5: Local CI Mirror Validation (Pre-PR Gate)
 
@@ -912,10 +944,7 @@ Detect current branch:
    - Base: {main_branch}
    - Labels: auto-detected from changed files
 4. If PR exists: Update with comment summarizing sync changes
-5. Enable auto-merge: `gh pr merge {number} --squash --delete-branch --auto`
-   - GitHub waits for all required status checks to pass, then auto-merges
-   - If auto-merge enable fails (e.g., not allowed in repo settings): log warning, continue
-6. Display PR URL to user
+5. Display PR URL to user
 
 **Main branch** (direct commit):
 - Push directly: `git push origin {main_branch}`
@@ -1094,7 +1123,6 @@ When user aborts at any decision point:
 All of the following must be verified:
 
 - Phase 0: Deployment readiness verified (tests, migrations, env changes, backward compatibility)
-- Phase 0.05: Code simplification review completed (Skill("simplify") on changed files)
 - Phase 0.5: Quality verification completed (tests, linter, type checker, deep code review with auto-fix)
 - Phase 0.55: Security scan completed (if security-sensitive files changed)
 - Phase 0.7: Coverage analysis completed (measurement, gap analysis, test generation, verification)
@@ -1105,6 +1133,46 @@ All of the following must be verified:
 
 ---
 
+## Test Scenarios
+
+### Normal Flow
+**Prompt**: "/moai sync SPEC-AUTH-001"
+**Expected Result**:
+- Phase 0: Pre-sync quality gate passes (tests, lint)
+- Phase 0.5: Quality verification confirms TRUST 5 compliance
+- Phase 1: Divergence analysis shows implementation matches SPEC
+- Decision Point: User approves sync plan
+- Phase 2: Documentation updated (README, CHANGELOG, API docs)
+- Phase 2.2.1: SPEC status updated to "implemented"
+- Phase 3: Commits created, PR opened with summary
+
+### Partial Implementation Flow
+**Prompt**: "/moai sync SPEC-AUTH-001" (only backend implemented, frontend pending)
+**Expected Result**:
+- Phase 1.5: Divergence detected - 3/5 acceptance criteria met
+- Sync plan notes partial implementation
+- SPEC status updated to "in-progress" (not "implemented")
+- Documentation reflects completed portions only
+- PR description notes remaining work
+
+### Error Flow
+**Prompt**: "/moai sync" (no SPEC specified, uncommitted changes exist)
+**Expected Result**:
+- Auto-detect: Finds uncommitted changes on current branch
+- AskUserQuestion: "Sync changes on current branch?"
+- If user confirms, syncs based on git diff
+- If no changes found, reports "Nothing to sync"
+
+---
+
 Version: 3.7.0
-Updated: 2026-03-11
-Source: Extracted from .claude/commands/moai/3-sync.md v3.4.0. Added deep code review with 4-perspective analysis and auto-fix (Phase 0.5.4 enhanced), coverage analysis with test generation (Phase 0.7 new), SPEC divergence analysis, project document updates, SPEC lifecycle awareness, team mode section, LSP quality gates, strategy-aware git delivery, deployment readiness check, and Context Memory generation in git commits (Step 3.1.1 new) for seamless session resumption and decision tracking across development cycles.
+Updated: 2026-03-30
+Changes: Added test scenarios.
+
+---
+
+## Custom Harness Extension (Optional)
+
+@.moai/harness/sync-extension.md
+
+*(이 파일은 `/moai project --harness`로 생성됩니다. 파일이 없으면 자동으로 skip됩니다.)*

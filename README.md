@@ -41,6 +41,7 @@ MoAI-ADK is a **high-performance AI development environment** for Claude Code. 2
 
 A single binary written in Go -- runs instantly on any platform with zero dependencies.
 
+
 ---
 
 ## Why MoAI-ADK?
@@ -268,7 +269,7 @@ graph LR
     M --> EX["⚡ Expert (8)"]
     M --> BL["🔧 Builder (3)"]
     M --> EV["🔍 Evaluator (2)"]
-    M --> AG["🎨 Agency (6)"]
+    M --> AG["🎨 Design System (4+1)"]
 
     MG --> MG1["spec · ddd · tdd · docs<br/>quality · project · strategy · git"]
     EX --> EX1["backend · frontend · security · devops<br/>performance · debug · testing · refactoring"]
@@ -292,7 +293,7 @@ graph LR
 | **Expert** | 8 | backend, frontend, security, devops, performance, debug, testing, refactoring | Domain-specific implementation, analysis, optimization |
 | **Builder** | 3 | agent, skill, plugin | Creating new MoAI components |
 | **Evaluator** | 2 | evaluator-active, plan-auditor | Independent quality assessment, plan-phase document audit |
-| **Agency** | 6 | planner, copywriter, designer, builder, evaluator, learner | Creative production pipeline |
+| **Design System** | 4 (+ evaluator) | moai-domain-copywriting, moai-domain-brand-design, moai-workflow-design-import, moai-workflow-gan-loop | Hybrid creative + code production |
 
 **Total: 27 agents**
 
@@ -314,7 +315,7 @@ Managed through a 3-level progressive disclosure system for token efficiency:
 | **Tool** | 2 | ast-grep, svg |
 | **Design** | 2 | design-tools, design-craft |
 | **Framework** | 1 | electron |
-| **Agency** | 5 | agency, client-interview, copywriting, design-system, frontend-patterns |
+| **Design System** | 4 | moai-domain-copywriting, moai-domain-brand-design, moai-workflow-design-import, moai-workflow-gan-loop |
 | **Docs** | 1 | docs-generation |
 | **Language Rules** | 16 | Go, Python, TypeScript, Rust, Java... (path-based rules, not skills) |
 
@@ -891,13 +892,13 @@ The @MX tag system optimizes **"Signal-to-Noise Ratio"**:
 
 ---
 
-## AI Agency: Self-Evolving Web & App Production Harness (v3.2)
+## Design System: Hybrid Web & App Production (v3.2, SPEC-AGENCY-ABSORB-001)
 
-> Just describe what you want. Agency interviews you, designs, builds, tests, and learns — autonomously.
+> Just describe what you want. Design system interviews you, designs, builds, tests, and learns — autonomously.
 
-MoAI-ADK includes **AI Agency** — a specialized harness for autonomous website and web application production. Like `/moai "description"` runs the full development workflow, `/agency "description"` runs the full creative production pipeline from brief to deployed code.
+MoAI-ADK includes an integrated **Design System** — a specialized harness for autonomous website and web application production. Like `/moai "description"` runs the full development workflow, `/moai design "description"` runs the full creative production pipeline from brief to deployed code.
 
-### Why Agency? — /moai vs /agency
+### Why Design? — /moai vs /moai design
 
 ```mermaid
 flowchart TB
@@ -906,22 +907,22 @@ flowchart TB
         M1["📋 Plan<br>(SPEC)"] --> M2["⚙️ Run<br>(DDD/TDD)"] --> M3["📦 Sync<br>(Docs + PR)"]
     end
 
-    subgraph AGENCY["/agency — Creative Web Production"]
+    subgraph DESIGN["/moai design — Creative Web Production"]
         direction LR
-        A1["📋 Planner<br>(BRIEF)"] --> A2["✍️ Copywriter"]
-        A1 --> A3["🎨 Designer"]
-        A2 --> A4["🔨 Builder"]
-        A3 --> A4
-        A4 --> A5["🔍 Evaluator"]
-        A5 -->|"FAIL"| A4
-        A5 -->|"PASS"| A6["🧠 Learner"]
+        D1["📋 Manager-Spec<br>(BRIEF)"] --> D2["✍️ Copywriting"]
+        D1 --> D3["🎨 Brand Design"]
+        D2 --> D4["🔨 Builder"]
+        D3 --> D4
+        D4 --> D5["🔍 Evaluator"]
+        D5 -->|"FAIL"| D4
+        D5 -->|"PASS"| D6["🧠 Learner"]
     end
 
     style MOAI fill:#e8f5e9,stroke:#4caf50
-    style AGENCY fill:#fff3e0,stroke:#ff9800
+    style DESIGN fill:#fff3e0,stroke:#ff9800
 ```
 
-| Aspect | `/moai` | `/agency` |
+| Aspect | `/moai` | `/moai design` |
 |--------|---------|-----------|
 | **Purpose** | Any software (backend, CLI, library, API) | Websites, landing pages, web apps |
 | **Input** | Feature description → SPEC | Business goal → BRIEF |
@@ -929,28 +930,28 @@ flowchart TB
 | **Quality** | Single manager-quality pass | **GAN Loop** (Builder↔Evaluator, max 5 rounds) |
 | **Self-Learning** | None | **Learner** detects patterns → proposes skill evolution |
 | **Brand** | None | Brand context as constitutional constraint |
-| **Agents** | 20 (manager/expert/builder) | 6 (planner/copywriter/designer/builder/evaluator/learner) |
+| **Implementation** | 20 agents (manager/expert/builder) | 4 skills (copywriting, brand-design, design-import, gan-loop) + evaluator-active |
 
 **When to use which:**
 - Building a REST API, CLI tool, or library? → `/moai`
-- Building a marketing website, SaaS landing page, or web app with design? → `/agency`
-- Need copy, design tokens, and code as separate artifacts? → `/agency`
+- Building a marketing website, SaaS landing page, or web app with design? → `/moai design`
+- Need copy, design tokens, and code as separate artifacts? → `/moai design`
 
 ### Quick Start: One Command, Full Pipeline
 
 ```bash
-/agency "SaaS landing page for my AI developer tools startup"
+/moai design "SaaS landing page for my AI developer tools startup"
 ```
 
 This single command triggers the **entire autonomous workflow**:
 
-1. **Client Interview** — Agency asks 9 structured questions about your business, brand, and tech preferences (skipped if already configured)
-2. **BRIEF Generation** — Planner expands your request into a comprehensive project brief
-3. **Copy + Design** — Copywriter produces brand-aligned marketing copy; Designer creates a full design system with tokens
-4. **Code Implementation** — Builder implements production code using TDD (Next.js + Tailwind by default)
-5. **Quality Assurance** — Evaluator runs Playwright tests, Lighthouse audits, and 4-dimension scoring
-6. **GAN Loop** — If quality fails, Builder and Evaluator iterate (up to 5 rounds) until threshold is met
-7. **Self-Learning** — Learner detects patterns from the session and proposes skill improvements
+1. **Client Interview** — Manager-spec asks 9 structured questions about your business, brand, and tech preferences (skipped if already configured)
+2. **BRIEF Generation** — Manager-spec expands your request into a comprehensive project brief
+3. **Copy + Design** — moai-domain-copywriting produces brand-aligned marketing copy; moai-domain-brand-design creates a full design system with tokens (Path B). Alternative Path A: moai-workflow-design-import parses Claude Design handoff bundles.
+4. **Code Implementation** — expert-frontend implements production code using TDD (Next.js + Tailwind by default)
+5. **Quality Assurance** — evaluator-active runs Playwright tests, Lighthouse audits, and 4-dimension scoring with Sprint Contract protocol
+6. **GAN Loop** — If quality fails, expert-frontend and evaluator-active iterate via moai-workflow-gan-loop (up to 5 rounds) until threshold is met
+7. **Self-Learning** — (Optional) Learner detects patterns from the session and proposes skill improvements
 
 **Typical duration**: 15-45 minutes for a complete landing page, fully autonomous.
 
@@ -958,27 +959,28 @@ This single command triggers the **entire autonomous workflow**:
 
 ```mermaid
 flowchart LR
-    REQ["🎯 /agency 'request'"] --> INT["📋 Client Interview"]
-    INT --> P["📝 Planner (BRIEF)"]
-    P --> C["✍️ Copywriter"]
-    P --> D["🎨 Designer"]
+    REQ["🎯 /moai design 'request'"] --> INT["📋 Client Interview"]
+    INT --> P["📝 Manager-Spec (BRIEF)"]
+    P --> C["✍️ Copywriting"]
+    P --> D["🎨 Brand Design"]
     C --> B["🔨 Builder (TDD)"]
     D --> B
     B --> E["🔍 Evaluator"]
     E -->|"FAIL (max 5 rounds)"| B
-    E -->|"PASS (score ≥ 0.75)"| L["🧠 Learner"]
+    E -->|"PASS (score ≥ 0.75)"| L["🧠 Learner (optional)"]
 ```
 
-### What Each Agent Does
+### What Each Skill Does
 
-| Agent | Model | What It Does |
-|-------|-------|-------------|
-| **Planner** | opus | Conducts client interview, generates structured BRIEF document |
-| **Copywriter** | sonnet | Writes marketing copy as structured JSON — headlines, body, CTAs — following brand voice rules |
-| **Designer** | sonnet | Creates complete design system — color tokens, typography scale, spacing, component specs |
-| **Builder** | sonnet | Implements production code with TDD (RED-GREEN-REFACTOR). Default stack: Next.js, TypeScript, Tailwind, shadcn/ui |
-| **Evaluator** | sonnet | Runs Playwright visual tests + Lighthouse audits. Scores 4 dimensions: Design Quality (30%), Originality (25%), Completeness (25%), Functionality (20%) |
-| **Learner** | opus | Detects recurring patterns, proposes skill evolution through 5-layer safety gates |
+| Skill | Purpose |
+|-------|---------|
+| **manager-spec** | Conducts client interview, generates structured BRIEF document |
+| **moai-domain-copywriting** | Writes marketing copy as structured JSON — headlines, body, CTAs — following brand voice rules |
+| **moai-domain-brand-design** | Creates complete design system — color tokens, typography scale, spacing, component specs (Path B) |
+| **moai-workflow-design-import** | Parses Claude Design handoff bundles (ZIP/HTML) for design tokens and components (Path A) |
+| **expert-frontend** | Implements production code with TDD (RED-GREEN-REFACTOR). Default stack: Next.js, TypeScript, Tailwind, shadcn/ui |
+| **evaluator-active** | Runs Playwright visual tests + Lighthouse audits. Scores 4 dimensions with Sprint Contract protocol and must-pass criteria validation |
+| **moai-workflow-gan-loop** | Manages GAN Loop iteration: Builder-Evaluator negotiates Sprint Contract, implements, scores, escalates on stagnation |
 
 ### The GAN Loop: Adversarial Quality Assurance
 
@@ -1026,16 +1028,16 @@ sequenceDiagram
 
 ### Brand Context: Your Creative Constitution
 
-On first run, Agency conducts a **structured client interview** (9 questions across 4 phases):
+On first run, Design System conducts a **structured client interview** (9 questions across 4 phases):
 
 | Phase | Questions | Populates |
 |-------|-----------|-----------|
-| Business Context | Objective, target customer, success KPIs | `.agency/context/target-audience.md` |
-| Brand Identity | Voice adjectives, reference sites, design preferences | `.agency/context/brand-voice.md`, `visual-identity.md` |
-| Technical Scope | Pages needed, tech requirements | `.agency/context/tech-preferences.md` |
-| Quality Expectations | Priority factors | `.agency/context/quality-standards.md` |
+| Business Context | Objective, target customer, success KPIs | `.moai/project/brand/target-audience.md` |
+| Brand Identity | Voice adjectives, reference sites, design preferences | `.moai/project/brand/brand-voice.md`, `visual-identity.md` |
+| Technical Scope | Pages needed, tech requirements | `.moai/project/tech.md` |
+| Quality Expectations | Priority factors | `.moai/config/sections/design.yaml` |
 
-Brand context flows through **every agent** as an immutable constraint. The Evaluator scores brand consistency as a must-pass criterion. After 5+ projects, the interview adapts to ask only 3 key questions.
+Brand context flows through **every skill** as an immutable constraint. The evaluator-active scores brand consistency as a must-pass criterion. After 5+ projects, the interview adapts to ask only 3 key questions.
 
 ### Self-Evolution with Safety
 
@@ -1082,44 +1084,141 @@ flowchart LR
 
 ```bash
 # Autonomous workflow (recommended)
-/agency "SaaS landing page for my AI startup"  # Full pipeline: interview → build → test → learn
+/moai design "SaaS landing page for my AI startup"  # Full pipeline: interview → build → test → learn
 
-# Step-by-step workflow
-/agency brief "landing page for dev tools"    # Interview + BRIEF only (review before building)
-/agency build BRIEF-001                       # Run full pipeline from existing BRIEF
-/agency build BRIEF-001 --step                # Approve each phase before proceeding
+# Alternative paths
+/moai design brief "landing page for dev tools"    # Interview + BRIEF only (review before building)
+/moai design build BRIEF-001                       # Run full pipeline from existing BRIEF
+/moai design import /path/to/design.zip            # Import Claude Design handoff bundle (Path A)
 
-# Quality & review
-/agency review BRIEF-001                      # Re-run evaluator on existing build
-/agency phase BRIEF-001 copywriter            # Re-run specific phase only
-
-# Self-evolution
-/agency learn                                 # Record feedback for pattern detection
-/agency evolve                                # Graduate learnings to skill rules
-/agency evolve --agent copywriter             # Evolve specific agent only
-
-# Session & profile
-/agency resume BRIEF-001                      # Resume interrupted workflow
-/agency profile                               # View adaptation stats and evolution history
-
-# System management
-/agency sync-upstream                         # Sync forked agents with MoAI updates
-/agency rollback agency-copywriting           # Rollback skill to previous version
-/agency config                                # View/edit pipeline configuration
+# Legacy Agency commands (deprecated, redirects to /moai design)
+/agency "..."                                      # Redirects to /moai design with deprecation warning
+/agency brief "..."                                # Not supported; use /moai design brief
 ```
 
 ### Default Tech Stack (configurable)
 
 | Layer | Default | Configured via |
 |-------|---------|---------------|
-| Framework | Next.js + App Router | `.agency/context/tech-preferences.md` |
-| Language | TypeScript (strict) | `.agency/context/tech-preferences.md` |
-| Styling | Tailwind CSS v4 | `.agency/context/tech-preferences.md` |
-| Components | shadcn/ui | `.agency/context/tech-preferences.md` |
-| Testing | Vitest + Playwright | `.agency/config.yaml` |
-| Hosting | Vercel | `.agency/context/tech-preferences.md` |
+| Framework | Next.js + App Router | `.moai/project/tech.md` |
+| Language | TypeScript (strict) | `.moai/project/tech.md` |
+| Styling | Tailwind CSS v4 | `.moai/project/tech.md` |
+| Components | shadcn/ui | `.moai/project/tech.md` |
+| Testing | Vitest + Playwright | `.moai/config/sections/design.yaml` |
+| Hosting | Vercel | `.moai/project/tech.md` |
 
-> [Agency Documentation](https://adk.mo.ai.kr/agency)
+### Migration from /agency
+
+Existing projects using `/agency` can migrate to `/moai design` via:
+```bash
+moai migrate agency
+```
+
+This command safely moves `.agency/` data to `.moai/project/brand/` and `.moai/config/sections/design.yaml`. Data is preserved as `.agency.archived/` for recovery if needed.
+
+> [Design System Documentation](https://adk.mo.ai.kr/design)
+
+---
+
+## Database Workflow: /moai db
+
+Database metadata management system for MoAI projects. Manages schema documentation, migrations, ERD diagrams, and seeds through four subcommands: init, refresh, verify, and list.
+
+### Quick Start
+
+```bash
+# Initialize database metadata (interactive interview)
+/moai db init
+
+# Rescan migrations and update schema documentation
+/moai db refresh
+
+# Check for drift between schema.md and migration files
+/moai db verify
+
+# Display all tables from schema.md
+/moai db list
+```
+
+### Subcommands
+
+| Command | Purpose | When to Use |
+|---------|---------|------------|
+| **init** | Interactive setup of database engine, ORM, multi-tenant strategy, and migration tool. Scaffolds `.moai/project/db/` with 7-file template set | New project initialization, before any database work |
+| **refresh** | Scans migration files and regenerates `schema.md`, `erd.mmd` (Mermaid ERD), and `migrations.md` from current migration state | After adding/modifying migrations, milestone sync |
+| **verify** | Read-only drift detection: compares `schema.md` table set against actual migration files, exits non-zero if drift detected | Before PR submission, in CI/CD pipelines |
+| **list** | Read-only table listing: displays all tables from `schema.md` in aligned Markdown table format | Quick project overview, documentation review |
+
+### Directory Structure
+
+`/moai db init` creates the following structure in `.moai/project/db/`:
+
+```plaintext
+.moai/project/db/
+├── README.md              # Database overview and setup instructions
+├── schema.md              # Table schema documentation (auto-generated)
+├── erd.mmd                # Entity-Relationship Diagram in Mermaid format
+├── migrations.md          # Migration history and sequencing
+├── rls-policies.md        # Row-level security policies (PostgreSQL)
+├── queries.md             # Important queries and performance notes
+└── seed-data.md           # Sample data and seeding instructions
+```
+
+### Supported Database Technologies
+
+Auto-detects and supports 6 migration file patterns:
+
+| Migration Type | File Pattern | Example |
+|---------------|-------------|---------|
+| **Prisma** | `prisma/migrations/*/migration.sql` | `20260401120000_add_users_table/migration.sql` |
+| **Alembic** | `alembic/versions/*.py` | `a1b2c3d4e5f6_add_users_table.py` |
+| **Rails** | `db/migrate/*.rb` | `20260401120000_add_users_table.rb` |
+| **Raw SQL** | `db/migrations/*.sql` | `001_add_users_table.sql` |
+| **Supabase** | `supabase/migrations/*.sql` | `20260401120000_initial_schema.sql` |
+| **Generic** | `migrations/*.sql` or `db/*.sql` | Custom patterns supported |
+
+Supports 16 programming language ecosystems (Go, Python, TypeScript, Java, etc.) through common package paths.
+
+### Integrations
+
+- **PostToolUse Hook**: Auto-refreshes `schema.md`, `erd.mmd`, `migrations.md` when migration files are edited
+- **Drift Detection**: Prevents schema documentation from drifting out of sync with actual migrations
+- **Mermaid Diagrams**: Generates ERD diagrams automatically for documentation and design reviews
+- **Phase 4.1a DB Detection**: `/moai project` automatically surfaces `/moai db` recommendations based on detected database technology
+
+### Configuration
+
+Database settings are stored in `.moai/config/sections/db.yaml`:
+
+```yaml
+db:
+  enabled: true
+  dir: ".moai/project/db"
+  auto_sync: true
+  migration_patterns:
+    - "prisma/migrations/*/migration.sql"
+    - "alembic/versions/*.py"
+    - "db/migrate/*.rb"
+  engine: ""  # Populated during init interview
+  orm: ""     # Populated during init interview
+  multi_tenant: false
+  migration_tool: ""
+```
+
+### Workflow Example
+
+1. **New Project**: Run `/moai db init`, answer 4 questions about your database setup
+2. **During Development**: Create migrations as usual; `/moai db` auto-syncs documentation
+3. **Before PR**: Run `/moai db verify` to check for schema drift
+4. **Review**: Reference `.moai/project/db/erd.mmd` in PRs for visual schema review
+
+### When to Use
+
+- **Always on**: Enable during `moai init` for any project with a database
+- **Init**: New projects, database architecture changes
+- **Refresh**: After significant migration work, before major commits
+- **Verify**: Part of CI/CD pipeline, pre-PR checks
+- **List**: Quick reference, documentation generation
 
 ---
 

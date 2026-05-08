@@ -75,9 +75,9 @@ constitution:
 
 **Agent Selection**:
 - **TDD cycle**: `manager-tdd` subagent (RED-GREEN-REFACTOR)
-- **DDD cycle**: `manager-ddd` subagent (ANALYZE-PRESERVE-IMPROVE)
+- **DDD cycle**: `manager-cycle` subagent (ANALYZE-PRESERVE-IMPROVE)
 
-For methodology details, see: .claude/rules/moai/workflow/workflow-modes.md
+For methodology details, see: .claude/rules/moai/workflow/spec-workflow.md (Run Phase section)
 
 ## Phase 0: Parallel Exploration
 
@@ -145,7 +145,7 @@ This iterative refinement catches architectural misunderstandings before impleme
 [HARD] Methodology selection based on `.moai/config/sections/quality.yaml`:
 
 - **development_mode: tdd** (default): Use `manager-tdd` (RED-GREEN-REFACTOR)
-- **development_mode: ddd**: Use `manager-ddd` (ANALYZE-PRESERVE-IMPROVE)
+- **development_mode: ddd**: Use `manager-cycle` (ANALYZE-PRESERVE-IMPROVE)
 
 Expert agent selection (for domain-specific work):
 - Backend logic: expert-backend subagent
@@ -222,19 +222,21 @@ Mode selection:
    - Load `.moai/config/sections/harness.yaml` (if not found, default to standard)
    - CG mode: Always thorough (natural Generator-Evaluator split)
    - Solo/Team: Run Complexity Estimator:
-     - Count distinct domains in SPEC requirements
-     - Count total files to modify (from plan.md)
+     - Count distinct domains in SPEC requirements (domain_count)
+     - Count total files to modify (file_count, from plan.md)
      - Check for security/payment/critical keywords
-   - Apply auto_detection rules:
-     - file_count <= 3 AND single_domain AND no security keywords → minimal
+     - Compute complexity_score = domain_count * 2 + file_count / 3 (integer, rounded down)
+   - Apply auto_detection rules (evaluated in order, first match wins):
+     - security/payment keywords OR spec_priority == critical → thorough
+     - file_count >= 10 AND multi_domain (domain_count >= 2) → thorough
      - file_count > 3 OR multi_domain → standard
-     - security/payment keywords OR priority critical → thorough
+     - file_count <= 3 AND single_domain AND no security keywords → minimal
    - Record detected harness level in progress.md
    - Pass harness level to Run phase
 13. **Phase 2 (Run)**: Route based on Gate result (execution_mode parameter)
    - worktree: Already running in isolated tmux+worktree session (Gate handled transition)
    - team: Read ${CLAUDE_SKILL_DIR}/team/run.md and follow team orchestration
-   - sub-agent: manager-tdd or manager-ddd (per quality.yaml development_mode)
+   - sub-agent: manager-tdd or manager-cycle (per quality.yaml development_mode)
    - Harness level determines phase skipping and evaluator involvement
 14. **Phase 3 (Sync)**: Always manager-docs sub-agent (sync phase never uses team mode)
 15. Terminate with completion marker

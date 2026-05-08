@@ -220,7 +220,7 @@ PLAN Phase (/moai:1-plan):
 
 RUN Phase (/moai:2-run):
 
-- manager-ddd agent loads SPEC document
+- manager-cycle agent loads SPEC document
 - ANALYZE-PRESERVE-IMPROVE DDD cycle execution
 - moai-workflow-testing skill reference for test patterns
 - Domain Expert agent delegation (expert-backend, expert-frontend, etc.)
@@ -353,7 +353,7 @@ Validation Checklist:
 - moai-workflow-project: Project initialization and configuration
 - moai-workflow-worktree: Git Worktree management for parallel development
 - manager-spec: SPEC creation and requirement analysis agent
-- manager-ddd: DDD implementation based on SPEC requirements
+- manager-cycle: DDD implementation based on SPEC requirements
 - manager-quality: TRUST 5 quality validation and gate enforcement
 
 ### Integration Examples
@@ -444,3 +444,42 @@ For migration scenarios and validation scripts, see [reference/migration-guide.m
 Version: 1.3.0 (SDD 2025 Standard Integration + SPEC Scope Classification)
 Last Updated: 2026-01-21
 Integration Status: Complete - Full Plan-Run-Sync workflow with SDD 2025 features and Migration Guide
+
+<!-- moai:evolvable-start id="rationalizations" -->
+## Common Rationalizations
+
+| Rationalization | Reality |
+|---|---|
+| "The SPEC is obvious, I can skip EARS format" | EARS exists because obvious requirements are the first to be misinterpreted. The format forces disambiguation. |
+| "Acceptance criteria are redundant with the requirements" | Requirements describe intent. Acceptance criteria describe observable evidence. Both are needed. |
+| "I will refine the SPEC during implementation" | Late refinement means wasted implementation. SPEC is the cheap place to change your mind. |
+| "Research is a nice-to-have, not a blocker" | Skipping research produces SPECs that conflict with existing code. research.md prevents rework. |
+| "Annotation cycle is just user friction" | Annotation catches misunderstandings before code is written. It is the cheapest feedback loop in the pipeline. |
+| "This SPEC is small, I do not need a separate file" | Every SPEC is a persistent contract. In-message SPECs cannot be referenced by /moai run SPEC-XXX. |
+
+<!-- moai:evolvable-end -->
+
+<!-- moai:evolvable-start id="red-flags" -->
+## Red Flags
+
+- Requirements written in imperative prose instead of EARS (WHEN X, SHALL Y)
+- Acceptance criteria phrased as subjective judgments ("feels fast", "looks clean")
+- SPEC document missing research.md sibling when modifying existing code
+- Annotation cycle skipped or reduced to a single-turn "looks good"
+- Requirements use "should" where they mean "shall" (optional vs mandatory ambiguity)
+- SPEC-ID not registered in `.moai/specs/` directory
+
+<!-- moai:evolvable-end -->
+
+<!-- moai:evolvable-start id="verification" -->
+## Verification
+
+- [ ] SPEC file exists at `.moai/specs/SPEC-XXX/spec.md` with unique ID
+- [ ] Every requirement uses EARS keywords (WHEN, WHILE, WHERE, IF, SHALL)
+- [ ] Every acceptance criterion is observable (test output, file existence, metric threshold)
+- [ ] research.md exists when the SPEC touches existing code
+- [ ] Annotation cycle completed with explicit user approval marker
+- [ ] SPEC references existing SPEC-IDs it depends on or supersedes
+- [ ] Non-goals section present to prevent scope creep
+
+<!-- moai:evolvable-end -->

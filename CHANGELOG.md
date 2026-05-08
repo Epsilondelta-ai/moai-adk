@@ -5,6 +5,1286 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] — SPEC-V3R3-CI-AUTONOMY-001 Wave 2: CI Watch Loop
+
+### Added
+
+- **SPEC-V3R3-CI-AUTONOMY-001 Wave 2 (T2)**: CI watch loop — `moai-workflow-ci-watch` skill + `gh pr checks` polling engine.
+  - `internal/ciwatch/` — Classifier (IsRequired via SSoT), WatchState (atomic YAML state file), Handoff (FailedCheck JSON schema for Wave 3 expert-debug).
+  - `internal/cli/pr/` — EmitReadyToMergeReport (markdown, `(권장)` first option), EmitFailureHandoff (JSON T3 pipe).
+  - `internal/cli/pr_watch_cmd.go` — `moai pr watch --abort` (SetAbortFlag) and `--report` subcommands.
+  - `scripts/ci-watch/` — POSIX sh polling loop (mock-injectable via `MOAI_CIWATCH_GH`), lib/_common.sh, lib/classify.sh (yq+grep fallback), lib/timeout.sh (30-min wall-clock guard).
+  - `.claude/skills/moai-workflow-ci-watch/` — 3-tier Progressive Disclosure skill (SKILL.md 222 lines, modules/).
+  - `.claude/rules/moai/workflow/ci-watch-protocol.md` — HARD invocation contract with auto-load paths frontmatter.
+  - Template-First: all .claude/ artifacts mirrored to `internal/template/templates/.claude/`.
+  - Coverage: ciwatch 87.6%, cli/pr 95.0%. Shell tests: 9/9 pass. make ci-local: PASS.
+
+## [Unreleased] — SPEC-V3R3-RETIRED-AGENT-001: Retired Agent Stub 호환성 수정 + manager-cycle 템플릿 정합화
+
+### Bug Fixes
+
+- **SPEC-V3R3-RETIRED-AGENT-001**: Retired agent stub 호환성 fix + manager-cycle 템플릿 정합화. mo.ai.kr 사이드 프로젝트 2026-05-04 21:14:54 incident (5-layer defect chain → `[ERROR] Path "/Users/.../{}/{}" does not exist`) 차단.
+  - 신규 `internal/template/templates/.claude/agents/moai/manager-cycle.md` (unified DDD/TDD implementation agent, SPEC-V3R2-ORC-001 retirement decision 완료).
+  - 표준화된 retirement frontmatter: `retired: true`, `retired_replacement`, `retired_param_hint`, `tools: []`, `skills: []`. legacy `status: retired` custom field 제거.
+  - SubagentStart hook retired-rejection guard 추가 (block decision JSON + exit code 2, 응답 시간 ≤500ms; 실측 0.056ms — mo.ai.kr 11.4s 대비 9000× 개선).
+  - `validateWorktreeReturn` 헬퍼 + WORKTREE_PATH_INVALID sentinel: empty string, literal `{}`, `[object Object]`, `null`, `undefined` 패턴 거부 (5-layer chain Layer 4 차단).
+  - manager-cycle workflow lifecycle hook dispatcher (`cycle-pre-implementation` / `cycle-post-implementation` / `cycle-completion`).
+  - Documentation 7 references / 6 files substituted (CLAUDE.md, agent-hooks.md, agent-authoring.md, spec-workflow.md, manager-strategy.md, manager-ddd.md).
+  - `agent_frontmatter_audit_test.go` CI assertion: retirement standardization 강제 + RETIREMENT_INCOMPLETE_<agent> sentinel.
+  - **사용자 action**: `moai update` 실행으로 신규 template 자동 sync. `.moai/specs/`, `.moai/project/` 사용자 데이터 보존.
+
+### Changed
+
+- **SPEC-V3R3-RETIRED-DDD-001**: `manager-ddd` 에이전트 retired stub 표준화. 
+  `manager-cycle`(cycle_type=ddd)로 통합. 
+  33개 파일 내 `manager-ddd` → `manager-cycle` 치환 완료.
+  사용자는 `moai update` 실행 시 자동 반영.
+
+- **SPEC-V3R3-RETIRED-DDD-001**: Standardized `manager-ddd` agent as retired stub.
+  Consolidated into `manager-cycle` (cycle_type=ddd).
+  33 files updated with `manager-ddd` → `manager-cycle` substitution.
+  Users receive changes automatically via `moai update`.
+
+## [Unreleased] — SPEC-V3R3-BRAIN-001: /moai brain 7-phase 아이디에이션 워크플로우
+
+### Added
+
+- **`/moai brain` CLI command** (`internal/cli/brain.go`, 850 LOC): New cobra CLI entry point for ideation workflow. Thin-wrapper pattern delegating to `manager-brain` agent. Implements Phase 1 (Research) through Phase 7 (Export) with argument parsing for `--from-brain <IDEA-ID>` handoff mode and `--instructions-only` flag for prompt extraction. 13 table-driven unit tests (100% coverage), zero race conditions.
+
+- **`manager-brain` agent** (`.claude/agents/manager-brain.md`, 520 LOC): New orchestration agent for 7-phase ideation workflow. Coordinates semantic decomposition (Phase 1), research parallel execution (Phase 2), conceptual design synthesis (Phase 3-4), design handoff package generation (Phase 5-6), and export (Phase 7). Delegates research to domain research skill, design to brand design skill, handoff to design-handoff skill. REQ-BRAIN-001~012 compliance verified per plan-audit iter3.
+
+- **`moai-domain-ideation` skill** (`.claude/skills/moai-domain-ideation/SKILL.md`, 420 LOC): New domain expertise skill for ideation workflow Phase 1 (semantic decomposition). Parses user ideas into structured decomposition candidates with SPEC decomposition pathway matrix (5 pathways: feature, refactor, infra, docs, testing). Output artifact: `proposal.md` (paste-ready for `/moai plan` input).
+
+- **`moai-domain-research` skill** (`.claude/skills/moai-domain-research/SKILL.md`, 380 LOC): Parallel research execution (Phase 2) combining WebSearch + Context7 MCP. Analyzes competitive landscape, market trends, and API/framework maturity for 5-pathway inputs. Output artifact: `research-summary.json` (structured competitive context, token-optimized ≤10K).
+
+- **`moai-domain-design-handoff` skill** (`.claude/skills/moai-domain-design-handoff/SKILL.md`, 360 LOC): Phase 5-6 design handoff package automation. Generates Claude Design-compatible bundle (prompt.md, components.json, design-tokens.yaml, screenshot.md). Prompt is paste-ready without MoAI tokens; components spec enables Path A import in `/moai design`. 8-file worked example (IDEA-EXAMPLE/) demonstrates idempotent handoff at v0.1.0.
+
+- **`IDEA-EXAMPLE/` worked example** (`.moai/brain/IDEA-EXAMPLE/`, 8 files, 2.2 KB): Complete ideation output artifact demonstrating 7-phase workflow on "MoAI Web Dashboard" concept. Files: idea.md (user input), proposal.md (Phase 1 decomposition), research-summary.json (Phase 2), design-brief.md (Phase 3-4), handoff-bundle.tar (Phase 5-6 export), export-log.md (Phase 7). Language-neutral (English comments, Korean example scenario).
+
+- **Workflow patches** (3 files):
+  - `project.md` (patch): Added `--from-brain <IDEA-ID>` flag for `/moai plan` Phase 8 auto-triggering
+  - `plan.md` (patch): Decomposition parser enhancement (accepts `proposal.md` from Phase 1)
+  - `design.md` (patch): Bundle auto-detect for handoff packages from Phase 5-6
+
+- **Test coverage** (`internal/template/commands_audit_test.go`, +42 LOC): Extended `TestBrainCommandThinPattern` validating `/moai brain` thin-wrapper pattern (≤20 LOC body), argument parsing, and phase sequence enforcement (Phase 1→7 ordered gate).
+
+- **`.moai/brain/` directory** (NEW): Reserved namespace for ideation artifacts (ideas/, proposals/, research/, designs/, handoffs/, exports/). Pattern matches `.moai/design/` architecture for design artifacts.
+
+### Technical
+
+- **7-phase orchestration** (manager-brain agent): Research (WebSearch+Context7) → Design (brand-aware synthesis) → Handoff (Claude Design export) → SPEC decomposition. REQ-BRAIN-001~012 traced end-to-end.
+- **16-language neutrality**: All skills and examples support 16 canonical languages (go, python, typescript, javascript, rust, java, kotlin, csharp, ruby, php, elixir, cpp, scala, r, flutter, swift). No language-specific hardcoding in template tree.
+- **Token optimization**: Research phase ≤10K, Design synthesis ≤8K, Handoff export ≤5K. Total Phase 2-6 budget ≤23K tokens. Enables ideation→SPEC→run pipeline within 250K session budget.
+- **MX tag protocol**: 4 ANCHOR tags (@MX:ANCHOR) for ideation flow entry points, 2 WARN tags (@MX:WARN) for handoff export preconditions. Inline NOTEs for phase transitions.
+- **Self-bootstrap capability**: `/moai brain "MoAI web dashboard"` → `proposal.md` → `/moai plan --from-brain IDEA-<auto-id>` → SPEC-V3R3-WEB-001 → `/moai run`. Demonstrates orchestrator self-referentiality (brain inspires web SPEC which may improve brain CLI).
+
+### Breaking Changes
+
+- None. New feature does not modify existing APIs or behavior.
+
+### Coverage
+
+- 12 EARS requirements (REQ-BRAIN-001~012) all traced to acceptance scenarios
+- 13 unit tests (TestBrain*) + integration pattern validation via plan-audit
+- 100% function coverage on `brain.go` CLI entry point
+- Go test suite: 100% pass rate with race detection (`-race` flag)
+
+## [Unreleased] — SPEC-V3R2-WF-002: Commands Thin-Wrapper Enforcement (98-github/99-release extraction)
+
+### Added
+
+- **`moai-workflow-github` skill** (`.claude/skills/moai-workflow-github/SKILL.md`, 723 LOC): Dev-only orchestration skill for GitHub issues and pull requests workflow. Extracted from `.claude/commands/98-github.md` (698 LOC body). Includes full GitHub workflow configuration, argument parsing (issues/pr sub-commands), pre-execution context loading, AskUserQuestion fallback for user decisions. Frontmatter declares `user-invocable: false` (dev-only; not surfaced to end users).
+
+- **`moai-workflow-release` skill** (`.claude/skills/moai-workflow-release/SKILL.md`, 958 LOC): Dev-only orchestration skill for Enhanced GitHub Flow release orchestration. Extracted from `.claude/commands/99-release.md` (914 LOC body). Implements 9-phase release workflow (PHASE 0–8): pre-flight checks, quality gates, code review, version selection (AskUserQuestion), bilingual CHANGELOG generation (English-first per CLAUDE.local.md §18), final approval, release branch/tag, GitHub release notes, local environment update. Preserves all 11 metadata keys (`release_target`, `branch`, `tag_format`, `merge_strategy`, `reference_policy`, etc.). Frontmatter declares `user-invocable: false` (dev-only).
+
+- **`TestRootLevelCommandsThinPattern` test** (`internal/template/commands_root_audit_test.go`, 146 LOC): Extends command audit suite to validate thin-wrapper compliance (≤20 LOC body) for root-level dev-only commands `98-github.md` and `99-release.md` in addition to `/moai/*` subcommands. Implements partial migration gate (REQ-WF002-015): verifies that `Skill("<name>")` references resolve to existing skill directories, blocking incomplete extractions. Test methodology: TDD RED→GREEN→REFACTOR via manager-tdd.
+
+- **`TestDevOnlySkillLeak` test** (`internal/template/dev_only_skill_test.go`, 47 LOC): Negative-case validation that dev-only skills `moai-workflow-github` and `moai-workflow-release` do NOT appear in `EmbeddedTemplates()` (i.e., `internal/template/templates/.claude/skills/`). Fails with `DEV_ONLY_SKILL_LEAK` message if accidental template registration occurs. Enforces REQ-WF002-014.
+
+### Changed
+
+- **`.claude/commands/98-github.md`** (698 → 9 LOC total, 1 LOC body): Refactored to thin-wrapper delegating to `Skill("moai-workflow-github")` with `$ARGUMENTS` passthrough. Frontmatter preserved (`description`, `argument-hint`, `type: local`, `allowed-tools: Skill`). Version bumped 2.0.0 → 3.0.0 (extraction semantic change). Behavior preserved: `/98-github issues ...` and `/98-github pr ...` sub-commands now routed to skill implementation.
+
+- **`.claude/commands/99-release.md`** (933 → 21 LOC total, 1 LOC body): Refactored to thin-wrapper delegating to `Skill("moai-workflow-release")` with `$ARGUMENTS` passthrough. Frontmatter preserved including 11 metadata keys and `disable-model-invocation: true` flag. Version bumped 5.0.0 → 6.0.0 (extraction semantic change). Behavior preserved: `/99-release [VERSION] [--hotfix]` now routes logic to skill while maintaining release orchestration semantics.
+
+### Breaking Changes
+
+- **[BC-V3R2-012] Command thin-wrapper extraction**: Internal mechanism change for maintainers — `.claude/commands/98-github.md` and `99-release.md` now delegate to extracted skills instead of inline orchestration logic. **User projects unaffected** (these are dev-only commands not templated into user `.claude/commands/`). Maintainer internal behavior preserved (behavior-preserving extraction).
+
+### Technical
+
+- **TDD methodology** (manager-tdd agent): M4 and M5 implemented via RED→GREEN→REFACTOR cycle. 4 negative test cases verified: leak inject/remove, skill dir rename/restore.
+- **Behavior-preserving extraction**: H2 header count parity verified (98: 24→24, 99: 35→35). All GitHub sub-commands (issues/pr flags: --all, --label, --solo, --merge, NUMBER) preserved. All Release phases (PHASE 0–8) preserved with ordering parity check.
+- **Dev-only skill containment**: Both skills reside in `.claude/skills/` (local/dev) only. Embedded template tree `internal/template/templates/.claude/skills/` validated empty via `TestDevOnlySkillLeak` (CI gate).
+- **Partial migration prevention** (REQ-WF002-015): Commands audit test gate ensures `Skill("<name>")` wrapper dependencies are satisfied before allowing commit (skill dir must exist).
+- **Binary size delta**: +193 LOC test code, −1,905 LOC commands + 1,881 LOC skills = net −31 LOC. Binary size impact <50 KiB (CI policy).
+- **Coverage**: `go test ./internal/template/...` both new test files PASS. `go test -race ./...` no race conditions detected.
+
+## [Unreleased] — SPEC-V3R2-EXT-001: Typed Memory Taxonomy (4-type enforcement)
+
+### Added
+
+- **statusline (SPEC-CC2122-STATUSLINE-001)**: Claude Code v2.1.122 `effort.level` and `thinking.enabled` indicator
+  support in moai statusline. Compact segment rendering (e.g. `e:high·t`), silent omit on absent fields, graceful
+  fallback for unknown enum values. 11/11 GWT scenarios PASS, 87.0% coverage, TDD methodology (M2-M6).
+- **`internal/hook/memo/taxonomy` sub-package**: 4-type memory enum (`user | feedback | project | reference`) with
+  `ParseFile`, `ValidateType`, `DetectStale`, `AggregateWarning`, `AuditFile`, `AuditIndex`, `AuditDuplicates`.
+  91.7% test coverage. Source: SPEC-V3R2-EXT-001.
+- **SessionStart staleness wrap** (`internal/hook/session_start.go`): Memory files with mtime > 24h are wrapped
+  in `<system-reminder>` blocks with a verification caveat. Aggregated single warning when 10+ stale files detected.
+- **PostToolUse memory audit** (`internal/hook/post_tool.go`): Non-blocking warnings on Write/Edit of agent-memory
+  files: `MEMORY_MISSING_TYPE`, `MEMORY_MISSING_FRONTMATTER`, `MEMORY_BODY_STRUCTURE_MISSING`,
+  `MEMORY_EXCLUDED_CATEGORY`, `MEMORY_INDEX_OVERFLOW`, `MEMORY_DUPLICATE`. Static-keyword v1 detection
+  (LLM-based detection deferred to v2).
+- **`memory:` config section** (`.moai/config/sections/workflow.yaml`): `staleness_threshold_hours: 24`,
+  `index_line_cap: 200`, `stale_aggregate_threshold: 10`. Single source of truth for all thresholds.
+- **Rule documentation** (`.claude/rules/moai/workflow/moai-memory.md`): 4-type taxonomy section with
+  per-type writing guidelines, MEMORY.md 200-line cap explanation, excluded category enumeration.
+- **`MOAI_MEMORY_AUDIT=0` rollback flag**: Disables both SessionStart wrap and PostToolUse audit (skip path).
+
+### Technical
+
+- New fixtures: `internal/hook/memo/taxonomy/fixtures/` (11 files for valid/invalid taxonomy permutations)
+- Constants centralized in `internal/config/defaults.go` (no hardcoded literals 24/200/10)
+
+## [Unreleased] — SPEC-V3R2-CON-001: FROZEN/EVOLVABLE Zone Registry
+
+### Added
+
+- **`moai constitution list`** CLI command: Browse and filter the zone registry by `--zone frozen|evolvable`,
+  `--file <pattern>`, and `--format table|json`. Source: SPEC-V3R2-CON-001.
+- **`moai constitution guard`** CLI command: Check a list of changed rule IDs for FROZEN zone violations.
+  Returns non-zero exit on any Frozen-zone rule modification. Designed for CI pipelines.
+- **Zone Registry** (`.claude/rules/moai/core/zone-registry.md`): Single source of truth for all HARD clauses
+  across the MoAI rule tree. 68 entries: 38 Frozen, 30 Evolvable. Template twin included.
+- **`internal/constitution` package**: `Zone`, `Rule`, `Registry`, `LoadRegistry`, `ValidateRuleReferences`.
+  86.5% test coverage. 200-entry cold load benchmark: ~1.85ms (target <10ms).
+- **Doctor constitution check** (`moai doctor`): `Constitution Registry` check validates registry existence,
+  Frozen entry count, orphan warnings, and duplicate IDs. Supports `MOAI_CONSTITUTION_STRICT=1` strict mode.
+- **Makefile `constitution-check` target**: Runs `moai constitution list --format json` against the live registry.
+- **CI `constitution-check` job** (`.github/workflows/ci.yml`): `continue-on-error: true` job verifying
+  registry integrity on every push to main and PR.
+
+### Technical
+
+- New package `internal/constitution`: `zone.go`, `rule.go`, `loader.go`, `dangling.go`
+- Test fixtures: `internal/constitution/testdata/` (6 fixture files)
+- Binary size delta: +33,600 bytes (~33 KiB, limit 50 KiB)
+- Integration tests: `internal/cli/constitution_integration_test.go` (build tag: integration)
+
+## [Unreleased] — SPEC-V3R2-WF-001: Skill Consolidation Stage 1 (48 → 38)
+
+### Added
+
+- **Stage 1 skill consolidation**: 48 skills → 38 surviving directories (11 RETIRE + 1 NEW `moai-design-system`).
+  Source: SPEC-V3R2-WF-001 v1.1.0.
+- **5 merge clusters**: `moai-foundation-thinking` (absorbs philosopher + workflow-thinking triplet),
+  `moai-design-system` (NEW, absorbs design-craft + domain-uiux + Pencil portion of design-tools),
+  `moai-domain-database` (absorbs platform-database-cloud), `moai-workflow-project` (absorbs templates + docs-generation + jit-docs),
+  `moai-foundation-core` (absorbs foundation-context content).
+- **11 retired skills** (archived to `.moai/archive/skills/v3.0/`):
+  `moai-foundation-context`, `moai-foundation-philosopher`, `moai-workflow-thinking`, `moai-workflow-templates`,
+  `moai-workflow-jit-docs`, `moai-domain-uiux`, `moai-design-craft`, `moai-design-tools` (Figma portion),
+  `moai-docs-generation`, `moai-platform-database-cloud`, `moai-tool-svg`.
+- **Trigger keyword union preservation**: All retired skill triggers migrated to merge target's `triggers:` or `related-skills:` frontmatter.
+- **6 REFACTOR skills**: `moai-workflow-testing` (split bundled modules), `moai-domain-backend` (narrow to API matrix),
+  `moai-domain-frontend` (router-only), `moai-platform-deployment` (Vercel-only), `moai-platform-auth` (narrower vendor guidance),
+  plus 2 UNCLEAR telemetry windows (`moai-framework-electron`, `moai-platform-chrome-extension`).
+- **CI fixture tests**: 2 broken-fixture suites at `.moai/specs/SPEC-V3R2-WF-001/fixtures/` validating retirement archive requirements and trigger drop detection.
+- **Shared contract** (SPEC-V3R2-MIG-001): `.moai/decisions/skill-rename-map.yaml` artifact schema (v1) for migrator consumption.
+
+### Breaking Changes
+
+- **[BC-V3R2-006] Skill directory deletions**: Users with customized `.claude/skills/` may encounter deleted directories
+  during `moai update`. Migrate per `.moai/archive/skills/v3.0/<name>/RETIRED.md` guidance.
+
+### Technical
+
+- Template/local byte-identity maintained across all `.claude/skills/` and `internal/template/templates/.claude/skills/`
+  via `diff -rq` CI validation.
+- 48→38 progression is Stage 1 of a 2-stage plan; Stage 2 (38→24) deferred to SPEC-V3R3-WF-001.
+- Agency-absorbed skills (`moai-domain-copywriting`, `moai-domain-brand-design`) remain FROZEN per design constitution.
+
+## [Unreleased] — SPEC-V3R2-WF-006: Output Styles Alignment
+
+### Added
+
+- **Output style schema validation** (frontmatter fields: `name`, `description`, `keep-coding-instructions`).
+  Source: SPEC-V3R2-WF-006 v1.1.0.
+- **Loading precedence**: Project-level `settings.json` `outputStyle` > user-level > hardcoded "MoAI" default.
+  Documented in `.claude/rules/moai/core/settings-management.md`.
+- **Fallback warning**: Unknown style names fall back to "MoAI" and emit `OUTPUT_STYLE_UNKNOWN: <name> not found; falling back to MoAI` to stderr.
+- **CI drift check**: `make build` validates template and local output-styles byte-identity; rejects with `OUTPUT_STYLE_DRIFT` on divergence.
+- **Schema audit CI** (`internal/template/output_styles_audit_test.go`): Rejects missing/malformed frontmatter with `OUTPUT_STYLE_SCHEMA_ERROR`.
+
+### Technical
+
+- Two styles remain stable: `MoAI` (`keep-coding-instructions: true`) and `Einstein` (`keep-coding-instructions: false`).
+- Third style admission gated by schema validation (`OUTPUT_STYLE_UNVERIFIED` block).
+- Template/local byte-identity maintained via `diff -rq` CI check (extends existing commands pattern).
+
+## [Unreleased] — SPEC-WF-AUDIT-GATE-001: Plan Audit Gate (grace window 7d)
+
+### Added
+
+- **Plan Audit Gate** (`/moai run` Phase 0.5): Mandatory plan-auditor invocation before every
+  `/moai run <SPEC-ID>` call. Prevents unreviewed SPEC artifacts from entering the implementation
+  phase. Source: SPEC-WF-AUDIT-GATE-001.
+- **Grace window** (7 days): FAIL verdicts emit warnings only until T0 + 7 days, after which
+  they block Phase 1. Grace window T0 stored in `.moai/state/audit-gate-merge-at.txt`.
+- **`--skip-audit` bypass**: Users can bypass the gate with `--skip-audit` or `MOAI_SKIP_PLAN_AUDIT=1`.
+  All bypasses are recorded as BYPASSED verdict in `.moai/reports/plan-audit/` with timestamp, user, and rationale.
+- **INCONCLUSIVE fall-back**: Auditor timeout/error/malformed output results in INCONCLUSIVE verdict.
+  Never auto-PASS. Presents retry/proceed/abort options to user.
+- **24h audit cache**: Repeated `/moai run` calls within 24h with unchanged plan artifacts reuse
+  the cached PASS verdict without re-invoking plan-auditor.
+- **Daily report persistence**: All gate invocations append to `.moai/reports/plan-audit/<SPEC-ID>-<DATE>.md`.
+- **Team mode parity**: Gate applies equally in `--team` mode before any TeamCreate or teammate spawn.
+
+### Technical
+
+- New package `internal/runtime`: `audit_gate.go`, `audit_cache.go`, `audit_report.go`, `clock.go`
+- Integration tests: `internal/cli/run_audit_gate_*_test.go`, `team_run_audit_gate_test.go`, `dogfood_self_audit_test.go`
+- Workflow skills updated: `workflows/run.md`, `team/run.md`, `plan.md`, `spec-workflow.md`
+
+## [2.13.2] - 2026-04-23
+
+### Summary
+
+Patch release completing the v2.13.0 `/agency` deprecation cycle ahead of schedule and resolving template/local drift across 60+ skill and rule files. The `/agency` redirect wrappers (originally scheduled for removal in the next minor version per REQ-DEPRECATE-003) are now fully removed. Template/local drift that accumulated since v2.13.0 is resolved, restoring HUMAN GATE quality gates, Drift Guard, `effort` field on reasoning-intensive agents, and the v2.13.0 DB Detection pipeline (Phase 4.1a) to local projects.
+
+### Breaking Changes
+
+None. The `/agency` command stubs were already marked DEPRECATED in v2.13.0 with a clear migration path to `/moai design`. Users who did not migrate will now see an "unknown command" error instead of the deprecation redirect.
+
+### Added
+
+- 3 skills synced from template to local: `moai-domain-db-docs`, `moai-workflow-design-context`, `moai-workflow-pencil-integration`
+- Evolvable blocks (`Common Rationalizations`, `Red Flags`, `Verification`) restored across 41 domain/foundation/workflow/library/platform/ref/tool skills
+- v2.13.0 DB Detection (Phase 4.1a) restored in `moai/workflows/project.md` (+257 lines of DB engine/ORM/ODM keyword matrices across 16 supported languages)
+- HUMAN GATE quality gates restored: 6 blocks across `plan.md`, `run.md`, `sync.md`
+- `Drift Guard` section restored in `workflow-modes.md` (non-blocking scope drift check after DDD/TDD cycles)
+
+### Changed
+
+- `user-invocable: false` applied to `moai-domain-brand-design` and `moai-domain-copywriting` skills (internal `/moai design` pipeline components, no longer appear in `/` slash command menu)
+- `effort: high` / `effort: xhigh` field restored on 7 reasoning-intensive agents (evaluator-active, expert-refactoring, expert-security, manager-spec, manager-strategy, plan-auditor, builder-agent) per CLAUDE.md Opus 4.7 HARD rule
+- `skill-authoring.md` updated to Opus 4.7 effort level description (xhigh/max require Opus 4.7+)
+- `lsp-client.md` template updated with powernap v0.1.3 to v0.1.4 upgrade notes (merged in #679)
+- 16-language neutrality table restored in `loop.md`, `references/examples.md`, `references/reference.md` per CLAUDE.local.md Section 22
+
+### Removed
+
+- `/agency` deprecation stubs: 8 command files in `.claude/commands/agency/` and template parallel
+- `.claude/rules/agency/constitution.md` redirect stub and template parallel
+- `/agency (DEPRECATED)` section in CLAUDE.md and template CLAUDE.md
+
+### Fixed
+
+- Template/local skill drift: 41 skill files synced to pick up evolvable blocks added in recent template updates
+- Missing `effort` field on reasoning-intensive agents caused Opus 4.7 to use default reasoning budget instead of configured level
+- `moai/workflows/project.md` local version missing v2.13.0 DB Detection caused `/moai project` to skip DB inspection phase
+
+### Installation & Update
+
+```bash
+# Update to the latest version
+moai update
+
+# Verify version
+moai version
+```
+
+---
+
+## [2.13.2] - 2026-04-23 (한국어)
+
+### 요약
+
+v2.13.0에서 예정된 `/agency` deprecation 제거를 앞당겨 완전 제거하고, v2.13.0 이후 누적된 템플릿/로컬 드리프트 60여 개 파일을 해소하는 패치 릴리즈입니다. REQ-DEPRECATE-003에 따라 다음 minor 버전 예정이던 `/agency` redirect 래퍼가 제거되었고, HUMAN GATE 품질 게이트, Drift Guard, 추론 집약 에이전트의 `effort` 필드, v2.13.0 DB Detection 파이프라인(Phase 4.1a)이 로컬 프로젝트에 복구되었습니다.
+
+### 주요 변경 사항 (Breaking Changes)
+
+없음. `/agency` 명령 스텁은 v2.13.0에서 이미 DEPRECATED로 표기되고 `/moai design` 이주 안내가 제공되었습니다. 미이주 사용자는 이제 deprecation 안내 대신 "unknown command" 오류를 보게 됩니다.
+
+### 추가됨 (Added)
+
+- 로컬 부재 스킬 3개 템플릿에서 동기화: `moai-domain-db-docs`, `moai-workflow-design-context`, `moai-workflow-pencil-integration`
+- 41개 domain/foundation/workflow/library/platform/ref/tool 스킬에 evolvable blocks (`Common Rationalizations`, `Red Flags`, `Verification`) 복구
+- `moai/workflows/project.md`에 v2.13.0 DB Detection (Phase 4.1a) 복구 — 16개 지원 언어의 DB engine/ORM/ODM 키워드 매트릭스 +257줄
+- HUMAN GATE 품질 게이트 복구: `plan.md`, `run.md`, `sync.md`에 6개 블록
+- `workflow-modes.md`에 `Drift Guard` 섹션 복구 (DDD/TDD 사이클 후 non-blocking scope drift 검사)
+
+### 변경됨 (Changed)
+
+- `moai-domain-brand-design`, `moai-domain-copywriting` 스킬에 `user-invocable: false` 적용 (/moai design 내부 파이프라인 컴포넌트, 슬래시 메뉴 노출 제거)
+- 7개 추론 집약 에이전트(evaluator-active, expert-refactoring, expert-security, manager-spec, manager-strategy, plan-auditor, builder-agent)에 `effort: high` / `effort: xhigh` 필드 복구 (CLAUDE.md Opus 4.7 HARD rule 준수)
+- `skill-authoring.md` Opus 4.7 effort level 설명 갱신 (xhigh/max는 Opus 4.7+ 요구)
+- `lsp-client.md` 템플릿에 powernap v0.1.3 → v0.1.4 업그레이드 노트 반영 (#679)
+- CLAUDE.local.md Section 22에 따라 `loop.md`, `references/examples.md`, `references/reference.md`에 16개 언어 중립성 테이블 복구
+
+### 제거됨 (Removed)
+
+- `/agency` deprecation 스텁: `.claude/commands/agency/` 8개 명령 파일 및 템플릿 대응
+- `.claude/rules/agency/constitution.md` redirect 스텁 및 템플릿 대응
+- CLAUDE.md 및 템플릿 CLAUDE.md의 `/agency (DEPRECATED)` 섹션
+
+### 수정됨 (Fixed)
+
+- 템플릿/로컬 스킬 드리프트: 최근 템플릿 업데이트에서 추가된 evolvable blocks를 반영하도록 41개 스킬 동기화
+- 추론 집약 에이전트의 `effort` 필드 누락으로 Opus 4.7이 구성된 레벨 대신 기본 추론 예산을 사용하던 문제 해결
+- `moai/workflows/project.md` 로컬 버전에서 v2.13.0 DB Detection이 누락되어 `/moai project`의 DB 검사 단계가 스킵되던 문제 해결
+
+### 설치 및 업데이트 (Installation & Update)
+
+```bash
+# 최신 버전으로 업데이트
+moai update
+
+# 버전 확인
+moai version
+```
+
+---
+
+## [2.13.1] - 2026-04-23
+
+### Summary
+
+Patch release addressing slash command registration for `/moai db` and `/moai design` workflows introduced in v2.13.0. These commands existed as internal skill workflows but lacked the `.claude/commands/moai/*.md` wrapper files, preventing them from appearing in the Claude Code slash command menu.
+
+### Breaking Changes
+
+None.
+
+### Added
+
+- `.claude/commands/moai/db.md` command wrapper (local synced from template)
+- `.claude/commands/moai/design.md` command wrapper (new, template + local)
+- `.claude/skills/moai/workflows/db.md` local workflow (template sync for files missing locally)
+
+### Changed
+
+- `.claude/skills/moai/SKILL.md` router: `db` and `design` added to Priority 1 subcommand matching, description field, and Workflow Quick Reference blocks
+- `.claude/skills/moai/workflows/design.md` synced from template (7.4K → 9.5K, adds Phase 0 pre-flight checks and path B details)
+- `CLAUDE.md` Subcommands list: `design, db` inserted
+- Template sources (`internal/template/templates/.claude/`) updated in parallel to preserve Template-First rule
+
+### Fixed
+
+- `/moai db` and `/moai design` now appear in Claude Code slash command menu (`moai:db`, `moai:design`)
+- First-word subcommand matching in router now correctly routes `db` and `design` to their respective workflows
+- Template/local drift between router SKILL.md and workflow files resolved
+
+### Installation & Update
+
+```bash
+# Update to the latest version
+moai update
+
+# Verify version
+moai version
+```
+
+---
+
+## [2.13.1] - 2026-04-23 (한국어)
+
+### 요약
+
+v2.13.0에 도입된 `/moai db`와 `/moai design` 워크플로우의 slash command 등록 누락을 수정하는 패치 릴리즈입니다. 내부 skill 워크플로우로는 존재했으나 `.claude/commands/moai/*.md` 래퍼 파일이 부재하여 Claude Code slash command 메뉴에 노출되지 않던 문제를 해결했습니다.
+
+### 주요 변경 사항 (Breaking Changes)
+
+없음.
+
+### 추가됨 (Added)
+
+- `.claude/commands/moai/db.md` command 래퍼 (local, template에서 동기화)
+- `.claude/commands/moai/design.md` command 래퍼 (신규, template + local)
+- `.claude/skills/moai/workflows/db.md` local 워크플로우 (local 부재분 template 동기화)
+
+### 변경됨 (Changed)
+
+- `.claude/skills/moai/SKILL.md` 라우터: Priority 1 subcommand 매칭, description 필드, Workflow Quick Reference 블록에 `db`와 `design` 추가
+- `.claude/skills/moai/workflows/design.md` template에서 동기화 (7.4K → 9.5K, Phase 0 사전 검사 및 path B 세부 추가)
+- `CLAUDE.md` Subcommands 목록에 `design, db` 삽입
+- Template 원본(`internal/template/templates/.claude/`)도 Template-First 규칙 유지를 위해 동시 업데이트
+
+### 수정됨 (Fixed)
+
+- `/moai db`와 `/moai design`이 Claude Code slash command 메뉴에 정상 노출 (`moai:db`, `moai:design`)
+- 라우터의 FIRST WORD subcommand 매칭이 `db`와 `design`을 각 워크플로우로 올바르게 라우팅
+- 라우터 SKILL.md와 워크플로우 파일 간 template/local 드리프트 해소
+
+### 설치 및 업데이트 (Installation & Update)
+
+```bash
+# 최신 버전으로 업데이트
+moai update
+
+# 버전 확인
+moai version
+```
+
+---
+
+## [2.13.0] - 2026-04-23
+
+### Summary
+
+Three independent workstreams converged in this release:
+
+1. **SPEC-AGENCY-ABSORB-001 absorption (#682)** — `/agency` command and agents absorbed into the unified `/moai design` hybrid workflow. Brand context promoted to `.moai/project/brand/` as a constitutional constraint.
+2. **Design + DB 8-SPEC integrated delivery** — `.moai/design/` folder scaffolding, `/moai db` command family, Pencil MCP integration, PostToolUse DB sync hook, and `/moai project` Phase 4.1a DB detection.
+3. **Profile setup wizard hardening (#681)** — 16 review findings applied, silent data coercion of deprecated Claude IDs fixed, `ast_grep_gate` SAST re-enabled, team role_profiles rebalanced for Opus 4.7 / 1M-context models.
+
+Additional highlights: LSP server detection fix restoring 16-language support (#689), `moai glm` settings.local.json pollution fix (#691), `charmbracelet/x/powernap` v0.1.3 → v0.1.4 (#679), and Hextra-based docs-site monorepo integration (#680).
+
+### Breaking Changes
+
+- `/agency` command deprecated — now redirects to `/moai design`. Full removal scheduled per REQ-DEPRECATE-003 (2 minor versions after this release).
+
+### Added
+
+**Design workflow (SPEC-AGENCY-ABSORB-001, SPEC-DESIGN-* series)**
+- `/moai design` subcommand — Hybrid design workflow (Claude Design import path + code-based skill path)
+- `moai migrate agency` command — Safe migration of .agency/ data to .moai/project/brand/ and .moai/config/sections/design.yaml
+- `moai-domain-copywriting` skill — Brand-aligned copywriting with anti-AI-slop enforcement
+- `moai-domain-brand-design` skill — Visual design system with hero-first chaining, WCAG 2.1 AA
+- `moai-workflow-design-import` skill — Claude Design handoff bundle parser (ZIP/HTML)
+- `moai-workflow-gan-loop` skill — Builder-Evaluator iteration with Sprint Contract protocol
+- `moai-workflow-design-context` skill (SPEC-DESIGN-ATTACH-001) — `.moai/design/` bare-token auto-loader with priority truncation (`spec > system > research > pencil-plan`) and `ceiling(char/4) * 1.10` token budget enforcement
+- `moai-workflow-pencil-integration` skill (SPEC-DESIGN-PENCIL-001) — Pencil MCP batch operation executor with DSL parser (I/M/R), 25-op batch split, layout verification, screenshot archival
+- `.moai/design/` folder scaffolding (SPEC-DESIGN-DOCS-001) — README + research/system/spec templates with `_TBD_` markers; SHA-256 based user-edit preservation on `moai update`; reserved filename collision detection (exact + `filepath.Match`); non-empty-dir skip on `moai init`
+- `.moai/project/brand/` directory — brand-voice.md, visual-identity.md, target-audience.md templates
+- `.moai/config/sections/design.yaml` — Design pipeline configuration (GAN loop, sprint contract, evolution thresholds) + `design_docs` subsection (SPEC-DESIGN-ATTACH-001)
+- `.claude/rules/moai/design/constitution.md` v3.3.0 (SPEC-DESIGN-CONST-AMEND-001) — Section 3 expanded to tripartite structure (3.1 Brand Context / 3.2 Design Brief / 3.3 Relationship); FROZEN zone extended to cover each subsection individually
+
+**DB workflow (SPEC-DB-* series)**
+- `/moai db` subcommand (SPEC-DB-CMD-001) — Thin wrapper (`commands/moai/db.md` <20 LOC) + router skill (`workflows/db.md` 9 phases) supporting `init`/`refresh`/`verify`/`list`. 16-language migration path mapping table.
+- `.moai/project/db/` 7-file template set (SPEC-DB-TEMPLATES-001) — README, schema.md, erd.mmd (Mermaid `erDiagram`), migrations.md, rls-policies.md, queries.md, seed-data.md. `_TBD_` markers for interview-driven customization.
+- `.moai/config/sections/db.yaml` (SPEC-DB-TEMPLATES-001) — 8-key structure (5 system + 3 interview): `enabled`, `dir`, `auto_sync`, `migration_patterns` (6 patterns: Prisma/Alembic/Rails/SQL/Supabase/generic), `engine`, `orm`, `multi_tenant`, `migration_tool`. Recursion guard via `.moai/project/db/**` exclusion.
+- `moai-domain-db-docs` skill (SPEC-DB-SYNC-001) — Migration file parser facade + schema.md/erd.mmd/migrations.md synchronizer. Preserves user-edited sections and `_TBD_` markers.
+- `moai hook db-schema-sync` subcommand (SPEC-DB-SYNC-001) — Go CLI for PostToolUse hook processing with 10s debounce state file, path traversal guard, proposal.json writer, non-blocking error logging.
+- `handle-db-schema-change.sh` PostToolUse hook (SPEC-DB-SYNC-001) — Bash wrapper invoking `moai hook db-schema-sync` on Write/Edit events.
+- `/moai project` Phase 4.1a DB Detection (SPEC-PROJECT-DB-HINT-001) — Auto-detects DB technology from `.moai/project/tech.md` + 16-language dependency manifests; conditionally surfaces `/moai db init` (Recommended, new project) or `/moai db refresh` (4th option, existing project) in Phase 4.2 Next Steps.
+
+**Profile setup wizard hardening (#681 from origin/main)**
+- `normalizeModel(m string) string` helper in `internal/cli/profile_setup.go` — maps deprecated Claude IDs to canonical aliases. Prevents silent loss of saved preferences when an option is removed from the wizard.
+- Statusline migration banner (4 languages) — one-time notice when `existingPrefs` differs from normalized value.
+- `auto` permission mode option in wizard — Claude Code v2.1.83+ / Sonnet 4.6+ gated option with runtime-failure disclaimer.
+- Canonical validation slices + package constants (`defaultStatuslineMode`, `defaultStatuslineTheme`, `defaultPermissionMode`).
+- New unit tests: `profile_setup_normalize_test.go` (19+13+7 rows) and `profile_setup_summary_test.go` (4 tests). New helpers at 100% line coverage.
+
+**SPEC documents (this session)**
+- SPEC-DESIGN-CONST-AMEND-001 / SPEC-DESIGN-DOCS-001 / SPEC-DESIGN-ATTACH-001 / SPEC-DESIGN-PENCIL-001 — Design workflow family
+- SPEC-DB-CMD-001 / SPEC-DB-TEMPLATES-001 / SPEC-DB-SYNC-001 / SPEC-PROJECT-DB-HINT-001 — DB workflow family
+- SPEC-DB-SYNC-HARDEN-001 — Hardening follow-up bundling 5 review warnings (file size guard, CheckDebounce atomicity, Windows platform branch, coverage ≥85%, MX tag annotations for 5 exported helpers). plan-auditor iter 1 FAIL → iter 2 PASS.
+
+### Changed
+
+**Design absorption (SPEC-AGENCY-ABSORB-001)**
+- Agency Agents catalog reduced from 6 to 2 (copywriter, designer absorbed into skills; planner, builder, evaluator, learner removed per M5)
+- `/agency` command redirected to `/moai design` with deprecation warning
+- coding-standards.md: removed `Skill("agency")` reference
+
+**Profile setup (#681)**
+- `printProfileSummary` signature refactored to `(out io.Writer, t *profileSetupText, prefs *profile.ProfilePreferences, syncedProjectRoot string)` — enables unit testing via `bytes.Buffer` injection; pointer receivers avoid ~800B + 160B value copies.
+- Permission mode option ordering: `auto` moved to position 2 for severity gradient.
+- `SummarySyncSkipped` phrasing neutralized in all 4 locales.
+- PermAuto labels strengthened with runtime-failure disclaimer (en/ko/ja/zh).
+- ko/ja `SummaryHeader` — `입력된 값 확인:` → `저장된 설정값:`; `入力された設定値:` → `保存された設定値:`.
+- Summary path rendering uses relative paths instead of absolute `filepath.Join(cwd, ...)`.
+- `workflow.yaml` role_profiles reassignment: team lead `default_model` → `opus[1m]` (Opus 4.7 + 1M), `architect` → `opus`, `reviewer` → `sonnet` (up from `haiku`).
+- `fmt.Fprintf` collapse in `printProfileSummary` (~6 fewer heap allocations per wizard-end).
+
+### Fixed
+
+**LSP server detection restored across 16 languages (#689)**
+- Fixed complete LSP server detection failure: corrected `lsp.yaml` template YAML key `binary` → `command` (aligns with `ServerConfig` YAML tags), added `file_extensions` across all 16 languages (restores `detectLanguage()` file-to-server routing).
+- Added template compliance tests (`TestTemplate_NoBinaryKey`, `TestTemplate_16LangCommandNonEmpty`, `TestTemplate_16LangFileExtensionsNonEmpty`): parses actual template files to prevent schema drift regression.
+
+**`moai glm` settings.local.json permanent pollution fix (#691)**
+- Fixed context window limit error when entering Claude Code after `moai glm`: removed `injectGLMEnvForTeam()` call from `applyGLMMode` to prevent GLM environment variables (`ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`, `DISABLE_PROMPT_CACHING`, etc.) from being persisted to `settings.local.json`. Since `setGLMEnv()` sets the current process env and `syscall.Exec` inherits it to `claude`, the file write was redundant and caused GLM mode to leak after session end.
+- Added main session context-limit warning at `moai glm` startup: informs about full system-prompt retransmission (~30-40K tokens) from `DISABLE_PROMPT_CACHING=1`, Z.AI concurrency limits (paid tier 1-3 in-flight), and GLM model context window sizes. Recommends `moai cg` for the Claude-leader + GLM-teammate combination.
+- Narrowed `injectGLMEnvForTeam` scope to `enableTeamMode()` (`moai --team` path) only. Only the `applyGLMMode` caller was removed — function itself retained.
+- Added regression tests: `TestApplyGLMMode_NoSettingsLocalPollution`, `TestApplyGLMMode_ProcessEnvIsSet`, `TestGLMCmd_NoSettingsLocalPollution` (inverts the prior `TestGLMCmd_InjectsEnv`).
+
+**Critical Review Findings (this session, post SPEC-DB-SYNC-001 review)**
+- **Hook timeout unit bug** (`c6985e2fe`) — `settings.json.tmpl` PostToolUse `handle-db-schema-change.sh` entry had `"timeout": 30000` (8.3 hours). Claude Code hook timeout is in seconds (range 1-600). Corrected to `30`.
+- **matchGlob path traversal** (`aa29a9316`) — `migrations/../../../etc/passwd.sql` style paths passed `migrations/**/*.sql` prefix match, enabling read of files outside project root in `proposal.json`. Added `filepath.Clean` + `../` escape rejection guard at `HandleDBSchemaSync` entry. 4-case regression test added.
+- **Template-First rule violation** (`8a4022c69`) — SPEC-DESIGN-CONST-AMEND-001 updated the project constitution to v3.3.0 but the template tree copy remained at v3.2.0. New projects created via `moai init` would miss Section 3.2 Design Brief HARD rules. Synchronized template copy byte-for-byte.
+
+**Profile setup (#681)**
+- Silent data coercion (Critical) — users with deprecated model IDs in saved preferences no longer silently overwritten by `huh.Select`. Root cause: `huh.Select` binding falls back to cursor-landing when pre-bound value has no matching option. Mitigation: pre-coerce via `normalizeModel` before form binding.
+- `ast_grep_gate` SAST re-enabled — `.moai/config/sections/quality.yaml` block restored. Previous removal silently disabled structural scanning.
+- Dead-branch fallback removed — `valueOrDefault(prefs.StatuslineMode, "default")` simplified to direct access (post-normalize guaranteed non-empty).
+
+**Lint cleanup** (`76ba50eab`)
+- `defer f.Close()` errcheck in `internal/cli/design_folder.go:111` (hashFile) and `internal/hook/dbsync/db_schema_sync.go:312` (logError) wrapped in `defer func() { _ = f.Close() }()`.
+
+**Hardening (SPEC-DB-SYNC-HARDEN-001 — 5 warning resolution)**
+- **H1: parseMigrationStub file size guard** — Added package constant `maxMigrationFileSize = 1 << 20` (1 MiB) with `os.Stat` pre-check. Files exceeding the ceiling are now rejected without calling `os.ReadFile`, eliminating memory-pressure from malformed or malicious migration inputs. Return shape extended to `parseMigrationResult{ParsedContent, Truncated}` so callers can distinguish "genuinely empty" from "size-guarded" without either-or ambiguity (REQ-H1-001 ~ REQ-H1-003).
+- **H2: CheckDebounce atomicity (signature unchanged)** — Concurrent `CheckDebounce` callers targeting the same `(stateFile, filePath, window)` now provably return `{false, true}` as a multiset (exactly-one-winner semantic, REQ-H2-002). Implementation uses a `stateFile + ".lock"` companion with `O_CREATE|O_EXCL` for mutual exclusion, plus the pre-existing `os.CreateTemp + os.Rename` pattern for torn-write-free state persistence. I/O failure on any step returns the safe default `(true, nil)` and logs to `ErrorLogFile` per REQ-H2-003. **plan.md had suggested `os.Rename` alone would suffice; empirical testing during implementation revealed `os.Rename` prevents torn writes but not decision races, hence the added O_EXCL layer.** AST-level regression guard (`TestCheckDebounce_NoDirectWriteFile`) asserts zero direct `os.WriteFile` + at least one `os.Rename` call, surviving variable renames.
+- **H3: settings.json.tmpl Windows platform branch for db-schema-change** — The db-schema-change PostToolUse hook entry was the sole exception to the file's `{{- if eq .Platform "windows"}}...{{- else}}...{{- end}}` branching convention (16 other entries used it consistently). Now aligned. Windows command: `bash "$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-db-schema-change.sh"` (bash prefix + forward-slash + bash-style variable). Unix command unchanged. `TestRender_DbSchemaChangeHook_{Unix,Windows,ConsistencyWithOtherEntries}` verify the rendering outputs. SPEC v0.2.0 drafted a conflicting literal (`%CLAUDE_PROJECT_DIR%\.claude\...` with backslashes) that does not expand inside a bash-quoted argument; corrected to v0.2.1 during `/moai run`.
+- **H4: internal/hook/dbsync test coverage 79.2% → 85.7%** — 8 boundary test cases added (`empty_file`, `utf8_bom`, `oversized`, `nonexistent`, `trailing_slash`, `double_star_only`, `unicode_path`, `corrupt_state_recovery`). All use `t.TempDir()` isolation; no `t.Setenv("HOME", …)`. Internal test file (`db_schema_sync_internal_test.go`) added for strict `parseMigrationStub` return-shape assertions that require unexported-symbol access.
+- **H5: @MX:NOTE godoc for 5 exported helpers** — `BuildProposal`, `MatchesMigrationPattern`, `IsExcluded`, `CheckDebounce` gained godoc blocks with input/output/side-effect three-element contracts (Korean prose per `code_comments: ko`). `HandleDBSchemaSync` retained its pre-existing `@MX:NOTE + @MX:ANCHOR` from commit `aa29a9316`. AC-9 awk-based multiline scan confirms 5/5 coverage.
+- **SPEC v0.2.1 amendment** (`38350a698`) — REQ-H3-002 and AC-6 literals corrected to match the file's actual hook entry convention. HISTORY entry records the reason (Git Bash/WSL cannot expand `%CLAUDE_PROJECT_DIR%` inside a bash-quoted argument).
+
+### Removed
+
+- `.claude/agents/agency/` agent definitions: planner, builder, evaluator, learner, copywriter, designer
+- `.claude/skills/agency-*` forked skills: agency-copywriting, agency-design-system, agency-evaluation-criteria, agency-client-interview, agency-frontend-patterns
+- `.claude/skills/agency/` orchestrator skill
+- Fork management via `fork-manifest.yaml` (absorbed into moai-workflow-research)
+
+### Deprecated
+
+- `/agency` subcommands (brief, build, review, learn, evolve, resume, profile) now redirect to equivalent `/moai` subcommands. Scheduled for removal per REQ-DEPRECATE-003 (2 minor versions after this release)
+
+### Migration
+
+- Existing projects with `.agency/` directories can migrate via `moai migrate agency`
+- Migration is atomic, reversible (data preserved as `.agency.archived/`), and handles SIGINT/SIGTERM with `--resume` flag
+- See SPEC-AGENCY-ABSORB-001 acceptance.md for full behavior
+
+### Testing
+
+- `internal/cli` coverage maintained at 75.3% (wizard sub-package 91.2%, worktree sub-package 84.2%).
+- All new profile_setup helpers at 100% line coverage.
+- `internal/hook/dbsync` package: **coverage 79.2% → 85.7%** after SPEC-DB-SYNC-HARDEN-001 H4. 13 pre-existing unit tests + H1/H2/H4/H5 additions (8 AC-8 boundary cases, `TestCheckDebounceConcurrency` running at `-race -count=10`, `TestCheckDebounce_NoDirectWriteFile` AST regression guard, oversized-file handler test, readonly-dir safety-default tests).
+- `internal/cli` design_folder: 282-line test file covering SHA-256 preservation, glob collision, .DS_Store-only directory handling.
+- `go vet ./...`, `go test -race ./... -count=1` (all packages), `golangci-lint run ./internal/...` — all PASS.
+- Cross-compile verified for 5 targets: linux/amd64, linux/arm64, darwin/amd64, darwin/arm64, windows/amd64.
+
+### Installation & Update
+
+```bash
+# Update to the latest version
+moai update
+
+# Verify version
+moai version
+```
+
+---
+
+## [2.13.0] - 2026-04-23 (한국어)
+
+### 요약
+
+세 개의 독립 워크스트림이 이번 릴리즈에서 수렴되었습니다.
+
+1. **SPEC-AGENCY-ABSORB-001 흡수 완료 (#682)** — `/agency` 명령어와 에이전트가 통합 `/moai design` 하이브리드 워크플로우로 흡수되었습니다. 브랜드 컨텍스트가 `.moai/project/brand/`로 승격되어 헌법적 제약으로 작동합니다.
+2. **Design + DB 8 SPEC 통합 구현** — `.moai/design/` 폴더 스캐폴딩, `/moai db` 명령어 패밀리, Pencil MCP 통합, PostToolUse DB 동기화 훅, `/moai project` Phase 4.1a DB 감지.
+3. **Profile setup wizard 하드닝 (#681)** — 16개 리뷰 지적사항 반영, deprecated Claude ID 무음 데이터 강제 변환 수정, `ast_grep_gate` SAST 재활성화, Opus 4.7 / 1M 컨텍스트 모델에 맞춰 팀 role_profiles 재조정.
+
+추가 하이라이트: LSP 서버 감지 수정으로 16개 언어 지원 복원 (#689), `moai glm` settings.local.json 오염 수정 (#691), `charmbracelet/x/powernap` v0.1.3 → v0.1.4 (#679), Hextra 기반 docs-site 모노레포 통합 (#680).
+
+### 주요 변경 사항 (Breaking Changes)
+
+- `/agency` 명령어 deprecated — `/moai design`으로 리다이렉트. REQ-DEPRECATE-003에 따라 본 릴리즈 2개 마이너 버전 후 완전 제거 예정.
+
+### 추가됨 (Added)
+
+**Design 워크플로우 (SPEC-AGENCY-ABSORB-001, SPEC-DESIGN-* 패밀리)**
+- `/moai design` 서브 명령어 — 하이브리드 디자인 워크플로우 (Claude Design 임포트 경로 + 코드 기반 스킬 경로)
+- `moai migrate agency` 명령어 — `.agency/` 데이터를 `.moai/project/brand/`와 `.moai/config/sections/design.yaml`로 안전하게 마이그레이션
+- `moai-domain-copywriting` 스킬 — anti-AI-slop 적용된 브랜드 정렬 카피라이팅
+- `moai-domain-brand-design` 스킬 — hero-first 체이닝 및 WCAG 2.1 AA 준수 시각 디자인 시스템
+- `moai-workflow-design-import` 스킬 — Claude Design 핸드오프 번들(ZIP/HTML) 파서
+- `moai-workflow-gan-loop` 스킬 — Sprint Contract 프로토콜 기반 Builder-Evaluator 반복 루프
+- `moai-workflow-design-context` 스킬 (SPEC-DESIGN-ATTACH-001) — `.moai/design/` 자동 로더, 우선순위 기반 truncation (`spec > system > research > pencil-plan`) 및 토큰 예산 강제
+- `moai-workflow-pencil-integration` 스킬 (SPEC-DESIGN-PENCIL-001) — Pencil MCP 배치 연산 실행기 (DSL 파서, 25-op 배치 분할, 레이아웃 검증, 스크린샷 아카이브)
+- `.moai/design/` 폴더 스캐폴딩 (SPEC-DESIGN-DOCS-001) — README + research/system/spec 템플릿, `moai update` 시 SHA-256 기반 사용자 수정 보존, 예약 파일명 충돌 감지
+- `.moai/project/brand/` 디렉토리 — brand-voice.md, visual-identity.md, target-audience.md 템플릿
+- `.moai/config/sections/design.yaml` — 디자인 파이프라인 설정 (GAN loop, sprint contract, evolution 임계치) + `design_docs` 서브섹션
+- `.claude/rules/moai/design/constitution.md` v3.3.0 — Section 3 삼분할 구조 확장 (3.1 Brand Context / 3.2 Design Brief / 3.3 Relationship)
+
+**DB 워크플로우 (SPEC-DB-* 패밀리)**
+- `/moai db` 서브 명령어 (SPEC-DB-CMD-001) — Thin 래퍼 + 라우터 스킬 (`init`/`refresh`/`verify`/`list` 지원), 16개 언어 마이그레이션 경로 매핑
+- `.moai/project/db/` 7-파일 템플릿 세트 — README, schema.md, erd.mmd (Mermaid `erDiagram`), migrations.md, rls-policies.md, queries.md, seed-data.md
+- `.moai/config/sections/db.yaml` — 8-키 구조 (5 시스템 + 3 인터뷰) + 6개 마이그레이션 패턴 (Prisma/Alembic/Rails/SQL/Supabase/generic), `.moai/project/db/**` 재귀 가드
+- `moai-domain-db-docs` 스킬 — 마이그레이션 파서 facade + schema.md/erd.mmd/migrations.md 동기화
+- `moai hook db-schema-sync` 서브 명령어 — PostToolUse 훅 처리 (10초 debounce, path traversal 가드, proposal.json writer)
+- `handle-db-schema-change.sh` PostToolUse 훅 — Write/Edit 이벤트 시 `moai hook db-schema-sync` 호출
+- `/moai project` Phase 4.1a DB 감지 — `tech.md` + 16-언어 의존성 매니페스트로 DB 기술 자동 감지
+
+**Profile setup wizard 하드닝 (#681)**
+- `normalizeModel(m string) string` 헬퍼 — deprecated Claude ID를 정규 별칭으로 매핑하여 저장된 설정 무음 손실 방지
+- 4개 언어 statusline 마이그레이션 배너 — `existingPrefs` 정규화 시 1회성 알림
+- `auto` 권한 모드 선택지 (Claude Code v2.1.83+ / Sonnet 4.6+ 게이팅, 런타임 실패 경고 포함)
+- 정규 검증 슬라이스 + 패키지 상수 (`defaultStatuslineMode`, `defaultStatuslineTheme`, `defaultPermissionMode`)
+- 신규 단위 테스트 추가 (`profile_setup_normalize_test.go`, `profile_setup_summary_test.go`, 신규 헬퍼 100% 라인 커버리지)
+
+**SPEC 문서**
+- SPEC-DESIGN-CONST-AMEND-001 / SPEC-DESIGN-DOCS-001 / SPEC-DESIGN-ATTACH-001 / SPEC-DESIGN-PENCIL-001 — 디자인 워크플로우 패밀리
+- SPEC-DB-CMD-001 / SPEC-DB-TEMPLATES-001 / SPEC-DB-SYNC-001 / SPEC-PROJECT-DB-HINT-001 — DB 워크플로우 패밀리
+- SPEC-DB-SYNC-HARDEN-001 — 5개 경고 해결 하드닝 (파일 크기 가드, CheckDebounce 원자성, Windows 분기, 커버리지 ≥85%, MX 태그)
+
+### 변경됨 (Changed)
+
+**Design 흡수 (SPEC-AGENCY-ABSORB-001)**
+- Agency 에이전트 카탈로그 6 → 2 축소 (copywriter, designer가 스킬로 흡수; planner, builder, evaluator, learner 제거)
+- `/agency` 명령어가 deprecation 경고와 함께 `/moai design`으로 리다이렉트
+- coding-standards.md에서 `Skill("agency")` 참조 제거
+
+**Profile setup (#681)**
+- `printProfileSummary` 시그니처 리팩토링 — `bytes.Buffer` 주입으로 단위 테스트 가능, 포인터 수신자로 사본 복사 제거
+- 권한 모드 선택지 순서 조정 — `auto`를 2번 위치로 이동 (심각도 gradient)
+- 4개 locale에서 `SummarySyncSkipped` 표현 중립화
+- PermAuto 라벨에 런타임 실패 경고 추가 (en/ko/ja/zh)
+- ko/ja `SummaryHeader` — `입력된 값 확인:` → `저장된 설정값:`; `入力された設定値:` → `保存された設定値:`
+- Summary 경로 렌더링이 절대 경로 대신 상대 경로 사용
+- `workflow.yaml` role_profiles 재조정 — 팀 리더 `default_model` → `opus[1m]`, `architect` → `opus`, `reviewer` → `sonnet` (기존 `haiku`에서 상향)
+
+### 수정됨 (Fixed)
+
+**LSP 서버 감지 16개 언어 복원 (#689)**
+- LSP 서버 감지 전체 비활성 문제 수정: `lsp.yaml` 템플릿 YAML 키를 `binary` → `command`로 수정 (`ServerConfig` YAML 태그 일치), 16개 언어 전체에 `file_extensions` 추가 (`detectLanguage()` 파일-서버 라우팅 복원)
+- 템플릿 준수 테스트 3종 추가하여 스키마 드리프트 재발 방지
+
+**`moai glm` settings.local.json 영구 오염 수정 (#691)**
+- `moai glm` 실행 후 Claude Code 진입 시 context window limit 에러 수정: `applyGLMMode`에서 `injectGLMEnvForTeam()` 호출을 제거하여 `settings.local.json`에 GLM 환경변수가 영구 기록되던 동작 방지
+- `moai glm` 시작 시 메인 세션 컨텍스트 한도 경고 메시지 추가 (DISABLE_PROMPT_CACHING 영향, Z.AI 동시성 한도, GLM 컨텍스트 윈도우 안내). Claude 리더 + GLM 팀원 조합은 `moai cg` 권장
+- `injectGLMEnvForTeam` 범위를 `enableTeamMode()`(`moai --team` 경로)로만 제한
+- 회귀 테스트 3종 추가 (`TestApplyGLMMode_NoSettingsLocalPollution` 등)
+
+**DB 하드닝 (SPEC-DB-SYNC-HARDEN-001)**
+- 파일 크기 가드 (1 MiB 제한), CheckDebounce 원자성 (O_EXCL + os.Rename), settings.json.tmpl Windows 분기 정렬, `internal/hook/dbsync` 커버리지 79.2% → 85.7%, 5개 exported helper에 @MX:NOTE godoc 추가
+
+### 제거됨 (Removed)
+
+- `.claude/agents/agency/` 에이전트 정의: planner, builder, evaluator, learner, copywriter, designer
+- `.claude/skills/agency-*` 포크된 스킬: agency-copywriting, agency-design-system, agency-evaluation-criteria, agency-client-interview, agency-frontend-patterns
+- `.claude/skills/agency/` 오케스트레이터 스킬
+- `fork-manifest.yaml` 포크 관리 (moai-workflow-research에 흡수)
+
+### Deprecated
+
+- `/agency` 서브명령어 (brief, build, review, learn, evolve, resume, profile)은 `/moai` 상응 서브명령어로 리다이렉트. REQ-DEPRECATE-003에 따라 2개 마이너 버전 후 제거 예정
+
+### 마이그레이션 (Migration)
+
+- `.agency/` 디렉토리를 가진 기존 프로젝트는 `moai migrate agency`로 마이그레이션 가능
+- 마이그레이션은 atomic 및 reversible (데이터는 `.agency.archived/`로 보존), SIGINT/SIGTERM 시 `--resume` 플래그 지원
+- 전체 동작은 SPEC-AGENCY-ABSORB-001 acceptance.md 참조
+
+### 설치 및 업데이트 (Installation & Update)
+
+```bash
+# 최신 버전으로 업데이트
+moai update
+
+# 버전 확인
+moai version
+```
+
+---
+
+## [2.12.0] - 2026-04-17
+
+### Summary
+
+Claude Code v2.1.110/111 + Claude Opus 4.7 (`claude-opus-4-7`) compatibility layer (SPEC-OPUS47-COMPAT-001 + post-implementation follow-up). Introduces a 5-tier Effort system, Opus 4.7 prompt philosophy (5 principles documented in `moai-constitution.md`), v2.1.110 runtime handlers (MCP scope duplicate detection, PermissionRequest `updatedInput` re-verification, Windows `CLAUDE_ENV_FILE` injection), and `ApplyEffortPolicy` production wiring that automatically injects effort levels into agent frontmatter during `moai init` / `moai update` while preserving user customisation. Backward compatible with Opus 4.6 / Sonnet 4.6 / Haiku 4.5.
+
+### Breaking Changes
+
+None. `agentModelMap [3]string` signature unchanged (NFR-1). `effort` is opt-in — agents without the field inherit runtime defaults. Existing Opus 4.6 user profiles are preserved (no forced migration).
+
+### Added
+
+- **Effort system** (`internal/profile/preferences.go`, `internal/cli/launcher.go`, `internal/config/envkeys.go`)
+  - `ProfilePreferences.EffortLevel string` YAML field (`effort_level`, omitempty)
+  - `buildEnvForLaunch(effortLevel, baseEnv)` — injects `CLAUDE_CODE_EFFORT_LEVEL` at `syscall.Exec` time
+  - `EnvClaudeCodeEffortLevel` constant
+
+- **Model policy** (`internal/template/model_policy.go`)
+  - `ModelIDOpus47 = "claude-opus-4-7"` constant
+  - `EffortLevel{Low,Medium,High,XHigh,Max}` constants (5-tier)
+  - `agentEffortMap` — explicit overrides for 6 high-reasoning agents (manager-spec/manager-strategy → `xhigh`; plan-auditor/evaluator-active/expert-security/expert-refactoring → `high`)
+  - `GetAgentEffort(agentName string) string` exported function
+  - `ApplyEffortPolicy(projectRoot, manifestMgr) error` — called by `moai init` and `moai update`; injects effort overrides into agent `.md` frontmatter, preserves any existing `effort:` value (user customisation wins), registers hash changes in the manifest
+
+- **Profile setup UI** (`internal/cli/profile_setup.go`, `internal/cli/profile_setup_translations.go`)
+  - `claude-opus-4-7` model option in model selector
+  - 5-tier effort selector with localised labels (en/ko/ja/zh)
+
+- **Doctor check** (`internal/cli/doctor.go`)
+  - `checkMCPScopeDuplicates` — detects MCP server name collisions between project `.mcp.json` and global `~/.claude/.mcp.json`; warning-level only, `exit 0`
+
+- **Hook: PermissionRequest** (`internal/hook/permission_request.go`)
+  - Deny when `ToolInput` contains the `__updated_input_marker__` sentinel (updatedInput re-verification, T-015)
+
+- **Hook: SessionStart** (`internal/hook/session_start.go`)
+  - `injectCLAUDEEnvFile` — Windows-only: injects `CLAUDE_ENV_FILE` path into `settings.local.json` when project `.env` exists (T-016); macOS/Linux paths unchanged (R-P1-1 regression verified)
+
+- **Template: settings.json**
+  - `disableBypassPermissionsMode: false` field (v2.1.111)
+
+- **Template: harness.yaml**
+  - `effort_mapping` section: thorough → `xhigh`, standard → `high`, minimal → `medium`
+
+- **Template: quality.yaml**
+  - `session_effort_default: "xhigh"` field
+
+- **Rules documentation**
+  - `moai-constitution.md` — new "Opus 4.7 Prompt Philosophy" section with 5 principles (one-turn fully-loaded, Adaptive Thinking, scaffolding removal, explicit fan-out, fewer tool calls)
+  - `agent-authoring.md` — new "Bash Tool Timeout Ceiling" section (600,000ms documented)
+  - `agent-common-protocol.md` — Bash timeout documentation + parallel fan-out principle
+  - `worktree-integration.md` — minimum version table expanded with v2.1.110/111 rows; `Recommended: 2.1.111 or later`
+  - `skill-authoring.md` — `effort` field now lists `low/medium/high/xhigh/max` (removed "max is Opus 4.6 only" phrasing)
+  - `coding-standards.md` — Claude Code version compatibility table
+  - `CLAUDE.md §12` — UltraThink vs Adaptive Thinking vs `--deepthink` (Sequential Thinking MCP) distinction clarified
+  - `moai-workflow-thinking/SKILL.md` — Adaptive Thinking redefined; fixed `thinking.budget_tokens` instructions removed (Opus 4.7 rejects fixed budgets with HTTP 400)
+
+- **Local development docs**
+  - `CLAUDE.local.md` — `settings.local.json` runtime-management rule + `OTEL_LOG_RAW_API_BODIES` production warning
+
+- **Testing** (post-implementation follow-up, PR #673)
+  - Coverage boost in `internal/hook` 77.7% → **85.0%** (12 new table-driven tests)
+  - R-P1-1 Handle-level Windows guard regression tests in `internal/hook/session_start_windows_guard_test.go` (verifies macOS/Linux paths do NOT call `injectCLAUDEEnvFile`)
+  - `internal/cli` coverage 73.6% → 75.1% (partial; 85% target deferred to future SPEC)
+
+### Changed
+
+- `llm.yaml` template: `claude_models.high` tier updated from `"opus"` to `"claude-opus-4-7"` — ensures `high` policy lands on Opus 4.7 on new projects
+
+### Fixed
+
+- `GetAgentEffort` now has a production caller (`ApplyEffortPolicy`) — resolves W-5 dead-code warning from Phase 2.5 manager-quality review
+
+### Installation & Update
+
+```bash
+# Fresh install
+curl -sSL https://raw.githubusercontent.com/modu-ai/moai-adk/main/install.sh | bash
+moai version
+
+# Existing users update
+moai update
+
+# Verify version
+moai version
+```
+
+---
+
+## [2.12.0] - 2026-04-17 (한국어)
+
+### 요약
+
+Claude Code v2.1.110/111 및 Claude Opus 4.7(`claude-opus-4-7`) 호환성 레이어(SPEC-OPUS47-COMPAT-001 + 후속 정리). 5단계 Effort 시스템, Opus 4.7 프롬프트 철학 5원칙(`moai-constitution.md` 명문화), v2.1.110 런타임 핸들러(MCP 중복 감지, PermissionRequest `updatedInput` 재검증, Windows `CLAUDE_ENV_FILE` 주입), 그리고 `moai init`/`moai update` 시점에 agent frontmatter로 effort 값을 자동 주입하되 사용자 커스텀을 보존하는 `ApplyEffortPolicy`를 추가했습니다. Opus 4.6/Sonnet 4.6/Haiku 4.5와 완전 하위 호환.
+
+### 주요 변경 사항 (Breaking Changes)
+
+없음. `agentModelMap [3]string` 시그니처 불변(NFR-1). `effort`는 opt-in으로 미설정 에이전트는 런타임 기본값을 상속. 기존 Opus 4.6 사용자 프로파일은 유지(강제 마이그레이션 없음).
+
+### 추가됨 (Added)
+
+- **Effort 시스템** (`internal/profile/preferences.go`, `internal/cli/launcher.go`, `internal/config/envkeys.go`)
+  - `ProfilePreferences.EffortLevel string` YAML 필드(`effort_level`, omitempty)
+  - `buildEnvForLaunch(effortLevel, baseEnv)` — `syscall.Exec` 시점에 `CLAUDE_CODE_EFFORT_LEVEL` 주입
+  - `EnvClaudeCodeEffortLevel` 상수
+
+- **모델 정책** (`internal/template/model_policy.go`)
+  - `ModelIDOpus47 = "claude-opus-4-7"` 상수
+  - `EffortLevel{Low,Medium,High,XHigh,Max}` 5단계 상수
+  - `agentEffortMap` — 6개 추론 집약 에이전트 명시적 override (manager-spec/strategy → `xhigh`, 나머지 4개 → `high`)
+  - `GetAgentEffort(agentName)` 신규 함수
+  - `ApplyEffortPolicy(projectRoot, manifestMgr)` — `moai init`/`moai update`가 호출; agent `.md` frontmatter에 effort 주입, 기존 `effort:` 값은 보존(사용자 커스텀 우선), manifest 해시 갱신
+
+- **Profile 설정 UI** (`internal/cli/profile_setup.go`, `profile_setup_translations.go`)
+  - `claude-opus-4-7` 모델 선택지
+  - 5단계 effort 선택기(한/영/일/중 4개 언어)
+
+- **Doctor 진단** (`internal/cli/doctor.go`)
+  - `checkMCPScopeDuplicates` — 프로젝트 `.mcp.json`과 전역 `~/.claude/.mcp.json` 간 서버 이름 충돌 감지; warning 수준(`exit 0`)
+
+- **Hook: PermissionRequest** (`internal/hook/permission_request.go`)
+  - `ToolInput`에 `__updated_input_marker__` sentinel 포함 시 deny (updatedInput 재검증, T-015)
+
+- **Hook: SessionStart** (`internal/hook/session_start.go`)
+  - `injectCLAUDEEnvFile` — Windows 전용: 프로젝트 `.env` 존재 시 `settings.local.json`에 `CLAUDE_ENV_FILE` 경로 주입 (T-016); macOS/Linux 기존 경로 영향 없음 (R-P1-1 회귀 검증)
+
+- **템플릿 파일**
+  - `settings.json.tmpl` — `disableBypassPermissionsMode: false` (v2.1.111)
+  - `harness.yaml` — `effort_mapping` 섹션 (thorough→xhigh, standard→high, minimal→medium)
+  - `quality.yaml.tmpl` — `session_effort_default: "xhigh"`
+
+- **규칙 문서**
+  - `moai-constitution.md` — "Opus 4.7 Prompt Philosophy" 섹션 신설 (5원칙: 1턴 몰빵, Adaptive Thinking, 스캐폴딩 제거, 명시적 fan-out, 툴 호출 감소)
+  - `agent-authoring.md` — "Bash Tool Timeout Ceiling" 섹션 신설 (600,000ms 문서화)
+  - `agent-common-protocol.md` — Bash timeout + parallel fan-out 원칙
+  - `worktree-integration.md` — 최소 버전 표에 v2.1.110/111 추가, 권장 버전 2.1.111+
+  - `skill-authoring.md` — `effort` 필드를 `low/medium/high/xhigh/max`로 확장 ("max is Opus 4.6 only" 문구 제거)
+  - `coding-standards.md` — Claude Code 버전 호환성 표
+  - `CLAUDE.md §12` — UltraThink vs Adaptive Thinking vs `--deepthink`(Sequential Thinking MCP) 구분 명확화
+  - `moai-workflow-thinking/SKILL.md` — Adaptive Thinking 재정의, 고정 `thinking.budget_tokens` 지시 제거 (Opus 4.7은 고정 예산 시 HTTP 400 오류)
+
+- **로컬 개발 문서**
+  - `CLAUDE.local.md` — `settings.local.json` 런타임 관리 원칙 + `OTEL_LOG_RAW_API_BODIES` 프로덕션 경고
+
+- **테스트** (후속 정리, PR #673)
+  - `internal/hook` 커버리지 77.7% → **85.0%** (12개 신규 table-driven 테스트)
+  - R-P1-1 Handle 레벨 Windows 가드 회귀 테스트 신설 (`session_start_windows_guard_test.go`); macOS/Linux에서 `injectCLAUDEEnvFile` 미호출 검증
+  - `internal/cli` 커버리지 73.6% → 75.1% (부분 개선; 85% 완전 달성은 별도 SPEC으로 연기)
+
+### 변경됨 (Changed)
+
+- `llm.yaml` 템플릿: `claude_models.high` 계층을 `"opus"` → `"claude-opus-4-7"`로 갱신 — 신규 프로젝트에서 `high` 정책이 Opus 4.7을 사용하도록 보장
+
+### 수정됨 (Fixed)
+
+- `GetAgentEffort`에 프로덕션 호출자(`ApplyEffortPolicy`) 추가 — Phase 2.5 manager-quality 리뷰가 지적한 W-5 dead-code 경고 해소
+
+### 설치 및 업데이트 (Installation & Update)
+
+```bash
+# 신규 설치
+curl -sSL https://raw.githubusercontent.com/modu-ai/moai-adk/main/install.sh | bash
+moai version
+
+# 기존 사용자 업데이트
+moai update
+
+# 버전 확인
+moai version
+```
+
+---
+
+## [2.11.0] - 2026-04-16
+
+### Summary
+
+First tagged release since v2.10.2, consolidating 32 merged PRs. Headlines: (1) LSP Suite (SPEC-LSP-CORE-002..MULTI-006) — powernap-based multi-language foundation + phase-aware quality gates, (2) Skill Evolution Infrastructure — 5-layer safety + telemetry, (3) 3-perspective security+quality review fixing 16 defects across evolution/telemetry/gopls/astgrep packages, (4) pre-tool quality gate cross-compilation fix (#667), (5) GLM team-mode credential propagation (#640), (6) comprehensive Windows CI compatibility. For detailed entries see v2.10.3, v2.10.4, and the fixes documented below.
+
+### Breaking Changes
+
+None. `lsp.client_impl: gopls_bridge` default maintains existing behavior.
+
+### Fixed (post-v2.10.4)
+
+- **#667 — pre-tool quality gate blocks Bash on macOS cross-compile projects** (PR #668)
+  - `gateStep.changedExts` field + `stagedFiles()` helper: skips language-specific lint steps when the staged changeset contains no matching file extensions
+  - Applied to `dotnet format` (`.cs` extensions only) — macOS users with Windows-only TFM .NET solutions can now `git commit` non-C# files
+  - Defense in depth: `isDotnetRestoreFailure()` detects NuGet restore failure markers (`Restore operation failed`, `NU1202`, `NETSDK1005`, `not supported on this platform`) and logs a warning instead of blocking
+  - `GateConfig.DisabledSteps map[string]bool` — per-project step-level disable flag
+  - Conservative fallback: git binary missing / outside git repo / empty staging → runs step (preserves existing behavior)
+
+- **#640 — moai glm + --team 401 Unauthorized on tmux teammates** (PR #669)
+  - New `internal/hook/glm_tmux.go` with `ensureTmuxGLMEnv()` — SessionStart hook auto-injects GLM credentials into tmux session env when user set up GLM mode outside tmux
+  - Propagates 9 GLM vars: `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`, `ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL`, compatibility flags
+  - Guard rails: `TMUX == ""` / `teammateMode != "tmux"` / missing `AUTH_TOKEN` / missing tmux binary → all graceful no-op, never aborts SessionStart
+  - UX: `moai glm` non-tmux path now prints actionable 4-step recovery instructions
+
+### Changed
+
+- `TestAsyncRecorder_NonBlockingUnderLoad` (`internal/telemetry/async_recorder_test.go`) now skips on Windows CI due to scheduler granularity causing flaky latency assertions. Non-blocking invariant is still verified on Linux/macOS.
+- `TestQualityGate_RunsDotnetFormatWhenCSharpStaged` (`internal/hook/quality/gate_test.go`) skips on Windows because shell-script fake binaries cannot be executed directly by `exec.Command` on Windows.
+
+### Installation & Update
+
+```bash
+# Update to the latest development version
+moai update
+
+# Verify version
+moai version
+```
+
+---
+
+## [2.11.0] - 2026-04-16 (한국어)
+
+### 요약
+
+v2.10.2 이후 첫 정식 태그 릴리즈로 32개 PR을 통합합니다. 헤드라인: (1) LSP Suite (SPEC-LSP-CORE-002..MULTI-006) — powernap 기반 다국어 기반 + 단계별 품질 게이트, (2) Skill Evolution Infrastructure — 5계층 안전 + 텔레메트리, (3) 3관점 보안·품질 리뷰 — evolution/telemetry/gopls/astgrep 16 결함 수정, (4) pre-tool 품질 게이트 크로스컴파일 수정(#667), (5) GLM team-mode 자격증명 전파(#640), (6) 포괄적 Windows CI 호환성. 세부 항목은 v2.10.3, v2.10.4 및 아래 수정 섹션 참조.
+
+### 주요 변경 사항 (Breaking Changes)
+
+없음. `lsp.client_impl: gopls_bridge` 기본값으로 기존 동작 유지.
+
+### 수정됨 (Fixed, post-v2.10.4)
+
+- **#667 — macOS 크로스컴파일 .NET 프로젝트에서 pre-tool 품질 게이트가 Bash 차단** (PR #668)
+  - `gateStep.changedExts` 필드 + `stagedFiles()` 헬퍼로 staged changeset에 해당 확장자 없으면 언어별 lint 단계 skip
+  - `dotnet format`을 `.cs` 확장자로 제한 → Windows-only TFM .NET 솔루션 포함 프로젝트에서 비-C# 파일 `git commit` 가능
+  - Defense in depth: `isDotnetRestoreFailure()`가 NuGet 복원 실패 마커 감지 시 경고 후 통과
+  - `GateConfig.DisabledSteps` — per-project 단계 명시적 비활성화
+  - 보수적 폴백: git 미설치 / git 저장소 밖 / 빈 스테이징 → 기존 동작 유지
+
+- **#640 — moai glm + --team 조합 시 tmux 팀원 401 Unauthorized** (PR #669)
+  - `internal/hook/glm_tmux.go` 신규 파일 + `ensureTmuxGLMEnv()`: SessionStart 훅에서 tmux 세션 env 자동 주입
+  - GLM 변수 9종 일괄 전파: `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`, `ANTHROPIC_DEFAULT_*_MODEL`, 호환 플래그
+  - Guard: `TMUX` 없음 / `teammateMode != "tmux"` / `AUTH_TOKEN` 없음 / tmux 바이너리 없음 → graceful no-op
+  - UX: `moai glm` 비-tmux 경로에 actionable 4단계 복구 안내 추가
+
+### 변경됨 (Changed)
+
+- `TestAsyncRecorder_NonBlockingUnderLoad`: Windows CI 스케줄러 입도 문제로 latency 기반 검증이 flaky하여 Windows skip. 비블로킹 불변식은 Linux/macOS에서 계속 검증.
+- `TestQualityGate_RunsDotnetFormatWhenCSharpStaged`: Windows는 shell-script 기반 fake 바이너리를 `exec.Command`로 실행할 수 없어 skip.
+
+### 설치 및 업데이트 (Installation & Update)
+
+```bash
+# 최신 개발 버전으로 업데이트
+moai update
+
+# 버전 확인
+moai version
+```
+
+---
+
+## [2.10.4] - 2026-04-15
+
+### Summary
+
+Security + quality hardening across three packages (evolution, telemetry, gopls bridge, astgrep) driven by a 3-perspective review bundle. 16 defects fixed (CRITICAL 6 + IMPORTANT 8 + SUGGESTION 2) with reproduction-first TDD. Includes file-destruction bug fix in `apply.go:80` (MergeEvolvableZones API misuse), two path traversal vulnerabilities, OWASP-aligned binary allowlists for `gopls`/`sg`, async telemetry writer, Windows CI cross-platform compatibility, and strengthened AskUserQuestion-only interaction rules.
+
+### Breaking Changes
+
+None. All changes are bug fixes with no API deletions.
+
+### Added
+
+#### Security & Quality (PR #636 Skill Evolution Infrastructure)
+
+- **CRITICAL 1 & 2 — Path traversal rejection** (`internal/evolution/safety.go`, `learning.go`)
+  - `CheckFrozenGuard`: `filepath.IsAbs` + leading `/`/`\` detection + normalized `..` rejection
+  - `ApplyProposal`: `filepath.Rel` containment check to prevent projectRoot escape
+  - `validateLearningID`: regex `^LEARN-\d{8}-\d{3}$` enforced on `CreateLearning`, `UpdateLearning`, `LoadLearningByID`
+  - New sentinel errors: `ErrInvalidLearningID`
+- **CRITICAL 3 — MergeEvolvableZones API misuse (file destruction)** (`internal/evolution/apply.go`, `internal/merge/evolvable_zone.go`)
+  - New helper: `merge.ReplaceEvolvableZone(content, zoneID, newZoneContent)` for in-place zone substitution
+  - Replaces buggy 3-way merge usage at `apply.go:80` that silently destroyed file headers/footers
+  - Exported `merge.ErrZoneNotFound`
+- **CRITICAL 4 — Frozen Guard coverage** (`internal/evolution/safety.go`)
+  - Added `.claude/rules/agency/` prefix + `.agency/fork-manifest.yaml` to frozen set
+- **CRITICAL 5 & 6 — Async telemetry + file handle reuse** (`internal/telemetry/async_recorder.go`)
+  - `AsyncRecorder`: single writer goroutine, channel-based, drop policy on buffer full
+  - Date-keyed file handle cache with `bufio.Writer` (4KB buffer, flush every 16 records)
+  - `GetRecorder(projectRoot)` singleton with `sync.Mutex`
+  - `ErrRecordDropped` sentinel
+- **IMPORTANT — `ensureNewSkillSymlinks` name validation** (`internal/hook/session_start.go`)
+  - Rejects `..`, `/`, `\`, null bytes, hidden files as skill entry names
+- **IMPORTANT — `UpdateRateLimit` race fix** (`internal/evolution/safety.go`)
+  - `rateMu sync.Mutex` serializes Read→mutate→Write sequence
+
+#### gopls Bridge Hardening (PR #660 / Issue #643)
+
+- **F1 — RFC 3986 URI encoding** (`internal/lsp/gopls/uri.go`)
+  - New `pathToURI()` helper via `url.URL` for space/unicode/Windows drive paths
+- **F2 — Per-URI pending map** (`internal/lsp/gopls/bridge.go`)
+  - `pendingMu` + `pendingDiag map[string][]Diagnostic` prevents event drop when processing files sequentially
+- **F3 — Prompt shutdown** (`internal/lsp/gopls/bridge.go`)
+  - `Close()` closes stdout to unblock `readLoop`'s blocking `Read()`
+- **F4 — Timer leak** (`internal/lsp/gopls/bridge.go`)
+  - `time.After` → `time.NewTimer` + `defer timer.Stop()`
+- **F5 — Binary allowlist** (`internal/lsp/gopls/config.go`)
+  - `validateBinary` / `validateArgs` with trusted prefixes and shell-metachar rejection
+  - New errors: `ErrUntrustedBinary`, `ErrUnsafeArgs`
+  - Invoked on `LoadConfig` + `NewBridge` (defense in depth)
+
+#### astgrep Hardening (PR #661 / Issue #642)
+
+- **F1 — `filterByLang` implementation** (`internal/astgrep/scanner.go`, `internal/cli/astgrep.go`)
+  - New `Finding.Language` field populated from `rule.Language` during scan
+  - Case-insensitive lang filter; empty Language treated as language-neutral (always included)
+- **F2 — Binary allowlist** (`internal/astgrep/scanner.go`)
+  - Public `ValidateBinary()` + `trustedBinaryPrefixes()`
+  - Allows bare names `sg`/`ast-grep` or trusted absolute prefixes
+  - Rejects `..`, shell metachars, untrusted paths
+- **F3 — Context cancel defer-safety** (`internal/astgrep/scanner.go`)
+  - `runSingleRule` helper per-rule isolation with `defer cancel()`
+- **F4 — stderr logging** (`internal/astgrep/scanner.go`)
+  - Captured stderr logged via `slog.Debug`; propagated as error when stdout empty
+- **F5 — YAML resilience** (`internal/astgrep/rules.go`)
+  - `loadFileSkipOnError` now `---`-splits documents for independent parsing; malformed docs no longer drop subsequent rules
+
+#### Documentation (PR #663)
+
+- **CLAUDE.md [HARD] AskUserQuestion-Only Interaction**: All user-facing questions must use AskUserQuestion (no free-form prose questions)
+- **Section 8 expansion**:
+  - "Socratic Interview via AskUserQuestion" subsection: round design + bias prevention rules
+  - Beginner-friendly option design: first option always "(Recommended)" + detailed description
+  - "Ambiguity Triggers" section: explicit trigger list for discovery mode
+  - `4 questions per call` constraint documented
+- Applied to both `internal/template/templates/CLAUDE.md` (Template-First) and local `CLAUDE.md`; `make build` regenerated `internal/template/embedded.go`
+
+### Changed
+
+- `TestAsyncRecorder_NonBlockingUnderLoad`: threshold relaxed from 10ms→100ms with 5% slow-call allowance for Windows CI scheduler variance
+- `deduplicateSummaries` (unused helper) commented out in `reflective_write.go`
+- `globalRecorderOnce` (unused) removed from `async_recorder.go`
+- Template `CLAUDE.md` HARD rules table: new `AskUserQuestion-Only Interaction` entry; `Context-First Discovery` line clarified to reference AskUserQuestion
+
+### Fixed
+
+- **#636** 3-perspective review blockers (8 fixes: CRITICAL 6 + IMPORTANT 2)
+- **#643** gopls bridge 5 defects (F1-F5)
+- **#642** astgrep bundle 5 defects (F1-F5)
+- Windows CI cross-platform path handling:
+  - `filepath.IsAbs("/usr/bin/sg")` returns false on Windows → added `strings.HasPrefix(binary, "/")` detection
+  - `filepath.Clean` converts `/` to `\` on Windows → use `filepath.ToSlash` for cross-platform prefix comparison
+  - Backslash removed from binary shell-metachar list (Windows legitimate paths)
+  - `TestBridge_GetDiagnostics{,_Empty}`: hardcoded `/tmp/test/*.go` replaced with `t.TempDir()` + `pathToURI()`
+  - `TestCheckFrozenGuard_RejectsPathTraversal/절대_경로_거부`: added leading-`/` detection on Windows
+- Lint cleanup: 10 `errcheck`/`staticcheck`/`unused` warnings across telemetry, hook, cli packages
+
+### Closed Issues / PRs
+
+- #636 (merged), #643 → closed by #660, #642 → closed by #661, #663 (merged)
+- #662 (backlog) closed — 13/18 commits duplicate with #649, remaining 5 commits pending individual PRs
+
+### 설치 및 업데이트
+
+```bash
+go install github.com/modu-ai/moai-adk/cmd/moai@v2.10.4
+# 또는
+moai update
+```
+
+---
+
+## [2.10.4] - 2026-04-15 (한국어)
+
+### 요약
+
+3관점 리뷰 번들(CRITICAL 6 + IMPORTANT 8 + SUGGESTION 2 = 16건)을 재현-먼저 TDD로 일괄 수정: 파일 파괴 버그(apply.go:80 `MergeEvolvableZones` API 오용), path traversal 2건, OWASP 기반 `gopls`/`sg` 바이너리 allowlist, 비동기 텔레메트리 writer, Windows CI 크로스플랫폼 호환성, AskUserQuestion 전용 인터랙션 규칙 강화. 영향 패키지: `internal/evolution`, `internal/telemetry`, `internal/lsp/gopls`, `internal/astgrep`, `internal/merge`.
+
+### Breaking Changes
+
+없음. 모든 변경은 bug fix이며 API 삭제 없음.
+
+### 추가 (요약)
+
+- **보안/품질** (#636): path traversal 거부, 파일 파괴 버그 수정(`ReplaceEvolvableZone`), Agency 헌법 frozen 포함, AsyncRecorder + 파일 핸들 캐시, symlink 이름 검증, rate limit race 수정
+- **gopls 브릿지** (#660): RFC 3986 URI 인코딩, per-URI pending map, 즉시 shutdown, timer 누수 제거, binary+args allowlist
+- **astgrep** (#661): filterByLang 실제 구현, binary allowlist, context cancel defer, stderr 로깅, YAML 재질러 파싱
+- **문서** (#663): `[HARD] AskUserQuestion 전용` + Socratic 인터뷰 라운드 설계 + Ambiguity Triggers
+
+### 수정
+
+- #636 CRITICAL 6건 + IMPORTANT 2건 (all TDD reproduction tests)
+- #643 gopls 결함 5건, #642 astgrep 결함 5건
+- Windows CI 경로 호환성 일괄 수정 (`filepath.ToSlash` 정규화, 백슬래시 메타문자 제외)
+- Lint 경고 10건 정리 (errcheck/staticcheck/unused)
+
+### 종료된 이슈/PR
+
+- #636, #660, #661, #663 (모두 merge)
+- #662 (백로그) close — 13/18 중복(#649), 남은 5건 개별 PR 예정
+
+---
+
+## [2.10.3] - 2026-04-14
+
+### Summary
+
+LSP SPEC suite rollout (5 completed SPECs: CORE-002, AGG-003, QGATE-004, LOOP-005, MULTI-006) + critical AC implementations (Feature Flag, `--json`/exit code) + SPEC status enum standardization across 28 SPECs. Statusline fixes: rate_limits skip prevents intermittent disappearance, GLM context-window override prevents 1M gauge mis-display. Quality gate: Flutter project detection, SARIF deterministic ordering, V2 gate tests. Routing: `--team` flag now correctly loads `team/*.md` workflows for plan/run/sync.
+
+### Breaking Changes
+
+None. All changes are additive or bug fixes. `lsp.client_impl: gopls_bridge` default maintains existing behavior.
+
+### Added
+
+#### LSP Infrastructure (SPEC-LSP-CORE-002, AGG-003, QGATE-004, LOOP-005, MULTI-006)
+
+- **SPEC-LSP-CORE-002** — powernap-based multi-language LSP client foundation (6 sprints, 91-94% coverage)
+  - `internal/lsp/core/`: Client, Manager, Document, Lifecycle State Machine, Capability Negotiation
+  - `internal/lsp/subprocess/`: Supervisor, Launcher with graceful degradation
+  - `internal/lsp/transport/`: JSON-RPC 2.0 codec via powernap
+  - Manager: Lazy Spawn + Idle Reaper
+  - **AC10 Feature Flag**: `lsp.client_impl` config key selects between `gopls_bridge` (SPEC-GOPLS-BRIDGE-001) and `powernap_core` (SPEC-LSP-CORE-002)
+- **SPEC-LSP-AGG-003** — Diagnostic Aggregator + TTL Cache
+  - `internal/lsp/cache/`: TTL cache with Get/Set/Invalidate (87.9% coverage)
+  - `internal/lsp/aggregator/`: Parallel diagnostic collection with circuit breaker (96.8% coverage)
+- **SPEC-LSP-QGATE-004** — Phase-aware LSP quality gates (plan/run/sync thresholds)
+- **SPEC-LSP-LOOP-005** — Loop/Ralph LSP integration (Go-only)
+  - `internal/ralph/`: Severity classification for LSP diagnostics
+  - FeedbackChannel for PostTool → LoopController routing
+  - Stagnation detection
+- **SPEC-LSP-MULTI-006** — 16-language LSP server matrix with install hints + project_markers discovery
+  - **AC4**: `moai lsp doctor --json` flag for machine-readable output
+  - **AC4**: Non-zero exit code when required servers are missing
+
+#### ast-grep Modernization (SPEC-ASTG-UPGRADE-001)
+
+- `internal/astgrep/`: Full scanner package with SARIF output, rules loader, CLI wrapper
+- `moai ast-grep` CLI command with `--json`, `--sarif`, `--text` output formats
+- Pre-configured rule sets: security (OWASP/CWE), Go idioms, error handling, resource safety
+- `RunAstGrepGateV2` quality gate integrated with Phase-aware LSP gates
+
+#### gopls Bridge (SPEC-GOPLS-BRIDGE-001)
+
+- `internal/lsp/gopls/`: Go-only subprocess bridge as fallback path
+- Coexistence: `lsp.client_impl` config toggles between bridge and powernap core
+
+#### Statusline Improvements
+
+- **GLM context window override** (#653): 4-tier priority resolver
+  - `MOAI_STATUSLINE_CONTEXT_SIZE` env → `llm.yaml glm.context_windows` map → built-in table → stdin fallback
+  - Built-in defaults for 6 GLM models: glm-5.1, glm-5, glm-4.7, glm-4.6, glm-4.5, glm-4.5-air
+  - Addresses 1M gauge mis-display in GLM mode (actual limit 128-230K)
+- **`glm.context_windows` field** in `.moai/config/sections/llm.yaml` for per-model overrides
+- `EnvStatuslineContextSize = "MOAI_STATUSLINE_CONTEXT_SIZE"` constant
+
+#### Flutter Quality Gate Support (#652)
+
+- `resolveDartFlutter()` + `isFlutterProject()` dynamic pubspec.yaml analysis
+- Flutter SDK detection → `flutter test` / `flutter analyze`
+- Pure Dart CLI projects retain `dart test` / `dart analyze` (no regression)
+
+#### Other
+
+- Simplify workflow Phase 0.05 integration into sync pipeline (SPEC-HOOKWAVE-001)
+- Output styles v5.0.0: MoAI+R2D2 merge + Einstein tutor
+- Orchestrator Self-Check §24 HARD rule in CLAUDE.local.md
+- Delta Marker Detection + Complexity Estimator (SPEC-SDD-001)
+- Evaluator Prompt Library 4 profiles (SPEC-EVALLIB-001)
+- plan-auditor agent for bias-prevention SPEC reviews
+
+### Changed
+
+- **SPEC status enum standardized** across 28 SPECs (42% of SPEC inventory)
+  - `Completed` → `completed`, `Draft` → `draft`, `Planned` → `planned`, `Superseded` → `superseded`
+  - `Implemented`/`implemented` → `completed`, `approved` → `planned`
+- SPEC-LSP-001 marked `superseded` (superseded by SPEC-LSP-CORE-002)
+- `internal/statusline/builder.go` `collectAll()`: skip usageProvider when stdin has `rate_limits` (prevents 5s HTTP timeout → statusline disappearance)
+- SARIF `tool.driver.rules` array sorted deterministically (#644 fix)
+- Hook event naming: `Stop` → `SubagentStop` across 14 agent definitions
+- `internal/hook/quality/gate.go` Dart/Flutter detection: now inspects pubspec.yaml content
+- Quality gate V2 (`RunAstGrepGateV2`) gains unit test coverage (#645)
+
+### Fixed
+
+- **#626**: `--team` flag now correctly loads `team/*.md` workflows for `/moai run|plan|sync|fix|mx`. Previously only `review` subcommand honored team routing
+- **#644**: SARIF `tool.driver.rules` array had non-deterministic order due to Go map iteration; now `sort.Slice` by rule ID
+- **#645**: `RunAstGrepGateV2` quality gate had no unit tests; added table-driven test coverage
+- **#646**: Statusline intermittent disappearance caused by blocking Anthropic OAuth API calls (5s timeout on cache miss). Fix: skip usage collector when Claude Code (2.1.80+) already provides `rate_limits` via stdin
+- **#652**: Quality gate used `dart test` for Flutter projects, causing commit blocks. Fix: detect Flutter SDK in pubspec.yaml and use `flutter test` + `flutter analyze`
+- **#653**: Statusline context gauge showed 1M for GLM models that actually have 128-230K limit. Fix: 4-tier priority resolver with GLM model detection
+- `/login`, `/logout` hang in hook system (flat camelCase support + graceful validation)
+
+### Removed
+
+- None
+
+### Security
+
+- ast-grep security rules for OWASP/CWE patterns integrated into quality gate
+
+### Installation & Update
+
+```bash
+go install github.com/modu-ai/moai-adk/cmd/moai@v2.10.3
+# or
+moai update
+```
+
+### Pull Requests Merged
+
+- #648 fix(statusline): skip usage collector when stdin rate_limits present
+- #649 sync(v2.10.3): LSP suite + AC10/AC4 critical fixes + SPEC enum standardization
+- #650 fix(astgrep): SARIF tool.driver.rules 결정적 순서 보장
+- #651 test(quality): add unit tests for RunAstGrepGateV2 quality gate
+- #654 fix(routing): --team 플래그가 team/*.md 워크플로우를 로드하도록 수정
+- #655 fix(statusline): GLM 모드 컨텍스트 게이지 1M 오표시
+- #656 fix(quality): Flutter 프로젝트에서 dart test 대신 flutter test 사용
+
+### Closed Issues
+
+#626, #641 (meta), #644, #645, #646, #652, #653
+
+---
+
+## [2.10.3] - 2026-04-14 (한국어)
+
+### 요약
+
+LSP SPEC suite 출시 (완료 SPEC 5개: CORE-002, AGG-003, QGATE-004, LOOP-005, MULTI-006) + 핵심 AC 구현(Feature Flag, `--json`/exit code) + 28개 SPEC status enum 표준화. Statusline 수정: rate_limits skip으로 간헐적 사라짐 방지, GLM context window override로 1M 게이지 오표시 차단. Quality gate: Flutter 프로젝트 감지, SARIF 결정적 정렬, V2 gate 테스트. 라우팅: `--team` 플래그가 plan/run/sync에서도 `team/*.md` 워크플로우를 올바르게 로드.
+
+### Breaking Changes
+
+없음. 모든 변경은 additive 또는 bug fix. `lsp.client_impl: gopls_bridge` 기본값으로 기존 동작 유지.
+
+### 추가
+
+#### LSP 인프라 (SPEC-LSP-CORE-002, AGG-003, QGATE-004, LOOP-005, MULTI-006)
+
+- **SPEC-LSP-CORE-002** — powernap 기반 다국어 LSP 클라이언트 기반 (6 sprints, 91-94% 커버리지)
+- **SPEC-LSP-AGG-003** — Diagnostic Aggregator + TTL Cache + Circuit Breaker
+- **SPEC-LSP-QGATE-004** — Phase-aware LSP 품질 게이트 (plan/run/sync 단계별 임계값)
+- **SPEC-LSP-LOOP-005** — Loop/Ralph LSP 통합 (Go 전용)
+- **SPEC-LSP-MULTI-006** — 16개 언어 LSP 서버 매트릭스 + install hints + project_markers
+  - **AC4**: `moai lsp doctor --json` 플래그 + missing server 시 exit 1
+
+#### ast-grep 현대화 (SPEC-ASTG-UPGRADE-001)
+
+- `internal/astgrep/` 패키지: scanner, SARIF 출력, rules loader, CLI
+- `moai ast-grep` 커맨드 (`--json`, `--sarif`, `--text` 출력)
+- Pre-configured 규칙: security (OWASP/CWE), Go idioms, error handling, resource safety
+
+#### GLM statusline context (#653)
+
+- 4-tier priority 리졸버: env → `llm.yaml glm.context_windows` → 내장 테이블 → stdin fallback
+- 6개 GLM 모델 내장 기본값 (glm-5.1, glm-5, glm-4.7, glm-4.6, glm-4.5, glm-4.5-air)
+- `MOAI_STATUSLINE_CONTEXT_SIZE` 환경변수 지원
+
+#### Flutter 품질 게이트 지원 (#652)
+
+- pubspec.yaml 동적 분석으로 Flutter SDK 감지
+- Flutter 프로젝트 → `flutter test` / `flutter analyze`
+- 순수 Dart CLI → 기존 `dart test` / `dart analyze` 유지
+
+#### 기타
+
+- Simplify workflow Phase 0.05 sync 통합 (SPEC-HOOKWAVE-001)
+- Output styles v5.0.0: MoAI+R2D2 통합 + Einstein 튜터
+- Orchestrator Self-Check §24 HARD 규칙
+- plan-auditor 에이전트 (SPEC 편향방지 검수)
+
+### 변경
+
+- **28개 SPEC enum 표준화** (전체 SPEC의 42%): 대소문자/비표준 값 소문자 표준으로
+- SPEC-LSP-001을 `superseded`로 표시 (SPEC-LSP-CORE-002가 대체)
+- statusline `collectAll()`: stdin에 `rate_limits` 있으면 usageProvider 스킵
+- SARIF rules 배열 ID 기준 정렬
+- Hook 이벤트명: `Stop` → `SubagentStop` (14개 에이전트)
+
+### 수정
+
+- **#626**: `--team` 플래그가 `/moai run|plan|sync|fix|mx`에서 `team/*.md` 로드하도록 수정
+- **#644**: SARIF rules 배열 비결정적 순서
+- **#645**: `RunAstGrepGateV2` 단위 테스트 공백
+- **#646**: Anthropic OAuth API 블로킹(5초 timeout)으로 statusline 간헐 사라짐
+- **#652**: Flutter 프로젝트에서 `dart test` 사용으로 commit 차단
+- **#653**: GLM 모드 statusline 게이지가 Claude 1M 기준으로 오표시
+- `/login`, `/logout` hook hang (flat camelCase 지원)
+
+### 설치 및 업데이트
+
+```bash
+go install github.com/modu-ai/moai-adk/cmd/moai@v2.10.3
+# 또는
+moai update
+```
+
+### 머지된 PR
+
+#648, #649, #650, #651, #654, #655, #656
+
+### 종료된 이슈
+
+#626, #641 (meta), #644, #645, #646, #652, #653
+
+---
+
 ## [2.10.2] - 2026-04-11
 
 ### Summary

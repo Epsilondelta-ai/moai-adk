@@ -74,6 +74,57 @@ Pre-execution commands: git status, git branch, git log, git diff, find .moai/sp
 
 ---
 
+## Brain Context Auto-Detection
+
+<!-- Verifies REQ-BRAIN-004: SPEC Decomposition Candidates surfaced to user via AskUserQuestion -->
+<!-- Verifies REQ-BRAIN-007: /moai plan detects proposal.md and presents SPEC candidates -->
+
+When `/moai plan` is invoked (with or without arguments), perform this pre-execution check:
+
+### Step 0: Brain Proposal Detection
+
+1. **Scan** for `.moai/brain/IDEA-*/proposal.md` files (Glob: `.moai/brain/IDEA-[0-9]*/proposal.md`).
+2. If any proposal.md files are found:
+   a. Read the most recent file (highest IDEA-NNN number by directory name).
+   b. Parse the `### SPEC Decomposition Candidates` section using grammar:
+      ```
+      Grammar: ^- SPEC-[A-Z][A-Z0-9]+-[0-9]{3}: .+$
+      ```
+   c. Collect all matching entries as `brain_candidates`.
+   d. Non-matching entries emit a WARNING in output (but do NOT error out — defensive parser).
+
+3. If `brain_candidates` is non-empty AND user did not provide a specific SPEC title in $ARGUMENTS:
+   - Surface candidates via AskUserQuestion (per `askuser-protocol.md`):
+     ```
+     ToolSearch(query: "select:AskUserQuestion")
+     AskUserQuestion({
+       questions: [{
+         header: "Brain 워크플로우 SPEC 후보",
+         question: "Brain 워크플로우에서 생성된 SPEC 분해 후보가 있습니다. 어느 것을 계획하시겠습니까?",
+         options: [
+           { label: "<first candidate> (권장)", description: "Brain IDEA에서 자동 감지된 첫 번째 후보" },
+           { label: "<second candidate>", description: "..." },
+           ...up to 4 options total (use "직접 입력" as last option for custom SPEC title)
+         ]
+       }]
+     })
+     ```
+   - User selection becomes the SPEC title for Phase 1B.
+   - [HARD] NEVER auto-create SPECs from candidates — user MUST select explicitly.
+
+4. If user provided a specific SPEC title OR selected "직접 입력": proceed normally to Phase 1A.
+
+5. If no brain candidates found: skip this check, proceed normally.
+
+**Defensive Parser Rules**:
+- Entries matching the grammar are offered as candidates.
+- Entries NOT matching (e.g., `- AUTH-001: missing prefix`, `- SPEC-001: missing domain`) emit:
+  `[WARNING] Skipped malformed brain candidate: "<entry>" — expected format: - SPEC-{DOMAIN}-{NNN}: {scope}`
+- Parser warnings do NOT block plan execution.
+- Maximum 9 candidates surfaced (AskUserQuestion option limit: 4 per question, minus "직접 입력").
+
+---
+
 ## Phase Sequence
 
 ### Phase 1A: Project Exploration (Optional)
@@ -304,6 +355,18 @@ Implementation guard: [HARD] During Phases 0.5, 1A, and 1B, all agent prompts MU
 
 ### Decision Point 1: Plan Review and Annotation Cycle
 
+<!-- moai:evolvable-start id="gate-plan-1" -->
+### HUMAN GATE: Plan Review
+
+**Previous phase output:** SPEC draft with EARS-format requirements and acceptance criteria
+**Approval question:** Does this SPEC capture the correct requirements and scope?
+**Cannot proceed until:**
+- [ ] User has reviewed the SPEC document
+- [ ] User has confirmed acceptance criteria are testable
+- [ ] User has approved the proposed file changes
+- [ ] No open questions remain in the SPEC
+<!-- moai:evolvable-end -->
+
 Tool: AskUserQuestion (at orchestrator level only)
 
 Options:
@@ -362,11 +425,37 @@ Input: Approved plan from Phase 1B, validated SPEC ID from Phase 1.5.
 File generation (all three files created simultaneously):
 
 - .moai/specs/SPEC-{ID}/spec.md
-  - YAML frontmatter with 8 required fields (id, version, status, created, updated, author, priority, issue_number)
-  - issue_number: GitHub Issue number linked to this SPEC (0 if --no-issue or Issue creation skipped)
+  - YAML frontmatter with **9 required fields** (canonical schema — see checklist below)
   - HISTORY section immediately after frontmatter
   - Complete EARS structure with all 5 requirement types
   - Content written in conversation_language
+
+#### [HARD] Pre-Write Frontmatter Checklist
+
+[HARD] Before manager-spec calls Write/MultiEdit for spec.md, it MUST validate the frontmatter contains ALL 9 required fields AND rejects 4 legacy aliases. This checklist blocks the 2026-04-21 mass-SPEC-drift pattern where 30 SPECs shipped with `created`/`updated` (wrong) and no `labels`.
+
+Required 9 fields (canonical order):
+- [ ] `id: SPEC-{DOMAIN}-{NUM}` — matches `^SPEC-[A-Z][A-Z0-9]+-[0-9]{3}$`
+- [ ] `version: "X.Y.Z"` — quoted semver string (NOT `0.1` unquoted)
+- [ ] `status: draft` — enum: draft | approved | completed | superseded | archived
+- [ ] `created_at: YYYY-MM-DD` — ISO date (NEVER `created`, NEVER `date`)
+- [ ] `updated_at: YYYY-MM-DD` — ISO date (NEVER `updated`)
+- [ ] `author: <name>` — string, not empty
+- [ ] `priority: High|Medium|Low|Critical` — Title-case (alt: P0|P1|P2|P3 uppercase)
+- [ ] `labels: [tag1, tag2, ...]` — YAML array, lowercase tags
+- [ ] `issue_number: null` — integer or null (0 if --no-issue)
+
+Rejected legacy aliases (fail closed — do NOT accept):
+- `created:` (use `created_at:`)
+- `updated:` (use `updated_at:`)
+- `spec_id:` (use `id:`)
+- `title:` in frontmatter (put in H1 heading, not frontmatter)
+
+Pre-write gate behavior:
+1. manager-spec generates frontmatter draft in memory.
+2. manager-spec self-audits against the 9-field checklist above.
+3. If any required field is missing OR any rejected alias appears: manager-spec HALTS, reports the schema violation, and re-generates. It does NOT call Write.
+4. Phase 2.3 plan-auditor independently re-verifies the schema on the written file as a second line of defense.
 
 - .moai/specs/SPEC-{ID}/plan.md
   - Implementation plan with task decomposition
@@ -561,6 +650,35 @@ Prerequisite: SPEC files MUST be committed before worktree creation.
 - Create worktree: `moai worktree new SPEC-{ID}`
 - Display worktree path and navigation instructions
 
+##### Worktree-Anchored Resume Output [HARD]
+
+When `--worktree` is used, the plan-phase output MUST include a paste-ready resume message with **Block 0 (cwd anchoring)** prepended before the standard 6-block structure. This anchors the user to start the next session inside the worktree, preventing main-cwd drift.
+
+Block 0 format (prepended before Block 1):
+
+```
+[New Terminal — START IN WORKTREE]
+$ cd <worktree-absolute-path>
+$ <session-launcher>            # claude | moai cc | moai cg | moai glm
+   └─ Claude Code session starts here (cwd = worktree)
+```
+
+Block 4 (preconditions) MUST include `0)` as the first item:
+
+```
+0) git rev-parse --show-toplevel → <worktree-path> (★ critical pre-check)
+```
+
+Recommended session-launcher per execution mode:
+
+- `--team` → `tmux new-session -s moai-<spec> && moai cg` (teammate spawn via tmux split-window inherits worktree cwd + tmux session env)
+- single-session → `moai cc` (or `claude`) directly inside worktree
+- GLM-only → `moai glm`
+
+[HARD] Single-session corollary: If the user is NOT comfortable with multi-terminal/multi-session workflow, recommend converting to `--branch` next time. `--worktree` only realizes its isolation value when the user actually starts a separate session inside the worktree path. Forcing Block 0 onto a single-session user is friction without benefit.
+
+See `.claude/rules/moai/workflow/session-handoff.md` "Worktree-Anchored Resume Pattern" for the canonical Block 0 specification and lessons #14 for the failure-mode rationale.
+
 #### Branch Path (--branch flag or user choice)
 
 Agent: manager-git subagent
@@ -590,6 +708,17 @@ Tasks:
 - Output: `mx_plan` section in SPEC document with annotation targets and priorities
 
 ### Phase 3.6: SPEC Quality Gate
+
+<!-- moai:evolvable-start id="gate-plan-2" -->
+### HUMAN GATE: SPEC Quality Validation
+
+**Previous phase output:** Validated SPEC with quality score
+**Approval question:** Is the SPEC ready for execution mode selection and implementation?
+**Cannot proceed until:**
+- [ ] SPEC quality gate shows PASS
+- [ ] No HARD rule violations detected
+- [ ] User has selected execution mode (sub-agent vs team)
+<!-- moai:evolvable-end -->
 
 Purpose: Verify SPEC document quality before proceeding to implementation. Catches incomplete or inconsistent specs early.
 
@@ -704,6 +833,13 @@ All of the following must be verified:
 - Phase 3: Appropriate git action taken based on flags and user choice
 - If --worktree: SPEC committed before worktree creation
 - Next steps presented to user
+- **Audit-ready signal**: Before transitioning to `/moai run`, append to `.moai/specs/SPEC-{ID}/progress.md`:
+  ```
+  - plan_complete_at: {ISO-8601 timestamp}
+  - plan_status: audit-ready
+  ```
+  This signal indicates plan artifacts (spec.md, plan.md, acceptance.md, tasks.md) are finalized
+  and ready for Plan Audit Gate validation at `/moai run` Phase 0.5 (SPEC-WF-AUDIT-GATE-001).
 
 ---
 
@@ -739,3 +875,11 @@ All of the following must be verified:
 Version: 2.8.0
 Updated: 2026-03-30
 Changes: Added test scenarios, Phase 0.9 JIT Language Detection.
+
+---
+
+## Custom Harness Extension (Optional)
+
+@.moai/harness/plan-extension.md
+
+*(이 파일은 `/moai project --harness`로 생성됩니다. 파일이 없으면 자동으로 skip됩니다.)*

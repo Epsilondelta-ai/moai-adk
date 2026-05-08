@@ -36,6 +36,10 @@ func (m *mockDeployer) ListTemplates() []string {
 	return nil
 }
 
+func (m *mockDeployer) ValidateAll(_ context.Context, _ *template.TemplateContext) error {
+	return nil
+}
+
 // --- Initializer tests ---
 
 func TestInit_BasicInitialization(t *testing.T) {
@@ -744,6 +748,10 @@ func (d *trackingMockDeployer) ListTemplates() []string {
 		list = append(list, path)
 	}
 	return list
+}
+
+func (d *trackingMockDeployer) ValidateAll(_ context.Context, _ *template.TemplateContext) error {
+	return nil
 }
 
 // --- Test helpers ---

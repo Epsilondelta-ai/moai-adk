@@ -616,6 +616,153 @@ func TestMCPTemplateSchema(t *testing.T) {
 	}
 }
 
+// TestMCPTemplateAlwaysLoadOnContext7 verifies that the rendered .mcp.json sets
+// "alwaysLoad": true on the context7 server entry (REQ-001, REQ-002).
+func TestMCPTemplateAlwaysLoadOnContext7(t *testing.T) {
+	platforms := []string{"darwin", "linux", "windows"}
+
+	for _, platform := range platforms {
+		t.Run(platform, func(t *testing.T) {
+			ctx := testContext(platform)
+			output := renderTemplate(t, ".mcp.json.tmpl", ctx)
+
+			var config map[string]any
+			if err := json.Unmarshal([]byte(strings.TrimSpace(output)), &config); err != nil {
+				t.Fatalf("unmarshal: %v", err)
+			}
+			servers, ok := config["mcpServers"].(map[string]any)
+			if !ok {
+				t.Fatal("missing mcpServers")
+			}
+			server, ok := servers["context7"].(map[string]any)
+			if !ok {
+				t.Fatal("missing context7 server entry")
+			}
+			val, exists := server["alwaysLoad"]
+			if !exists {
+				t.Error("context7: alwaysLoad field is absent; want true")
+				return
+			}
+			if val != true {
+				t.Errorf("context7: alwaysLoad = %v, want true", val)
+			}
+		})
+	}
+}
+
+// TestMCPTemplateAlwaysLoadOnSequentialThinking verifies that the rendered
+// .mcp.json sets "alwaysLoad": true on the sequential-thinking server entry
+// (REQ-001, REQ-003).
+func TestMCPTemplateAlwaysLoadOnSequentialThinking(t *testing.T) {
+	platforms := []string{"darwin", "linux", "windows"}
+
+	for _, platform := range platforms {
+		t.Run(platform, func(t *testing.T) {
+			ctx := testContext(platform)
+			output := renderTemplate(t, ".mcp.json.tmpl", ctx)
+
+			var config map[string]any
+			if err := json.Unmarshal([]byte(strings.TrimSpace(output)), &config); err != nil {
+				t.Fatalf("unmarshal: %v", err)
+			}
+			servers, ok := config["mcpServers"].(map[string]any)
+			if !ok {
+				t.Fatal("missing mcpServers")
+			}
+			server, ok := servers["sequential-thinking"].(map[string]any)
+			if !ok {
+				t.Fatal("missing sequential-thinking server entry")
+			}
+			val, exists := server["alwaysLoad"]
+			if !exists {
+				t.Error("sequential-thinking: alwaysLoad field is absent; want true")
+				return
+			}
+			if val != true {
+				t.Errorf("sequential-thinking: alwaysLoad = %v, want true", val)
+			}
+		})
+	}
+}
+
+// TestMCPTemplateAlwaysLoadAbsentOnMoaiLSP verifies that the moai-lsp server
+// entry does NOT have alwaysLoad set to true (REQ-004).
+func TestMCPTemplateAlwaysLoadAbsentOnMoaiLSP(t *testing.T) {
+	ctx := testContext("darwin")
+	output := renderTemplate(t, ".mcp.json.tmpl", ctx)
+
+	var config map[string]any
+	if err := json.Unmarshal([]byte(strings.TrimSpace(output)), &config); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	servers, ok := config["mcpServers"].(map[string]any)
+	if !ok {
+		t.Fatal("missing mcpServers")
+	}
+	server, ok := servers["moai-lsp"].(map[string]any)
+	if !ok {
+		t.Fatal("missing moai-lsp server entry")
+	}
+	if val, exists := server["alwaysLoad"]; exists && val == true {
+		t.Error("moai-lsp: alwaysLoad must not be true; it was explicitly excluded from REQ-004")
+	}
+}
+
+// TestMCPTemplateExistingFieldsPreserved verifies that adding alwaysLoad does
+// not disturb existing fields in any server entry (REQ-005).
+func TestMCPTemplateExistingFieldsPreserved(t *testing.T) {
+	ctx := testContext("darwin")
+	output := renderTemplate(t, ".mcp.json.tmpl", ctx)
+
+	var config map[string]any
+	if err := json.Unmarshal([]byte(strings.TrimSpace(output)), &config); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	servers, ok := config["mcpServers"].(map[string]any)
+	if !ok {
+		t.Fatal("missing mcpServers")
+	}
+
+	// context7 must still have command and args
+	c7, ok := servers["context7"].(map[string]any)
+	if !ok {
+		t.Fatal("missing context7")
+	}
+	if c7["command"] == nil {
+		t.Error("context7: command field missing after alwaysLoad insertion")
+	}
+	if c7["args"] == nil {
+		t.Error("context7: args field missing after alwaysLoad insertion")
+	}
+
+	// sequential-thinking must still have command and args
+	st, ok := servers["sequential-thinking"].(map[string]any)
+	if !ok {
+		t.Fatal("missing sequential-thinking")
+	}
+	if st["command"] == nil {
+		t.Error("sequential-thinking: command field missing after alwaysLoad insertion")
+	}
+	if st["args"] == nil {
+		t.Error("sequential-thinking: args field missing after alwaysLoad insertion")
+	}
+
+	// moai-lsp must still have command, args, and timeout
+	lsp, ok := servers["moai-lsp"].(map[string]any)
+	if !ok {
+		t.Fatal("missing moai-lsp")
+	}
+	if lsp["command"] == nil {
+		t.Error("moai-lsp: command field missing")
+	}
+	if lsp["args"] == nil {
+		t.Error("moai-lsp: args field missing")
+	}
+	if lsp["timeout"] == nil {
+		t.Error("moai-lsp: timeout field missing")
+	}
+}
+
 // --- BuildSmartPATH and PathContainsDir tests ---
 
 // TestBuildSmartPATH_StableAcrossTerminalPATH is a regression test for issue #467:
@@ -931,5 +1078,49 @@ func TestIsWSL2_ProcVersionFallback_NonWSL(t *testing.T) {
 
 	if IsWSL2() {
 		t.Error("IsWSL2() should return false for a non-WSL kernel string")
+	}
+}
+
+// --- SPEC-DB-SYNC-RELOC-001: verify db-schema-change PostToolUse hook is removed ---
+
+// TestRender_DbSchemaChangeHook_Removed verifies that SPEC-DB-SYNC-RELOC-001
+// has relocated the per-edit PostToolUse hook for `handle-db-schema-change.sh`
+// into the `/moai sync` Phase 0.08 workflow. The rendered settings.json for
+// any platform must NOT contain a reference to the former hook script, and the
+// template tree must not ship the wrapper script either. The existing Go
+// package `internal/hook/dbsync` and `moai hook db-schema-sync` CLI remain
+// intact for manual invocation (verified by package-level tests).
+func TestRender_DbSchemaChangeHook_Removed(t *testing.T) {
+	for _, platform := range []string{"darwin", "linux", "windows"} {
+		platform := platform
+		t.Run(platform, func(t *testing.T) {
+			ctx := testContext(platform)
+			out := renderTemplate(t, ".claude/settings.json.tmpl", ctx)
+
+			// Rendered settings.json must remain valid JSON on all platforms.
+			if !json.Valid([]byte(strings.TrimSpace(out))) {
+				t.Fatalf("%s render is not valid JSON:\n%s", platform, out)
+			}
+
+			// The former hook script must not be referenced anywhere in the
+			// rendered output (raw string check catches both command fields
+			// and any orphan comment references).
+			if strings.Contains(out, "handle-db-schema-change.sh") {
+				t.Errorf("%s rendered settings.json still references handle-db-schema-change.sh:\n%s", platform, out)
+			}
+
+			// Structural check: the PostToolUse slot must contain exactly one
+			// matcher block (the Write|Edit generic handler) — the second
+			// db-schema-change block has been removed.
+			var settings map[string]any
+			if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &settings); err != nil {
+				t.Fatalf("unmarshal: %v", err)
+			}
+			hooks := settings["hooks"].(map[string]any)
+			post := hooks["PostToolUse"].([]any)
+			if got := len(post); got != 1 {
+				t.Errorf("%s PostToolUse entries = %d, want 1 (db-schema-change block was removed in SPEC-DB-SYNC-RELOC-001)", platform, got)
+			}
+		})
 	}
 }

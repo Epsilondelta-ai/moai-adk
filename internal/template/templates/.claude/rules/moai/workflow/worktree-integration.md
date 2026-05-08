@@ -1,6 +1,5 @@
 ---
-description: Worktree integration guide with path isolation rules for agents using isolation worktree
-globs: "**/.claude/agents/**,**/.claude/worktrees/**"
+paths: "**/.claude/agents/**,**/.claude/worktrees/**,**/.claude/teams/**"
 ---
 
 # Worktree Integration Guide
@@ -133,7 +132,7 @@ Is this a one-shot sub-agent task?
 
 - [HARD] Implementation teammates in team mode (role_profiles: implementer, tester, designer) MUST use `isolation: "worktree"` when spawned via Agent()
 - [HARD] Read-only teammates (role_profiles: researcher, analyst, reviewer) MUST NOT use `isolation: "worktree"` — their `mode: "plan"` already prevents writes
-- [HARD] One-shot sub-agents that write files (expert-backend, expert-frontend, manager-ddd, manager-tdd) SHOULD use `isolation: "worktree"` when making cross-file changes
+- [HARD] One-shot sub-agents that write files (expert-backend, expert-frontend, manager-cycle) SHOULD use `isolation: "worktree"` when making cross-file changes
 - [HARD] GitHub workflow agents (fixer agents in /moai github issues) MUST use `isolation: "worktree"` for branch isolation
 
 ### When to Use Which
@@ -271,8 +270,13 @@ Both share the same project structure. `src/auth/handler.go` resolves correctly 
 | `Ctrl+X Ctrl+K` to kill background agent | 2.1.83 | Kill stuck background agents |
 | Worktree CWD isolation fix | **2.1.97** | Prior versions leaked agent CWD back to parent session |
 | Stop/SubagentStop hook stability | **2.1.97** | Prior versions failed on long-running sessions |
+| `moai doctor` MCP scope duplicate detection | **2.1.110** | Warns on MCP server duplication across `.mcp.json` + settings.json |
+| Bash tool timeout ceiling enforcement | **2.1.110** | Maximum 600,000ms (10 min) enforced by runtime |
+| `effortLevel` setting for Opus 4.7 | **2.1.110** | Supports `low`/`medium`/`high`/`xhigh`/`max` effort levels |
+| `CLAUDE_ENV_FILE` on Windows | **2.1.111** | Prior versions: no-op on Windows; fixed to inject env as on macOS/Linux |
+| `disableBypassPermissionsMode` policy | **2.1.111** | Prevents agents from requesting `bypassPermissions` when `true` |
 
-**Recommended**: Claude Code **2.1.97 or later** for reliable worktree isolation and hook stability.
+**Recommended**: Claude Code **2.1.111 or later** for Opus 4.7 support, MCP doctor warnings, and Windows CLAUDE_ENV_FILE parity. Minimum baseline: **2.1.97** for worktree isolation.
 
 ## Troubleshooting
 
@@ -292,7 +296,50 @@ Both share the same project structure. `src/auth/handler.go` resolves correctly 
 | Run | MoAI | `~/.moai/worktrees/{Project}/{SPEC}/` |
 | Sync | MoAI | Same as Run phase |
 
+## Team Protocol
+
+Shared protocol for all MoAI Agent Teams teammates. Supplements role-specific instructions.
+
+### Team Discovery
+- Read `~/.claude/teams/{team-name}/config.json` to discover teammates
+- Always refer to teammates by their `name` field when using SendMessage
+
+### Communication
+- Use direct messages (type: "message") by default
+- NEVER broadcast unless a critical blocking issue affects ALL teammates
+- Send findings and results to the team lead via SendMessage when complete
+- Report blockers to the team lead immediately
+- Update task status via TaskUpdate
+
+### Task Management
+After completing each task:
+- Mark task as completed via TaskUpdate (MANDATORY - prevents infinite waiting)
+- Check TaskList for available unblocked tasks
+- Claim the next available unblocked task (prefer lowest ID first) or wait for team lead instructions
+
+### Error Recovery
+- If you encounter an error, do NOT stop working. Try an alternative approach first
+- If the error persists after 3 attempts, report it to the team lead via SendMessage with the error details, file path, and what you tried
+- Continue with remaining tasks even if one task fails
+- If blocked by another teammate's work, report the blocker and move to the next unblocked task
+
+### Shutdown Handling
+When you receive a shutdown_request JSON message:
+- If all work is complete: SendMessage(type: "shutdown_response", request_id: "<from message>", approve: true)
+- If work is in progress: SendMessage(type: "shutdown_response", request_id: "<from message>", approve: false, content: "Still working on [task]")
+
+### Idle States
+- Going idle is NORMAL - it means you are waiting for input from the team lead
+- After completing work, you will go idle while waiting for the next assignment
+- The team lead will either send new work or a shutdown request
+- NEVER assume work is done until you receive shutdown_request from the lead
+
+### Context Isolation
+- You do NOT have access to the team lead's conversation history
+- All necessary context must come from your spawn prompt or teammate messages
+- If context is insufficient, ask the team lead for clarification via SendMessage
+
 ---
 
-Version: 3.0.0 (HARD Rules + Decision Tree)
-Source: SPEC-WORKTREE-001
+Version: 4.0.0 (Team Protocol merged from team-protocol.md via SPEC-V3R2-CON-003 OP-3)
+Source: SPEC-WORKTREE-001, SPEC-TEAM-PROTOCOL-001

@@ -74,7 +74,8 @@ Trigger conditions (any one activates Stage 1):
 - Potential conflict with current state (uncommitted changes, partial branches)
 
 Process:
-1. Ask via `AskUserQuestion` (max 4 options, user language, no emoji)
+0. First: `ToolSearch(query: "select:AskUserQuestion")` — preload deferred tool schema before every AskUserQuestion call (see `.claude/rules/moai/core/askuser-protocol.md` §ToolSearch Preload Procedure)
+1. Ask via `AskUserQuestion` (max 4 questions per round, max 4 options per question, user language, no emoji, first option marked `(권장)`/`(Recommended)`)
 2. Build on previous answers; continue rounds until 100% intent clarity
 3. Consolidate into a short report
 4. Obtain explicit final confirmation before Stage 2
@@ -123,7 +124,7 @@ Before writing any code yourself, answer:
 | Refactoring / codemod | `expert-refactoring` |
 | Debugging / root cause | `expert-debug` |
 | Major doc rewrite | `manager-docs` |
-| DDD / TDD implementation | `manager-ddd` / `manager-tdd` |
+| DDD / TDD implementation | `manager-cycle` / `manager-tdd` |
 
 ### Volume Triggers
 
@@ -248,6 +249,48 @@ Implications: [downstream effects]
 ──────────────────────────────────────────────
 ```
 
+### Progress Board [HARD]
+
+When the task is a multi-step sequence (PR chain, release pipeline, migration queue, parallel branches, or any tracked checklist with **3+ items**), MoAI MUST surface a Progress Board snapshot at key moments:
+
+- Right after Stage 1 Clarify confirmation (initial plan)
+- After each item transitions state (completed / blocked / unblocked)
+- Before declaring `<moai>DONE</moai>` (final snapshot)
+
+Template (structural skeleton — translate the header and arrow text to `conversation_language`):
+```
+---
+🎯 [Progress Status header]
+
+[🟢] [Item 1 label]         ← [completion status / result summary]
+[🟡] [Item 2 label]         ← [in-progress detail / waiting cause]
+[⏸️] [Item 3 label]         ← [blocking / blocker cause]
+[⏸️] [Item 4 label] 🔴      ← [risk / critical marker]
+[⏸️] [Item 5 label]
+[⏸️] [Item 6 label]
+---
+```
+
+Icon legend (icons are structural — never substitute with text like `[DONE]`):
+
+| Icon | Meaning | Typical Use |
+|------|---------|-------------|
+| `🟢` | Done | Merged, tests passed, deployed |
+| `🟡` | In Progress / Partial | Merged but downstream config pending |
+| `⏸️` | Pending / Blocked | Upstream item incomplete, external dependency |
+| `🔵` | Under Review | PR review pending, approval pending |
+| `❌` | Failed / Canceled | Rolled back, abandoned |
+| `🔴` | Critical Suffix | Appended after item label to flag risk |
+
+Rules:
+- [HARD] Header text (e.g., `Progress Status`) and arrow annotations (`← ...`) MUST translate to the user's `conversation_language`
+- [HARD] Icons (`🟢🟡⏸️🔵❌🔴`) are structural — do NOT translate or replace with text equivalents
+- [HARD] One item per line; wrap long annotations onto a follow-up line with `   └─ ` continuation
+- [HARD] Align labels with padding so the `←` arrows form a vertical column
+- [HARD] Use horizontal rules (`---`) above and below the board to separate it from surrounding prose
+- Maximum 12 items per board; if more, split into grouped sub-boards by phase or domain
+- When zero items remain in `⏸️`, announce readiness for Stage 4 verification
+
 ---
 
 ## 9. Language Rules [HARD]
@@ -268,6 +311,7 @@ Implications: [downstream effects]
 - [HARD] Parallel tool calls when no dependencies
 - [HARD] File paths include `file:line` for navigation
 - [HARD] No time estimates ("2-3 days" forbidden); use priority labels
+- [HARD] **free-form interrogative prose in response body is prohibited as a question channel.** All user-facing questions MUST go through `AskUserQuestion` (which automatically provides an `Other` option for free-form answers when needed). Anti-pattern: embedding `?` questions or `- A: / - B:` option lists in response prose instead of calling `AskUserQuestion`. Canonical reference: `.claude/rules/moai/core/askuser-protocol.md`
 
 ---
 
@@ -301,8 +345,13 @@ Every interaction should be:
 
 ---
 
-Version: 5.0.0 (Merged MoAI + R2-D2 with 2026 Agentic Best Practices)
-Last Updated: 2026-04-11
+Version: 5.1.0 (Progress Board template added)
+Last Updated: 2026-04-23
+
+Changes from 5.0.0:
+- Added Progress Board template in §8 (multi-step sequence visualization with icon legend)
+- Progress Board HARD rules: auto-snapshot at Stage 1 confirm / state transitions / before DONE
+- Icon set standardized (🟢🟡⏸️🔵❌🔴) — structural, never translated
 
 Changes from 4.0.0:
 - Merged R2-D2 pair-programming patterns (Intent Clarification, Checkpoint Protocol, Insight blocks)

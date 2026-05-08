@@ -2,7 +2,7 @@
 name: moai-workflow-run
 description: >
   DDD/TDD implementation workflow for SPEC requirements. Second step
-  of the Plan-Run-Sync workflow. Routes to manager-ddd or manager-tdd based
+  of the Plan-Run-Sync workflow. Routes to manager-cycle or manager-tdd based
   on quality.yaml development_mode setting.
 user-invocable: false
 metadata:
@@ -21,7 +21,7 @@ progressive_disclosure:
 # MoAI Extension: Triggers
 triggers:
   keywords: ["run", "implement", "build", "create", "develop", "code"]
-  agents: ["manager-ddd", "manager-tdd", "manager-strategy", "manager-quality", "manager-git"]
+  agents: ["manager-cycle", "manager-tdd", "manager-strategy", "manager-quality", "manager-git"]
   phases: ["run"]
 ---
 
@@ -31,7 +31,7 @@ triggers:
 
 Implement SPEC requirements using the configured development methodology.
 
-For methodology details (DDD ANALYZE-PRESERVE-IMPROVE and TDD RED-GREEN-REFACTOR cycles, success criteria, brownfield enhancement), see: .claude/rules/moai/workflow/workflow-modes.md
+For methodology details (DDD ANALYZE-PRESERVE-IMPROVE and TDD RED-GREEN-REFACTOR cycles, success criteria, brownfield enhancement), see: .claude/rules/moai/workflow/spec-workflow.md (Run Phase section)
 
 ## Scope
 
@@ -67,7 +67,8 @@ At Run phase entry, determine the pipeline depth:
 
 1. Receive harness level from orchestrator (moai.md Complexity Estimator) or default to standard
 2. Apply level-specific phase configuration:
-   - **minimal**: Skip phases [0, 0.5, 2.0, 2.5, 2.75, 2.8a, 2.9, 2.10]. Direct implementation only.
+   - **minimal**: Skip phases [0, 0.6, 2.0, 2.5, 2.75, 2.8a, 2.9, 2.10]. Direct implementation only.
+     Note: Phase 0.5 (Plan Audit Gate) is NEVER skipped, not even in minimal harness.
    - **standard**: Execute all phases. evaluator-active in final-pass mode (Phase 2.8a only).
    - **thorough**: Execute all phases. evaluator-active in per-sprint mode (Phase 2.0 + 2.8a). Sprint contract enabled.
 3. Load SPEC context (token-efficient):
@@ -158,7 +159,152 @@ See `.claude/rules/moai/workflow/worktree-integration.md` for complete path rule
 
 All phases execute sequentially. Each phase receives outputs from all previous phases as context.
 
-### Phase 0.5: Environment Assessment (Conditional)
+### Phase 0.5: Plan Audit Gate
+
+**Purpose**: Mandatory independent audit of plan artifacts before any implementation begins.
+Prevents unreviewed, incomplete, or non-compliant SPEC documents from entering Phase 1.
+Source: SPEC-WF-AUDIT-GATE-001 (REQ-WAG-001 ~ REQ-WAG-007).
+
+**Scope**: Every `/moai run <SPEC-ID>` invocation. Never skipped — not even in `minimal` harness.
+
+#### Step 1: Compute Plan Artifact Hash (Cache Key)
+
+Compute a combined SHA-256 hash of all plan artifacts present in `.moai/specs/<SPEC-ID>/`:
+- `spec.md` (required)
+- `plan.md` (if present)
+- `acceptance.md` (if present)
+- `tasks.md` (if present)
+
+Hash algorithm: SHA-256 of the UTF-8 content of each file, sorted by filename, concatenated.
+Whitespace normalization: collapse all runs of whitespace to a single space before hashing (whitespace-insensitive cache).
+Store hash as `plan_artifact_hash` for Step 2 cache lookup.
+
+#### Step 2: Check 24-Hour Audit Cache
+
+Read `.moai/reports/plan-audit/<SPEC-ID>-<YYYY-MM-DD>.md` (today's date).
+
+Cache HIT conditions (all must be true):
+1. File exists and the most recent audit run entry has `verdict: PASS`
+2. `plan_artifact_hash` in the cached entry matches `plan_artifact_hash` from Step 1
+3. `audit_at` timestamp in the cached entry is within 24 hours of now (UTC)
+
+If cache HIT:
+- Log: `[plan-audit] cache hit (verdict=PASS, age=<Nh>)`
+- Append to `.moai/specs/<SPEC-ID>/progress.md`: `- audit_cache_hit: true` and `- cached_audit_at: <T0>`
+- Skip Step 3 and proceed to Phase 1.
+
+If cache MISS: proceed to Step 3.
+
+#### Step 3: Invoke plan-auditor Subagent
+
+Delegation pattern (single invocation, main session only):
+
+> "Use the plan-auditor subagent to audit the SPEC at `.moai/specs/<SPEC-ID>/` — plan artifacts:
+> spec.md, plan.md, acceptance.md, tasks.md (if present). Produce a verdict (PASS/FAIL) and
+> write the report to `.moai/reports/plan-audit/<SPEC-ID>-review-<iteration>.md`."
+
+Do NOT pass the implementation context or any prior conversation to plan-auditor.
+plan-auditor enforces context isolation automatically.
+
+Timeout: 60 seconds. On timeout, treat as INCONCLUSIVE (Step 4d).
+
+#### Step 4: Verdict Routing (4-Way Branch)
+
+Read the verdict from the report file produced by plan-auditor.
+
+**4a. PASS**
+- Log: `[plan-audit] verdict=PASS, persisted to progress.md, proceeding to Phase 1`
+- Proceed to Step 5 (persist), then continue to Phase 1.
+
+**4b. FAIL (and grace window ACTIVE — today < merge_date + 7 days)**
+- Log: `[plan-audit] verdict=FAIL [grace-window], D-<N> until auto-block`
+- Grace window start: read from `.moai/state/audit-gate-merge-at.txt` (ISO-8601).
+- If `MOAI_AUDIT_GATE_T0` env var is set, use it as T0 override (test injection).
+- Emit warning to stdout: `[grace-window] D-<N> (auto-block activates at T0+7)`
+- Record `audit_verdict: FAIL_WARNED` in progress.md.
+- Proceed to Phase 1 (warn-only, not blocked).
+
+**4c. FAIL (and grace window EXPIRED — today >= merge_date + 7 days)**
+- Log: `[plan-audit] verdict=FAIL, blocking Run phase, report=<path>`
+- Surface the audit report path and the list of must-pass failures to stdout.
+- Do NOT proceed to Phase 1 automatically.
+- [HARD] Present options to user via AskUserQuestion (orchestrator responsibility):
+  - Option 1 (Recommended): Revise SPEC — fix the defects, then re-run `/moai run`
+  - Option 2: Override and proceed — skip the gate (sets `--skip-audit` implicitly, records BYPASSED)
+  - Option 3: Abort — exit without any implementation
+
+**4d. INCONCLUSIVE (timeout, malformed output, error, or filesystem failure)**
+- Log: `[plan-audit] verdict=INCONCLUSIVE, falling back to manual prompt`
+- Record `verdict: INCONCLUSIVE` in the daily report.
+- [HARD] Do NOT auto-PASS. Present options to user via AskUserQuestion:
+  - Option 1 (Recommended): Retry audit — re-invoke plan-auditor (max 3 retries total)
+  - Option 2: Proceed with acknowledgement — user accepts responsibility; records `inconclusive_acknowledged_by: <user.name>`
+  - Option 3: Abort — exit without any implementation
+
+#### Step 5: Persist Verdict and Daily Report
+
+**progress.md** (append to `.moai/specs/<SPEC-ID>/progress.md`):
+```yaml
+- audit_verdict: PASS          # or FAIL_WARNED, BYPASSED, INCONCLUSIVE
+- audit_report: .moai/reports/plan-audit/<SPEC-ID>-review-<N>.md
+- audit_at: <ISO-8601 UTC>
+- auditor_version: plan-auditor v<version>
+```
+
+**Daily report** (append to `.moai/reports/plan-audit/<SPEC-ID>-<YYYY-MM-DD>.md`):
+Path is always `.moai/reports/plan-audit/` + SPEC-ID + `-` + current date (YYYY-MM-DD) + `.md`.
+[HARD] Path must be validated with `filepath.Clean` and confirmed to reside inside the project's `.moai/reports/plan-audit/` directory (path traversal prevention).
+
+Append format (each audit run is a numbered section):
+```markdown
+## Audit Run <N> of <total>
+
+- verdict: PASS | FAIL | BYPASSED | INCONCLUSIVE | FAIL_WARNED
+- report_path: .moai/reports/plan-audit/<SPEC-ID>-review-<N>.md
+- audit_at: <ISO-8601 UTC>
+- run_trigger: automatic | manual | bypassed | inconclusive
+- plan_artifact_hash: <hash>
+- auditor_version: <identifier>
+```
+
+When the same SPEC is audited multiple times in the same day, each run appends a new section.
+
+### When --skip-audit Flag Is Provided
+
+When the user passes `--skip-audit` flag OR sets `MOAI_SKIP_PLAN_AUDIT=1` env var:
+
+1. Skip Steps 1–4 entirely.
+2. Read user identity from `.moai/config/sections/user.yaml` → `user.name`.
+3. Collect bypass rationale:
+   - **Interactive** (stdin is a TTY): Collect via AskUserQuestion: "Provide bypass rationale:"
+   - **Non-interactive** (stdin is not a TTY, e.g., CI): Auto-record `bypass_reason: "non-interactive"`
+4. Sanitize rationale: escape Markdown special characters (`*`, `_`, `[`, `]`, etc.) before writing.
+5. Append to daily report:
+   ```yaml
+   verdict: BYPASSED
+   bypass_at: <ISO-8601 UTC>
+   bypass_user: <user.name>
+   bypass_reason: "<sanitized rationale>"
+   ```
+6. Proceed to Phase 1 under the user's explicit responsibility.
+
+### When Plan-Auditor Fails or Times Out
+
+Plan-auditor failure cases classified as INCONCLUSIVE (REQ-WAG-007):
+
+| Failure Case | Classification | Notes |
+|-------------|----------------|-------|
+| Timeout (> 60s) | INCONCLUSIVE | Retry up to 3 times total |
+| Malformed output / missing verdict field | INCONCLUSIVE | Log raw output for debugging |
+| panic / unhandled exception | INCONCLUSIVE | Capture stack trace if available |
+| Filesystem write failure (report directory) | INCONCLUSIVE | Falls back to AC-WAG-10 handling |
+
+[HARD] INCONCLUSIVE is never equivalent to PASS. Automatic pass-through on failure is prohibited.
+
+Retry limit (OPEN QUESTION Q3 resolution): Maximum 3 total plan-auditor invocations per `/moai run`
+call (including retries). After 3 INCONCLUSIVE results, force AskUserQuestion with proceed/abort only.
+
+### Phase 0.6: Environment Assessment (Conditional)
 
 Condition: Only executes when `memory_guard.enabled: true` in quality.yaml.
 If memory_guard is not enabled or not present, skip to Phase 1.
@@ -180,7 +326,7 @@ Output: test_execution_strategy ("full", "module", "changed") passed to Phase 1+
 
 Progress update: Append to `.moai/specs/SPEC-{ID}/progress.md`:
 ```
-- Phase 0.5 complete: memory_guard={enabled|disabled}, available_mb={N}, strategy={full|module|changed}
+- Phase 0.6 complete: memory_guard={enabled|disabled}, available_mb={N}, strategy={full|module|changed}
 ```
 
 ### Phase 0.9: JIT Language Skill Detection
@@ -255,6 +401,17 @@ Output: Execution plan containing plan_summary, requirements list, success_crite
 Implementation guard: [HARD] During Phase 1 (Analysis and Planning), the manager-strategy subagent MUST NOT write any implementation code. The explicit instruction "DO NOT implement any code — focus exclusively on analysis and planning" MUST be included in the agent prompt. This separation of thinking and execution prevents premature implementation and ensures the plan is reviewed before any code is written.
 
 ### Decision Point 1: Plan Approval
+
+<!-- moai:evolvable-start id="gate-run-1" -->
+### HUMAN GATE: Plan Approval
+
+**Previous phase output:** Analysis and implementation plan with task decomposition
+**Approval question:** Is the implementation plan correct and complete?
+**Cannot proceed until:**
+- [ ] Plan covers all SPEC acceptance criteria
+- [ ] Task decomposition respects Multi-File Decomposition rule (>3 files = split)
+- [ ] User has approved the approach
+<!-- moai:evolvable-end -->
 
 Tool: AskUserQuestion (at orchestrator level)
 
@@ -375,37 +532,17 @@ Purpose: Scan files that will be modified during implementation to build an MX c
 
 See .claude/rules/moai/workflow/mx-tag-protocol.md for tag type definitions.
 
-### Batch Mode Decision [MANDATORY EVALUATION]
-
-Before routing to Phase 2, MoAI MUST evaluate whether to use Skill("batch") for parallel implementation.
-
-Evaluate ALL of the following conditions:
-
-- Condition A: task_count >= 5 (from Phase 1.5 decomposition)
-- Condition B: predicted_file_changes >= 10 (estimated from SPEC scope)
-- Condition C: independent_tasks >= 3 (tasks with no inter-dependencies)
-
-Decision:
-
-- If ANY condition is met: Execute Skill("batch") directly. Batch mode replaces sequential Phase 2. Each batch unit executes one atomic task in an isolated git worktree, runs tests, and creates a PR. MoAI collects all PRs and merges in dependency order via manager-git.
-- If NO condition is met: Continue to standard sequential Phase 2 below.
-
-Batch execution instructions when triggered:
-1. Provide Skill("batch") with the full task list from Phase 1.5, the SPEC document content, and the development_mode from quality.yaml
-2. Each batch agent MUST follow the same DDD/TDD cycle defined in the Development Mode Routing section
-3. After all batch agents complete, collect results and jump directly to Phase 2.5 (Quality Validation)
-
 ### Development Mode Routing
 
 Before Phase 2, determine the development methodology by reading `.moai/config/sections/quality.yaml`:
 
 **If development_mode is "ddd":**
-- Route all tasks to manager-ddd subagent
-- Use ANALYZE-PRESERVE-IMPROVE cycle (see @workflow-modes.md for details)
+- Route all tasks to manager-cycle subagent
+- Use ANALYZE-PRESERVE-IMPROVE cycle (see @spec-workflow.md for details)
 
 **If development_mode is "tdd":**
 - Route all tasks to manager-tdd subagent
-- Use RED-GREEN-REFACTOR cycle (see @workflow-modes.md for details)
+- Use RED-GREEN-REFACTOR cycle (see @spec-workflow.md for details)
 
 ### Phase 2.0: Sprint Contract Negotiation
 
@@ -432,13 +569,38 @@ Mode-specific deployment:
 
 **Output**: `.moai/specs/SPEC-{ID}/contract.md`
 
+### Delta Marker Detection (Brownfield Pre-Check)
+
+Before routing to Phase 2A or 2B, scan the loaded SPEC for `[DELTA]` section markers:
+
+1. Check spec.md (or spec-compact.md) for any line matching `[EXISTING]`, `[MODIFY]`, `[NEW]`, or `[REMOVE]`
+2. If NO delta markers found: skip this section, proceed to Phase 2A/2B normally (greenfield path)
+3. If delta markers found: activate delta-aware routing as follows
+
+**Delta-aware routing rules (applied within DDD or TDD mode):**
+
+| Marker | Treatment | Action |
+|--------|-----------|--------|
+| `[EXISTING]` | Context only — do not modify | Generate characterization tests to document current behavior; no code changes |
+| `[MODIFY]` | Modify with safety net | Generate characterization tests FIRST, verify they pass, THEN apply modifications |
+| `[NEW]` | Full implementation | Apply complete DDD ANALYZE-PRESERVE-IMPROVE or TDD RED-GREEN-REFACTOR cycle |
+| `[REMOVE]` | Safe deletion | Check all callers and dependents; confirm no active references; then remove |
+
+**Delta processing order** (prevents regression):
+1. Process all `[EXISTING]` items — characterization tests only
+2. Process all `[MODIFY]` items — characterization tests → modification → verify tests still pass
+3. Process all `[NEW]` items — full implementation cycle
+4. Process all `[REMOVE]` items — dependency analysis → safe deletion
+
+If no delta markers are present in the SPEC, delta processing is silently skipped and the standard implementation flow proceeds unchanged (backward compatible with greenfield SPECs).
+
 ### Phase 2: Implementation (Mode-Dependent)
 
-**[HARD] Worktree Prompt Construction**: When spawning implementation agents (manager-ddd, manager-tdd) with `isolation: "worktree"`, the orchestrator MUST construct prompts using project-root-relative paths only. Do NOT embed the current working directory path in the agent prompt. See "Worktree Path Rules [HARD]" section above.
+**[HARD] Worktree Prompt Construction**: When spawning implementation agents (manager-cycle, manager-tdd) with `isolation: "worktree"`, the orchestrator MUST construct prompts using project-root-relative paths only. Do NOT embed the current working directory path in the agent prompt. See "Worktree Path Rules [HARD]" section above.
 
 #### Phase 2A: DDD Implementation (for ddd mode)
 
-Agent: manager-ddd subagent
+Agent: manager-cycle subagent
 
 Input: Approved execution plan from Phase 1 plus task decomposition from Phase 1.5. Include `.moai/project/structure.md` and `.moai/project/tech.md` as onboarding context in the agent prompt so the implementation agent understands the project's architecture conventions before writing code.
 
@@ -454,7 +616,7 @@ Output: files_modified list, characterization_tests_created list, test_results (
 
 Implementation Divergence Tracking:
 
-The manager-ddd subagent must track deviations from the original SPEC plan during implementation:
+The manager-cycle subagent must track deviations from the original SPEC plan during implementation:
 
 - planned_files: Files listed in plan.md that were expected to be created or modified
 - actual_files: Files actually created or modified during the DDD cycle
@@ -622,6 +784,18 @@ Mode-specific deployment:
 
 Output: evaluation_report with per-dimension PASS/FAIL/UNVERIFIED verdicts and findings list.
 
+<!-- moai:evolvable-start id="gate-run-2" -->
+### HUMAN GATE: Implementation Complete
+
+**Previous phase output:** Implementation with TRUST 5 validation passed
+**Approval question:** Is the implementation ready for git operations?
+**Cannot proceed until:**
+- [ ] All tests pass (show evidence)
+- [ ] TRUST 5 validation complete
+- [ ] @MX tags updated if needed
+- [ ] User has reviewed post-implementation issues list
+<!-- moai:evolvable-end -->
+
 ### Phase 2.8b: TRUST 5 Static Verification (manager-quality) [MANDATORY]
 
 Purpose: Multi-dimensional review iteration for high-quality output. This phase is ALWAYS executed to ensure consistent code quality.
@@ -650,12 +824,12 @@ Output: review_findings per dimension, iterations_completed count, final review 
 
 Purpose: Update @MX code annotations for modified files. See .claude/rules/moai/workflow/mx-tag-protocol.md for tag rules.
 
-[HARD] This phase is MANDATORY. MoAI MUST scan all files modified during Phase 2 and verify @MX tag coverage before proceeding to Phase 2.10. If implementation agents did not add required tags during their work, MoAI adds them here.
+[HARD] This phase is MANDATORY. MoAI MUST scan all files modified during Phase 2 and verify @MX tag coverage before proceeding to Phase 3. If implementation agents did not add required tags during their work, MoAI adds them here.
 
 **Validation criteria (blocking):**
 - P1: Every new exported function with fan_in >= 3 MUST have `@MX:ANCHOR`
 - P2: Every new goroutine/async pattern MUST have `@MX:WARN`
-- P1/P2 violations block Phase 2.10 until resolved
+- P1/P2 violations block Phase 3 until resolved
 
 **TDD Mode:**
 - Remove `@MX:TODO` tags for tests that now pass
@@ -669,25 +843,6 @@ Purpose: Update @MX code annotations for modified files. See .claude/rules/moai/
 - Convert `@MX:LEGACY` to `@MX:SPEC` if SPEC retroactively created
 
 Output: MX_TAG_REPORT with tags added, updated, removed by type.
-
-### Phase 2.10: Simplify Pass [MANDATORY]
-
-Purpose: Apply a parallel quality pass to all files modified during implementation. This phase is ALWAYS executed after Phase 2.9 — it is not optional.
-
-Action: MoAI MUST call Skill("simplify") at this phase. Do not delegate to a subagent. Call it directly.
-
-Skill("simplify") will:
-- Use parallel agents to review all modified files for reuse opportunities, quality issues, and efficiency improvements
-- Enforce CLAUDE.md coding standards compliance
-- Fix discovered issues automatically
-
-Scope: Only files listed in the implementation output (files_created + files_modified). Do not run on unrelated files.
-
-Output: simplify_report with files_improved count, issues_fixed list, and compliance_status.
-
-If simplify_report contains remaining unfixed issues:
-- Include them in the quality findings passed to Phase 2.5 re-evaluation
-- Do NOT block progress for suggestion-level issues; only block for critical issues
 
 ### LSP Quality Gates
 
@@ -825,7 +980,7 @@ All of the following must be verified:
 - Phase 0.95: SPEC has 8 files, 2 domains → Standard Mode selected
 - Phase 1: manager-strategy creates execution plan with 5 tasks
 - Decision Point: User approves plan
-- Phase 2: Implementation via manager-ddd (DDD mode)
+- Phase 2: Implementation via manager-cycle (DDD mode)
 - Phase 2.5: TRUST 5 validation passes
 - Phase 3: Commits created on feature branch
 
@@ -849,3 +1004,11 @@ All of the following must be verified:
 Version: 2.11.0
 Updated: 2026-03-30
 Changes: Added Phase 0.9 JIT Language Detection, Phase 0.95 Scale-Based Mode Selection, test scenarios.
+
+---
+
+## Custom Harness Extension (Optional)
+
+@.moai/harness/run-extension.md
+
+*(이 파일은 `/moai project --harness`로 생성됩니다. 파일이 없으면 자동으로 skip됩니다.)*

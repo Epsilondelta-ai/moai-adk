@@ -220,6 +220,15 @@ func (b *defaultBuilder) collectAll(ctx context.Context, input *StdinData) *Stat
 		data.RateLimits = input.RateLimits
 	}
 
+	// Extract effort and thinking info from Claude Code (v2.1.122+)
+	// Nil pointer pattern: absent fields remain nil (backward compat with < v2.1.122)
+	if input != nil && input.Effort != nil {
+		data.Effort = input.Effort
+	}
+	if input != nil && input.Thinking != nil {
+		data.Thinking = input.Thinking
+	}
+
 	// Parallel collectors (may involve I/O)
 	var wg sync.WaitGroup
 	var gitResult *GitStatusData
@@ -248,8 +257,11 @@ func (b *defaultBuilder) collectAll(ctx context.Context, input *StdinData) *Stat
 		})
 	}
 
-	// API usage collection (Phase 5, REQ-V3-API-001)
-	if b.usageProvider != nil {
+	// API usage collection (Phase 5, REQ-V3-API-001).
+	// Skip when Claude Code (2.1.80+) already provided rate_limits via stdin:
+	// the blocking Anthropic OAuth API call (5s timeout) caused the statusline to
+	// intermittently exceed Claude Code's render budget and disappear. See issue #646.
+	if b.usageProvider != nil && (input == nil || input.RateLimits == nil) {
 		wg.Go(func() {
 			result, err := b.usageProvider.CollectUsage(ctx)
 			if err != nil {

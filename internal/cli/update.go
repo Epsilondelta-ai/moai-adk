@@ -80,6 +80,8 @@ func init() {
 	updateCmd.Flags().Bool("yes", false, "Auto-confirm all prompts (CI/CD mode)")
 	updateCmd.Flags().Bool("templates-only", false, "Skip binary update, sync templates only")
 	updateCmd.Flags().Bool("binary", false, "Update binary only, skip template sync")
+	updateCmd.Flags().Bool("dry-run", false, "Show planned archive and install operations without modifying the filesystem")
+	updateCmd.Flags().Bool("no-hooks", false, "Skip git hook installation (REQ-CIAUT-002)")
 }
 
 // @MX:ANCHOR: [AUTO] runUpdate orchestrates binary update and template synchronization
@@ -199,7 +201,42 @@ func runUpdate(cmd *cobra.Command, _ []string) error {
 		_, _ = fmt.Fprintln(out, "Binary update skipped (dev build). Template sync skipped (--binary).")
 		return nil
 	}
+
+	// --dry-run: print planned operations without mutating the filesystem
+	if getBoolFlag(cmd, "dry-run") {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return fmt.Errorf("get working directory: %w", err)
+		}
+		return dryRunArchiveLegacySkills(cwd, out)
+	}
+
 	if err := runTemplateSyncWithProgress(cmd); err != nil {
+		return err
+	}
+
+	// Archive legacy skills (BC-V3R3-007): move 16 removed static skills to
+	// .moai/archive/skills/v2.16/ before they are cleaned from .claude/skills/.
+	{
+		cwd, err := os.Getwd()
+		if err != nil {
+			return fmt.Errorf("get working directory for archive: %w", err)
+		}
+		if _, archiveErr := archiveLegacySkills(cwd, out); archiveErr != nil {
+			_, _ = fmt.Fprintf(out, "Warning: legacy skill archive failed: %v\n", archiveErr)
+		}
+	}
+
+	// Ensure .moai/evolution/ directory tree exists for existing projects
+	// that predate the evolution infrastructure (R2: Directory Scaffolding).
+	if err := scaffoldEvolutionDir("."); err != nil {
+		_, _ = fmt.Fprintf(out, "  Warning: failed to scaffold evolution directory: %v\n", err)
+	}
+
+	// Sync .moai/design/ templates (REQ-005, REQ-008).
+	// Preserves user-modified files (SHA-256 mismatch) and rejects reserved filename collisions.
+	if err := updateDesignDir(".", out); err != nil {
+		_, _ = fmt.Fprintf(out, "  Error: .moai/design/ update: %v\n", err)
 		return err
 	}
 
@@ -486,6 +523,28 @@ func runTemplateSyncWithReporter(cmd *cobra.Command, reporter project.ProgressRe
 			},
 		},
 		{
+			name:    "Validate Templates",
+			message: "Validating all templates before deployment",
+			execute: func() error {
+				homeDir, _ := userHomeDir()
+				goBinPath := detectGoBinPathForUpdate(homeDir)
+				tmplCtx := template.NewTemplateContext(
+					template.WithGoBinPath(goBinPath),
+					template.WithHomeDir(homeDir),
+					template.WithSmartPATH(template.BuildSmartPATH()),
+					template.WithPlatform(runtime.GOOS),
+					template.WithVersion(version.GetVersion()),
+				)
+
+				if validateErr := deployer.ValidateAll(ctx, tmplCtx); validateErr != nil {
+					_, _ = fmt.Fprintf(out, "\r  %s Template validation failed: %v\n", symError(), validateErr)
+					return fmt.Errorf("template validation: %w", validateErr)
+				}
+				_, _ = fmt.Fprintf(out, "\r  %s All templates validated\n", symSuccess())
+				return nil
+			},
+		},
+		{
 			name:    "Clean Managed Paths",
 			message: "Removing old MoAI-managed files",
 			execute: func() error {
@@ -680,6 +739,9 @@ func runTemplateSyncWithReporter(cmd *cobra.Command, reporter project.ProgressRe
 	if err := ensureGlobalSettingsEnv(); err != nil {
 		_, _ = fmt.Fprintf(out, "Warning: Failed to update global settings env: %v\n", err)
 	}
+
+	// Install pre-push hook (REQ-CIAUT-002). Non-fatal; --no-hooks opts out.
+	installPrePushHookOptional(projectRoot, getBoolFlag(cmd, "no-hooks"), out)
 
 	return nil
 }
@@ -1138,6 +1200,32 @@ func analyzeFiles(templates []string, projectRoot string) []merge.FileAnalysis {
 	return files
 }
 
+// isUserAreaPath returns true when the relative project path belongs to the
+// user customization area and must never be overwritten or deleted by moai update.
+//
+// Protected patterns (SPEC-V3R3-HARNESS-001 REQ-HARNESS-004):
+//   - .claude/skills/my-harness-*   (user harness skill directories)
+//   - .claude/agents/my-harness/    (user harness agent directory)
+//
+// This function is called by cleanMoaiManagedPaths before any remove operation
+// and by the template overlay write loop to skip user-owned paths.
+func isUserAreaPath(rel string) bool {
+	// Normalize to forward slashes for consistent matching on all platforms.
+	norm := strings.ReplaceAll(rel, "\\", "/")
+
+	// .claude/skills/my-harness-* (any sub-path inside)
+	if strings.HasPrefix(norm, ".claude/skills/my-harness-") {
+		return true
+	}
+
+	// .claude/agents/my-harness/ (any sub-path inside)
+	if strings.HasPrefix(norm, ".claude/agents/my-harness/") || norm == ".claude/agents/my-harness" {
+		return true
+	}
+
+	return false
+}
+
 // isMoaiManaged returns true if the path is managed by MoAI-ADK and should be excluded from merge confirmation.
 // MoAI-managed paths include:
 //   - .claude/skills/moai-* and .claude/skills/moai/
@@ -1151,6 +1239,12 @@ func analyzeFiles(templates []string, projectRoot string) []merge.FileAnalysis {
 func isMoaiManaged(path string) bool {
 	// Check .moai/config/ paths first
 	if strings.HasPrefix(path, ".moai/config/") || strings.HasPrefix(path, ".moai\\config\\") {
+		return true
+	}
+
+	// Protect .moai/evolution/ from template deployment (R1: Directory Protection).
+	// All evolution data (learnings, new-skills, telemetry) must survive moai update.
+	if strings.HasPrefix(path, ".moai/evolution/") || strings.HasPrefix(path, ".moai\\evolution\\") {
 		return true
 	}
 
@@ -2218,6 +2312,11 @@ func applyWizardConfig(projectRoot string, result *wizard.WizardResult) error {
 				if err := template.ApplyModelPolicy(projectRoot, policy, mgr); err != nil {
 					return fmt.Errorf("apply model policy: %w", err)
 				}
+				// Inject effort level overrides for Opus 4.7 reasoning agents.
+				// Runs after ApplyModelPolicy to ensure agent files are in place first.
+				if err := template.ApplyEffortPolicy(projectRoot, mgr); err != nil {
+					return fmt.Errorf("apply effort policy: %w", err)
+				}
 			}
 			// Persist model_policy to system.yaml so it survives future updates
 			systemPath := filepath.Join(sectionsDir, defs.SystemYAML)
@@ -2633,4 +2732,70 @@ func detectGoBinPathForUpdate(homeDir string) string {
 		return filepath.Join("C:\\", "Go", "bin")
 	}
 	return "/usr/local/go/bin"
+}
+
+// scaffoldEvolutionDir ensures the .moai/evolution/ directory tree exists.
+// Called during both init and update so that existing projects that predate
+// the evolution infrastructure receive the directory structure automatically.
+// Non-destructive: only creates missing files; never overwrites existing ones.
+func scaffoldEvolutionDir(projectRoot string) error {
+	evolutionDir := filepath.Join(projectRoot, ".moai", "evolution")
+
+	// Sub-directories to create.
+	subdirs := []string{
+		"telemetry",
+		"learnings",
+		"new-skills",
+	}
+
+	for _, sub := range subdirs {
+		dir := filepath.Join(evolutionDir, sub)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return fmt.Errorf("create %s: %w", dir, err)
+		}
+
+		// Ensure .gitkeep exists so the directory is tracked by git.
+		gitkeep := filepath.Join(dir, ".gitkeep")
+		if _, err := os.Stat(gitkeep); os.IsNotExist(err) {
+			if err := os.WriteFile(gitkeep, []byte{}, 0o644); err != nil {
+				return fmt.Errorf("create %s: %w", gitkeep, err)
+			}
+		}
+	}
+
+	// Create default manifest.yaml if missing.
+	manifestPath := filepath.Join(evolutionDir, "manifest.yaml")
+	if _, err := os.Stat(manifestPath); os.IsNotExist(err) {
+		const defaultManifest = `schema_version: 1
+evolved_skills: []
+new_skills: []
+learnings_count: 0
+last_evolution_date: ""
+rate_limit:
+  week_start: ""
+  proposals_this_week: 0
+  last_proposal_time: ""
+`
+		if err := os.WriteFile(manifestPath, []byte(defaultManifest), 0o644); err != nil {
+			return fmt.Errorf("create %s: %w", manifestPath, err)
+		}
+	}
+
+	// Create default changelog.md if missing.
+	changelogPath := filepath.Join(evolutionDir, "changelog.md")
+	if _, err := os.Stat(changelogPath); os.IsNotExist(err) {
+		const defaultChangelog = `# MoAI Evolution Changelog
+
+All notable skill evolutions and learning graduations will be documented here.
+
+## Format
+
+Each entry: date, learning ID, skill affected, change summary.
+`
+		if err := os.WriteFile(changelogPath, []byte(defaultChangelog), 0o644); err != nil {
+			return fmt.Errorf("create %s: %w", changelogPath, err)
+		}
+	}
+
+	return nil
 }

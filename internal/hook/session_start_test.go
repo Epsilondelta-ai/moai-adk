@@ -5,11 +5,16 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/modu-ai/moai-adk/internal/config"
 	"github.com/modu-ai/moai-adk/pkg/models"
 )
+
+// testFixedNow is a stable reference time for staleness tests.
+var testFixedNow = time.Date(2026, 4, 25, 12, 0, 0, 0, time.UTC)
 
 func TestSessionStartHandler_EventType(t *testing.T) {
 	t.Parallel()
@@ -194,4 +199,116 @@ func TestEnsureGLMCredentials(t *testing.T) {
 			t.Error("DISABLE_EXPERIMENTAL_BETAS should be set to 1")
 		}
 	})
+}
+
+// T-016: Windows CLAUDE_ENV_FILE injection
+
+// TestInjectCLAUDEEnvFile_WithEnvFile verifies that injectCLAUDEEnvFile sets
+// CLAUDE_ENV_FILE in settings.local.json when a .env file exists in the project.
+func TestInjectCLAUDEEnvFile_WithEnvFile(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	claudeDir := filepath.Join(dir, ".claude")
+	if err := os.MkdirAll(claudeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Create a .env file in the project root
+	envFilePath := filepath.Join(dir, ".env")
+	if err := os.WriteFile(envFilePath, []byte("SOME_VAR=value\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	msg := injectCLAUDEEnvFile(dir)
+	if msg == "" {
+		t.Error("injectCLAUDEEnvFile: expected non-empty message when .env exists")
+	}
+
+	// Verify settings.local.json was written with CLAUDE_ENV_FILE
+	settingsPath := filepath.Join(claudeDir, "settings.local.json")
+	data, err := os.ReadFile(settingsPath)
+	if err != nil {
+		t.Fatalf("settings.local.json not created: %v", err)
+	}
+	var settings struct {
+		Env map[string]string `json:"env"`
+	}
+	if err := json.Unmarshal(data, &settings); err != nil {
+		t.Fatalf("unmarshal settings.local.json: %v", err)
+	}
+	if settings.Env["CLAUDE_ENV_FILE"] != envFilePath {
+		t.Errorf("CLAUDE_ENV_FILE = %q, want %q", settings.Env["CLAUDE_ENV_FILE"], envFilePath)
+	}
+}
+
+// TestInjectCLAUDEEnvFile_NoEnvFile verifies that injectCLAUDEEnvFile is a
+// no-op when no .env file exists (returns empty string).
+func TestInjectCLAUDEEnvFile_NoEnvFile(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	msg := injectCLAUDEEnvFile(dir)
+	if msg != "" {
+		t.Errorf("injectCLAUDEEnvFile: expected empty msg when no .env, got %q", msg)
+	}
+}
+
+// TestSessionStart_MemoryStaleWrap verifies AC-EXT001-07:
+// when a memory file is older than 24h, it is wrapped in <system-reminder>.
+func TestSessionStart_MemoryStaleWrap(t *testing.T) {
+	t.Parallel()
+
+	projectDir := t.TempDir()
+	// Create .claude/agent-memory/expert-backend/ with a stale memory file.
+	agentMemDir := filepath.Join(projectDir, ".claude", "agent-memory", "expert-backend")
+	if err := os.MkdirAll(agentMemDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	memPath := filepath.Join(agentMemDir, "note.md")
+	content := "---\nname: test\ndescription: d\ntype: user\n---\nbody\n"
+	if err := os.WriteFile(memPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	// Set mtime to 25h ago.
+	staleTime := testFixedNow.Add(-25 * time.Hour)
+	if err := os.Chtimes(memPath, staleTime, staleTime); err != nil {
+		t.Fatalf("Chtimes: %v", err)
+	}
+
+	result := detectAndWrapStaleMemories(projectDir, testFixedNow)
+	if result == "" {
+		t.Fatal("detectAndWrapStaleMemories returned empty string; expected staleness caveat")
+	}
+	if !strings.Contains(result, "<system-reminder>") {
+		t.Error("result does not contain <system-reminder>")
+	}
+	if !strings.Contains(result, "verify against current state") {
+		t.Error("result does not contain staleness caveat phrase")
+	}
+}
+
+// TestSessionStart_AuditDisabled verifies MOAI_MEMORY_AUDIT=0 skips staleness detection.
+// Not parallel: uses t.Setenv.
+func TestSessionStart_AuditDisabled(t *testing.T) {
+	t.Setenv("MOAI_MEMORY_AUDIT", "0")
+
+	projectDir := t.TempDir()
+	agentMemDir := filepath.Join(projectDir, ".claude", "agent-memory", "expert-backend")
+	if err := os.MkdirAll(agentMemDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	memPath := filepath.Join(agentMemDir, "note.md")
+	if err := os.WriteFile(memPath, []byte("---\nname: t\ndescription: d\ntype: user\n---\nbody\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	staleTime := testFixedNow.Add(-25 * time.Hour)
+	if err := os.Chtimes(memPath, staleTime, staleTime); err != nil {
+		t.Fatalf("Chtimes: %v", err)
+	}
+
+	result := detectAndWrapStaleMemories(projectDir, testFixedNow)
+	if result != "" {
+		t.Errorf("detectAndWrapStaleMemories with MOAI_MEMORY_AUDIT=0 = %q, want empty", result)
+	}
 }

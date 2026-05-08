@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/modu-ai/moai-adk/internal/constitution"
 	"github.com/modu-ai/moai-adk/internal/defs"
 	"github.com/modu-ai/moai-adk/pkg/version"
 )
@@ -121,6 +122,7 @@ func runDiagnosticChecks(verbose bool, filterCheck string) []DiagnosticCheck {
 		fn   func(bool) DiagnosticCheck
 	}
 
+	cwd, _ := os.Getwd()
 	allChecks := []checkFunc{
 		{"Go Runtime", checkGoRuntime},
 		{"Git", checkGit},
@@ -128,6 +130,12 @@ func runDiagnosticChecks(verbose bool, filterCheck string) []DiagnosticCheck {
 		{"Claude Config", checkClaudeConfig},
 		{"MoAI Version", checkMoAIVersion},
 		{"Binary Freshness", checkBinaryFreshness},
+		{"MCP Scope Duplicates", func(v bool) DiagnosticCheck { return checkMCPScopeDuplicates(cwd, v) }},
+		{"Constitution Registry", func(v bool) DiagnosticCheck {
+			registryPath := resolveRegistryPath(cwd)
+			strictMode := os.Getenv(constitutionStrictEnvKey) == "1"
+			return checkConstitution(cwd, registryPath, v, strictMode)
+		}},
 	}
 
 	var results []DiagnosticCheck
@@ -325,6 +333,85 @@ func shortCommit(hash string) string {
 	return hash[:9]
 }
 
+// findMCPDuplicates returns server names that appear more than once in the
+// counts map. Used by checkMCPScopeDuplicates to detect same-name servers
+// registered at multiple scopes (project + user).
+func findMCPDuplicates(counts map[string]int) []string {
+	var dups []string
+	for name, count := range counts {
+		if count > 1 {
+			dups = append(dups, name)
+		}
+	}
+	return dups
+}
+
+// mcpJSONServers holds the parsed structure of .mcp.json.
+type mcpJSONServers struct {
+	MCPServers map[string]json.RawMessage `json:"mcpServers"`
+}
+
+// checkMCPScopeDuplicates detects MCP server names that appear in both the
+// project .mcp.json and the global ~/.claude/.mcp.json, causing silent
+// shadowing that can hide server configuration changes.
+func checkMCPScopeDuplicates(projectRoot string, verbose bool) DiagnosticCheck {
+	check := DiagnosticCheck{Name: "MCP Scope Duplicates"}
+
+	// Parse project .mcp.json
+	projectServers := parseMCPJSON(filepath.Join(projectRoot, ".mcp.json"))
+
+	// Parse global ~/.claude/.mcp.json
+	homeDir, _ := os.UserHomeDir()
+	globalServers := parseMCPJSON(filepath.Join(homeDir, ".claude", ".mcp.json"))
+
+	if len(projectServers) == 0 && len(globalServers) == 0 {
+		check.Status = CheckOK
+		check.Message = "no MCP configuration found (project or global)"
+		return check
+	}
+
+	// Tally server name occurrences across both scopes
+	counts := make(map[string]int)
+	for name := range projectServers {
+		counts[name]++
+	}
+	for name := range globalServers {
+		counts[name]++
+	}
+
+	dups := findMCPDuplicates(counts)
+	if len(dups) == 0 {
+		check.Status = CheckOK
+		check.Message = fmt.Sprintf("%d project, %d global MCP servers — no duplicates", len(projectServers), len(globalServers))
+		return check
+	}
+
+	check.Status = CheckWarn
+	check.Message = fmt.Sprintf("duplicate MCP server names across scopes: %s", strings.Join(dups, ", "))
+	if verbose {
+		check.Detail = "Duplicate server names may shadow configuration. Remove duplicates from one scope."
+	}
+	return check
+}
+
+// parseMCPJSON reads .mcp.json and returns the set of server names.
+// Returns empty map on error or missing file.
+func parseMCPJSON(path string) map[string]struct{} {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	var parsed mcpJSONServers
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		return nil
+	}
+	result := make(map[string]struct{}, len(parsed.MCPServers))
+	for name := range parsed.MCPServers {
+		result[name] = struct{}{}
+	}
+	return result
+}
+
 // statusIcon returns a colored Unicode icon for the check status.
 func statusIcon(s CheckStatus) string {
 	switch s {
@@ -337,6 +424,67 @@ func statusIcon(s CheckStatus) string {
 	default:
 		return "?"
 	}
+}
+
+// constitutionStrictEnvKey는 strict mode를 활성화하는 환경 변수 이름이다.
+const constitutionStrictEnvKey = "MOAI_CONSTITUTION_STRICT"
+
+// checkConstitution은 zone registry 상태를 점검한다.
+// - registry 파일 없음: Warn (선택적 기능)
+// - 로드 오류(중복 ID, 잘못된 YAML 등): Fail
+// - Frozen 엔트리 0개: Warn
+// - orphan 경고 있음 + strictMode: Fail; 아니면 Warn
+// - 정상: OK
+func checkConstitution(projectDir, registryPath string, verbose, strictMode bool) DiagnosticCheck {
+	check := DiagnosticCheck{Name: "Constitution Registry"}
+
+	// registry 파일 존재 여부 확인
+	if _, err := os.Stat(registryPath); err != nil {
+		check.Status = CheckWarn
+		check.Message = fmt.Sprintf("zone-registry.md not found at %q — run `moai constitution list` to verify", registryPath)
+		return check
+	}
+
+	reg, err := constitution.LoadRegistry(registryPath, projectDir)
+	if err != nil {
+		check.Status = CheckFail
+		check.Message = fmt.Sprintf("registry load error: %v", err)
+		return check
+	}
+
+	// orphan 경고 확인
+	if len(reg.Warnings) > 0 && strictMode {
+		check.Status = CheckFail
+		check.Message = fmt.Sprintf("%d orphan/overflow warning(s) detected (strict mode)", len(reg.Warnings))
+		if verbose {
+			check.Detail = strings.Join(reg.Warnings, "\n")
+		}
+		return check
+	}
+
+	// Frozen 엔트리 수 확인
+	frozen := reg.FilterByZone(constitution.ZoneFrozen)
+	if len(frozen) == 0 {
+		check.Status = CheckWarn
+		check.Message = "no Frozen entries found in registry — expected at least 1"
+		return check
+	}
+
+	// orphan 경고만 있는 경우 (non-strict)
+	if len(reg.Warnings) > 0 {
+		check.Status = CheckWarn
+		check.Message = fmt.Sprintf("registry OK (%d entries, %d Frozen), %d orphan/overflow warning(s)",
+			len(reg.Entries), len(frozen), len(reg.Warnings))
+		if verbose {
+			check.Detail = strings.Join(reg.Warnings, "\n")
+		}
+		return check
+	}
+
+	check.Status = CheckOK
+	check.Message = fmt.Sprintf("registry OK — %d entries (%d Frozen, %d Evolvable)",
+		len(reg.Entries), len(frozen), len(reg.Entries)-len(frozen))
+	return check
 }
 
 // exportDiagnostics writes check results to a JSON file.

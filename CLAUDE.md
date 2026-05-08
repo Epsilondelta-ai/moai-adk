@@ -10,13 +10,15 @@ MoAI is the Strategic Orchestrator for Claude Code. All tasks must be delegated 
 - [HARD] Parallel Execution: Execute all independent tool calls in parallel when no dependencies exist
 - [HARD] No XML in User Responses: Never display XML tags in user-facing responses
 - [HARD] Markdown Output: Use Markdown for all user-facing communication
-- [HARD] Context-First Discovery: Conduct Socratic interview when context is insufficient before executing non-trivial tasks (See Section 7)
+- [HARD] AskUserQuestion-Only Interaction: ALL questions directed at the user MUST go through AskUserQuestion (See Section 8)
+- [HARD] Deferred Tool Preload: AskUserQuestion, TaskCreate/Update/List/Get are deferred tools — schema is NOT loaded at session start. Call ToolSearch BEFORE first use to load schemas. Calling without schema produces InputValidationError. (See Section 8 Deferred Tool Preload Protocol)
+- [HARD] Context-First Discovery: Conduct Socratic interview via AskUserQuestion when context is insufficient before executing non-trivial tasks (See Section 7)
 - [HARD] Approach-First Development: Explain approach and get approval before writing code (See Section 7)
 - [HARD] Multi-File Decomposition: Split work when modifying 3+ files (See Section 7)
 - [HARD] Post-Implementation Review: List potential issues and suggest tests after coding (See Section 7)
 - [HARD] Reproduction-First Bug Fix: Write reproduction test before fixing bugs (See Section 7)
 
-Core principles (1-4) are defined in .claude/rules/moai/core/moai-constitution.md. Development safeguards (5-9) are detailed in Section 7.
+Core principles (1-4) and six Agent Core Behaviors (consolidated cross-cutting rules) are defined in .claude/rules/moai/core/moai-constitution.md. Development safeguards (5-9) are detailed in Section 7.
 
 ### Recommendations
 
@@ -75,21 +77,19 @@ Integrate and report results:
 
 Definition: Single entry point for all MoAI development workflows.
 
-Subcommands: plan, run, sync, project, fix, loop, mx, feedback, review, clean, codemaps, coverage, e2e
+Subcommands: plan, run, sync, design, db, project, fix, loop, mx, feedback, review, clean, codemaps, coverage, e2e
 Default (natural language): Routes to autonomous workflow (plan -> run -> sync pipeline)
 
 Allowed Tools: Full access (Agent, AskUserQuestion, TaskCreate, TaskUpdate, TaskList, TaskGet, Bash, Read, Write, Edit, Glob, Grep)
 
-### Unified Skill: /agency
+### Unified Skill: /moai design
 
-Definition: Self-evolving creative production system for websites, landing pages, and web applications.
+Definition: Hybrid design workflow — Claude Design (path A) or code-based brand design (path B).
 
-Subcommands: brief, build, review, learn, evolve, resume, profile, phase, sync-upstream, rollback, config
-Default (natural language): Routes to agency pipeline (Planner -> Copywriter/Designer -> Builder -> Evaluator -> Learner)
+Subcommands: design (unified entry point)
+Default (natural language): Routes to /moai design with AskUserQuestion path selection (Claude Design vs code-based)
 
-Pipeline: GAN Loop (Builder-Evaluator iterates up to 5 times until quality threshold 0.75 is met)
-
-For detailed Agency rules, see .claude/rules/agency/constitution.md
+For detailed design rules, see .claude/rules/moai/design/constitution.md
 
 ---
 
@@ -120,9 +120,10 @@ agent, skill, plugin
 evaluator-active (independent skeptical quality assessment, 4-dimension scoring)
 plan-auditor (independent plan-phase document audit, bias prevention, EARS compliance)
 
-### Agency Agents (6)
+### Agency Agents (2) — copywriter and designer retained as fallback path B skills
 
-planner, copywriter, designer, builder, evaluator, learner (self-evolving creative production pipeline)
+copywriter (absorbed into moai-domain-copywriting skill), designer (absorbed into moai-domain-brand-design skill)
+planner, builder, evaluator, learner removed in SPEC-AGENCY-ABSORB-001 M5
 
 ### Dynamic Team Generation (Experimental)
 
@@ -256,6 +257,7 @@ Trigger conditions (any one activates discovery mode):
 
 Discovery process:
 - Detect insufficient context via trigger conditions above
+- First, preload AskUserQuestion schema via `ToolSearch(query: "select:AskUserQuestion")` (deferred tool prerequisite)
 - Conduct Socratic interview via AskUserQuestion (max 4 questions per round)
 - Repeat rounds with new questions based on previous answers
 - Continue until 100% intent clarity is achieved
@@ -282,44 +284,35 @@ Rule sequencing:
 - Rule 5 establishes WHAT the user wants
 - Rule 1 explains HOW it will be implemented
 
-### Go-Specific Guidelines
+### Language-Specific Guidelines
 
-For Go development:
-- Run `go test -race ./...` for concurrency safety
-- Use table-driven tests for comprehensive coverage
-- Maintain 85%+ test coverage per package
-- Run `go vet` and `golangci-lint` before commits
+The quality gate auto-detects the project language and runs the appropriate toolchain:
+- **Go**: `go vet` → `golangci-lint` → `go test`
+- **Node.js**: `eslint` → `npm test`
+- **Python**: `ruff` → `pytest`
+- **Rust**: `cargo clippy` → `cargo test`
+
+Tools that are not installed are skipped gracefully. Projects with no recognized language marker pass the gate silently.
 
 ---
 
 ## 8. User Interaction Architecture
 
-### Critical Constraint
+[HARD] Every question directed at the user MUST be asked via AskUserQuestion. Free-form prose questions in response text are prohibited.
 
-Subagents invoked via Agent() operate in isolated, stateless contexts and cannot interact with users directly.
+[HARD] `AskUserQuestion`, `TaskCreate`, `TaskUpdate`, `TaskList`, `TaskGet` are **deferred tools** — schemas NOT loaded at session start. Call `ToolSearch(query: "select:AskUserQuestion,TaskCreate,TaskUpdate,TaskList,TaskGet", max_results: 5)` before first use.
 
-### Correct Workflow Pattern
+Key rules (full detail in `.claude/rules/moai/core/askuser-protocol.md`):
+- Subagents MUST NOT prompt users — return blocker reports to orchestrator instead
+- Socratic interview: max 4 questions per round, max 4 options per question, in user's conversation_language
+- First option MUST be recommended choice marked "(권장)" / "(Recommended)"
+- Anti-patterns: prose questions ending with "?", markdown-only option lists, silent wait for input
+- Pre-response self-check: every "?" in response MUST pair with AskUserQuestion call
 
-- Step 1: MoAI uses AskUserQuestion to collect user preferences
-- Step 2: MoAI invokes Agent() with user choices in the prompt
-- Step 3: Subagent executes based on provided parameters
-- Step 4: Subagent returns structured response
-- Step 5: MoAI uses AskUserQuestion for next decision
-
-### Team Coordination Pattern
-
-In team mode, MoAI bridges user interaction and teammate coordination:
-
-- MoAI uses AskUserQuestion for user decisions (teammates cannot)
-- MoAI uses SendMessage for teammate-to-teammate coordination
-- Teammates share TaskList for self-coordinated work distribution
-- MoAI synthesizes teammate results before presenting to user
-
-### AskUserQuestion Constraints
-
-- Maximum 4 options per question
-- No emoji characters in question text, headers, or option labels
-- Questions must be in user's conversation_language
+Agent interaction boundary (full detail in `.claude/rules/moai/core/agent-common-protocol.md`):
+- MoAI collects preferences via AskUserQuestion, then delegates to agents via Agent()
+- Subagents run in isolated contexts, cannot interact with users
+- Team mode: MoAI bridges AskUserQuestion (user) + SendMessage (teammates) + TaskList (coordination)
 
 ---
 
@@ -338,16 +331,18 @@ MoAI-ADK uses Claude Code's official rules system at `.claude/rules/moai/`:
 - **Workflow rules**: Progressive disclosure, token budget, workflow modes
 - **Development rules**: Skill frontmatter schema, tool permissions
 - **Language rules**: Path-specific rules for 16 programming languages
-- **Agency rules**: AI Agency constitution (.claude/rules/agency/constitution.md)
+- **Design rules**: Design system constitution (.claude/rules/moai/design/constitution.md)
 
-### Agency Configuration
+### Design System Configuration (absorbed from agency, SPEC-AGENCY-ABSORB-001)
 
-- `.agency/config.yaml`: Agency pipeline settings, adaptation weights, iteration limits
-- `.agency/context/`: Brand voice, visual identity, target audience, tech preferences
-- `.agency/fork-manifest.yaml`: Fork tracking for agency agents/skills evolved from MoAI upstream
+- `.moai/config/sections/design.yaml`: Design pipeline settings, GAN loop parameters, sprint contract, evolution thresholds
+- `.moai/project/brand/`: Brand voice (brand-voice.md), visual identity (visual-identity.md), target audience (target-audience.md)
+- `.claude/rules/moai/design/constitution.md`: FROZEN/EVOLVABLE zone definitions, safety architecture
 - `.moai/config/sections/constitution.yaml`: Project technical constraints (machine-readable)
 - `.moai/config/sections/harness.yaml`: Quality depth routing (minimal/standard/thorough)
 - `.moai/config/evaluator-profiles/`: Evaluator scoring profiles (default, strict, lenient, frontend)
+
+Legacy .agency/ directories are archived via `moai migrate agency` command.
 
 ### Language Rules
 
@@ -399,7 +394,8 @@ Resume interrupted agent work using agentId:
 MoAI-ADK integrates multiple MCP servers for specialized capabilities:
 
 - **Sequential Thinking** (`--deepthink` flag): MCP tool for structured step-by-step analysis. Generates `server_tool_use` content — NOT compatible with GLM API. See Skill("moai-workflow-thinking").
-- **UltraThink** (`ultrathink` keyword): Claude native extended reasoning mode (high effort). No MCP dependency — compatible with all APIs including GLM. Do NOT confuse with `--deepthink`.
+- **UltraThink** (`ultrathink` keyword): Sets `effort: max` in Claude Code v2.1.110+. For claude-opus-4-7, this triggers Adaptive Thinking (dynamically allocated reasoning tokens, no fixed budget_tokens). For older models, maps to extended thinking with high budget. No MCP dependency — compatible with all APIs. Do NOT confuse with `--deepthink`.
+- **Adaptive Thinking** (claude-opus-4-7 only): Opus 4.7's thinking mode. Unlike earlier models that use `budget_tokens`, Adaptive Thinking dynamically allocates reasoning based on task complexity. Triggered via `effort` level (high/xhigh/max) — not by `budget_tokens`. See Skill("moai-workflow-thinking").
 - **Context7**: Up-to-date library documentation lookup via resolve-library-id and get-library-docs.
 - **Pencil**: UI/UX design editing for .pen files (used by expert-frontend and designer teammates).
 - **claude-in-chrome**: Browser automation for web-based tasks.

@@ -30,7 +30,154 @@ func TestGetProfileText_AllLanguages(t *testing.T) {
 			if txt.ModelSonnet1M == "" {
 				t.Errorf("ModelSonnet1M is empty for lang %q", lang)
 			}
+			// T-003: Effort level UI strings
+			if txt.EffortLevelTitle == "" {
+				t.Errorf("EffortLevelTitle is empty for lang %q", lang)
+			}
+			if txt.EffortLevelDesc == "" {
+				t.Errorf("EffortLevelDesc is empty for lang %q", lang)
+			}
+			if txt.EffortLevelDefault == "" {
+				t.Errorf("EffortLevelDefault is empty for lang %q", lang)
+			}
+			if txt.EffortLevelXHigh == "" {
+				t.Errorf("EffortLevelXHigh is empty for lang %q", lang)
+			}
+			if txt.EffortLevelMax == "" {
+				t.Errorf("EffortLevelMax is empty for lang %q", lang)
+			}
 		})
+	}
+}
+
+// TestGetProfileText_OpusAliasValues verifies the `opus` alias label in every
+// supported language advertises Opus 4.7 (per the simplified wizard UX where
+// explicit claude-opus-4-7 options are removed and `opus`/`opus[1m]` map to 4.7).
+func TestGetProfileText_OpusAliasValues(t *testing.T) {
+	for _, lang := range []string{"en", "ko", "ja", "zh"} {
+		txt := getProfileText(lang)
+		if !containsStr(txt.ModelOpus, "4.7") {
+			t.Errorf("lang=%q: ModelOpus %q should reference Opus 4.7", lang, txt.ModelOpus)
+		}
+		if !containsStr(txt.ModelOpus1M, "4.7") {
+			t.Errorf("lang=%q: ModelOpus1M %q should reference Opus 4.7", lang, txt.ModelOpus1M)
+		}
+		if !containsStr(txt.ModelOpus1M, "1M") {
+			t.Errorf("lang=%q: ModelOpus1M %q should reference 1M context", lang, txt.ModelOpus1M)
+		}
+	}
+}
+
+// TestGetProfileText_EffortLevelValues verifies effort level labels contain xhigh/max keywords.
+func TestGetProfileText_EffortLevelValues(t *testing.T) {
+	for _, lang := range []string{"en", "ko", "ja", "zh"} {
+		txt := getProfileText(lang)
+		if !containsStr(txt.EffortLevelXHigh, "xhigh") {
+			t.Errorf("lang=%q: EffortLevelXHigh %q does not contain 'xhigh'", lang, txt.EffortLevelXHigh)
+		}
+		if !containsStr(txt.EffortLevelMax, "max") {
+			t.Errorf("lang=%q: EffortLevelMax %q does not contain 'max'", lang, txt.EffortLevelMax)
+		}
+	}
+}
+
+// TestGetProfileText_PermAutoValues verifies the auto permission mode label is
+// present in all supported languages and references the "auto" identifier.
+// Auto mode: Claude Code v2.1.83+, Anthropic API only, Sonnet 4.6 / Opus 4.6 / Opus 4.7.
+// Source: https://code.claude.com/docs/en/permission-modes
+func TestGetProfileText_PermAutoValues(t *testing.T) {
+	for _, lang := range []string{"en", "ko", "ja", "zh"} {
+		txt := getProfileText(lang)
+		if txt.PermAuto == "" {
+			t.Errorf("lang=%q: PermAuto is empty", lang)
+		}
+		if !containsStr(txt.PermAuto, "auto") {
+			t.Errorf("lang=%q: PermAuto %q does not contain 'auto' identifier", lang, txt.PermAuto)
+		}
+	}
+}
+
+func containsStr(s, sub string) bool {
+	return len(s) >= len(sub) && (s == sub || len(s) > 0 && containsSubstr(s, sub))
+}
+
+func containsSubstr(s, sub string) bool {
+	for i := 0; i <= len(s)-len(sub); i++ {
+		if s[i:i+len(sub)] == sub {
+			return true
+		}
+	}
+	return false
+}
+
+// TestGetProfileText_PermAutoRuntimeWarning W-3: verifies that the PermAuto label contains
+// a runtime error warning for each language.
+func TestGetProfileText_PermAutoRuntimeWarning(t *testing.T) {
+	runtimeErrByLang := map[string]string{
+		"en": "Session errors at runtime",
+		"ko": "런타임 오류",
+		"ja": "実行時エラー",
+		"zh": "运行时错误",
+	}
+	for _, lang := range []string{"en", "ko", "ja", "zh"} {
+		txt := getProfileText(lang)
+		want := runtimeErrByLang[lang]
+		if !containsStr(txt.PermAuto, want) {
+			t.Errorf("lang=%q: PermAuto %q should contain runtime error warning %q", lang, txt.PermAuto, want)
+		}
+	}
+}
+
+// TestGetProfileText_MigrationNoticeFields W-4: verifies that MigrationNotice fields are populated
+// in all 4 languages and contain the %q format verb.
+func TestGetProfileText_MigrationNoticeFields(t *testing.T) {
+	for _, lang := range []string{"en", "ko", "ja", "zh"} {
+		txt := getProfileText(lang)
+		if txt.MigrationNoticeStatuslineMode == "" {
+			t.Errorf("lang=%q: MigrationNoticeStatuslineMode is empty", lang)
+		}
+		if txt.MigrationNoticeStatuslineTheme == "" {
+			t.Errorf("lang=%q: MigrationNoticeStatuslineTheme is empty", lang)
+		}
+		// Must contain 2 %q format verbs (old value, new value)
+		if !containsStr(txt.MigrationNoticeStatuslineMode, "%q") {
+			t.Errorf("lang=%q: MigrationNoticeStatuslineMode %q should contain %%q format verb", lang, txt.MigrationNoticeStatuslineMode)
+		}
+	}
+}
+
+// TestGetProfileText_SummarySyncSkippedNeutral W-5: verifies that SummarySyncSkipped uses
+// neutral wording (no project-level sync).
+func TestGetProfileText_SummarySyncSkippedNeutral(t *testing.T) {
+	// Must not contain error-prone wording like "Sync skipped"
+	for _, lang := range []string{"en", "ko", "ja", "zh"} {
+		txt := getProfileText(lang)
+		if txt.SummarySyncSkipped == "" {
+			t.Errorf("lang=%q: SummarySyncSkipped is empty", lang)
+		}
+	}
+	// en: verify neutral message
+	en := getProfileText("en")
+	if !containsStr(en.SummarySyncSkipped, "No project-level sync") {
+		t.Errorf("en SummarySyncSkipped should be neutral, got: %q", en.SummarySyncSkipped)
+	}
+	// ko: verify neutral message
+	ko := getProfileText("ko")
+	if !containsStr(ko.SummarySyncSkipped, "프로젝트별 동기화 없음") {
+		t.Errorf("ko SummarySyncSkipped should be neutral, got: %q", ko.SummarySyncSkipped)
+	}
+}
+
+// TestGetProfileText_SummaryHeaderUpdated S-3: verifies that the ko/ja SummaryHeader uses
+// updated wording.
+func TestGetProfileText_SummaryHeaderUpdated(t *testing.T) {
+	ko := getProfileText("ko")
+	if !containsStr(ko.SummaryHeader, "저장된 설정값") {
+		t.Errorf("ko SummaryHeader should be '저장된 설정값:', got: %q", ko.SummaryHeader)
+	}
+	ja := getProfileText("ja")
+	if !containsStr(ja.SummaryHeader, "保存された設定値") {
+		t.Errorf("ja SummaryHeader should be '保存された設定値:', got: %q", ja.SummaryHeader)
 	}
 }
 

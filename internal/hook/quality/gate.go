@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -30,6 +31,10 @@ type GateConfig struct {
 	// AstGrepGate configures the ast-grep domain rule scan step.
 	// When nil, ast-grep scanning is skipped.
 	AstGrepGate *AstGrepGateConfig
+	// DisabledSteps disables specific steps by name (issue #667 Fix 3).
+	// Keys are step names (e.g., "dotnet format"); a value of false skips that step.
+	// Example: map[string]bool{"dotnet format": false}
+	DisabledSteps map[string]bool
 }
 
 // DefaultGateConfig returns a GateConfig with production-safe defaults.
@@ -63,6 +68,11 @@ type gateStep struct {
 	args        []string
 	optional    bool     // If true, skip silently when binary is not found.
 	configFiles []string // If non-empty, skip step when none of these files exist in project dir.
+	// changedExts is the list of file extensions that trigger this step (issue #667 Fix 1).
+	// When empty, the step always runs regardless of staged files.
+	// When non-empty, the step is skipped if no staged file has one of these extensions.
+	// Future heavy language-specific linters can opt-in using this pattern.
+	changedExts []string
 }
 
 // toolchains defines quality gate steps per language.
@@ -129,9 +139,12 @@ var toolchains = []langToolchain{
 		testStep: &gateStep{name: "gradle test", binary: "gradle", args: []string{"test"}, optional: true},
 	},
 	// C#/.NET: *.csproj or *.sln
+	// changedExts: skip dotnet format when no .cs file is staged.
+	// Prevents NuGet restore failures on macOS for projects targeting Windows-only TFMs
+	// (e.g., net9.0-windows10.0.22621.0) (issue #667).
 	{
 		markerFiles: []string{"*.csproj", "*.sln"},
-		lintSteps:   []gateStep{{name: "dotnet format", binary: "dotnet", args: []string{"format", "--verify-no-changes"}, optional: true}},
+		lintSteps:   []gateStep{{name: "dotnet format", binary: "dotnet", args: []string{"format", "--verify-no-changes"}, optional: true, changedExts: []string{".cs"}}},
 		testStep:    &gateStep{name: "dotnet test", binary: "dotnet", args: []string{"test"}},
 	},
 	// Ruby: Gemfile
@@ -162,6 +175,12 @@ var toolchains = []langToolchain{
 		testStep: &gateStep{name: "swift test", binary: "swift", args: []string{"test"}},
 	},
 	// Dart/Flutter: pubspec.yaml
+	// NOTE: Flutter projects are detected dynamically by inspecting pubspec.yaml
+	// content in detectToolchain — Flutter's `package:test` dependency is provided
+	// via `flutter_test` from the SDK, so `dart test` fails ("Could not find
+	// package `test`"). We switch to `flutter test` / `flutter analyze` for
+	// Flutter projects while keeping `dart` for pure Dart CLI projects.
+	// See issue #652.
 	{
 		markerFiles: []string{"pubspec.yaml"},
 		vetSteps:    []gateStep{{name: "dart analyze", binary: "dart", args: []string{"analyze"}}},
@@ -202,6 +221,11 @@ var toolchains = []langToolchain{
 // If no language is detected, the gate passes silently.
 type QualityGate struct {
 	config *GateConfig
+
+	// stagedCache caches the git diff --cached result exactly once per Run call.
+	stagedCache        []string
+	stagedCacheReady   bool // true when the query is complete (even if result is nil)
+	stagedCacheNil     bool // true when nil was returned (conservative fallback)
 }
 
 // NewQualityGate creates a QualityGate with the given configuration.
@@ -245,7 +269,7 @@ func (g *QualityGate) Run(ctx context.Context) (bool, string) {
 	}
 
 	// Step 2.5: ast-grep domain rules
-	// ASTG-UPGRADE-001: 통합 Scanner를 사용하는 RunAstGrepGateV2로 전환
+	// ASTG-UPGRADE-001: switched to RunAstGrepGateV2 which uses the unified Scanner
 	if g.config.AstGrepGate != nil && g.config.AstGrepGate.Enabled {
 		projectDir := g.config.ProjectDir
 		if projectDir == "" {
@@ -282,11 +306,11 @@ func (g *QualityGate) detectToolchain() *langToolchain {
 				// Glob pattern (e.g., "*.csproj")
 				matches, err := filepath.Glob(filepath.Join(dir, marker))
 				if err == nil && len(matches) > 0 {
-					return &toolchains[i]
+					return resolveDartFlutter(&toolchains[i], dir)
 				}
 			} else {
 				if fileExists(filepath.Join(dir, marker)) {
-					return &toolchains[i]
+					return resolveDartFlutter(&toolchains[i], dir)
 				}
 			}
 		}
@@ -295,9 +319,69 @@ func (g *QualityGate) detectToolchain() *langToolchain {
 	return nil
 }
 
+// resolveDartFlutter returns a Flutter-specific toolchain variant when the
+// matched Dart toolchain's pubspec.yaml declares a Flutter SDK dependency,
+// and the pure Dart variant otherwise. Flutter projects require
+// `flutter test` / `flutter analyze` because `package:test` is provided
+// transitively via `flutter_test` from the Flutter SDK (issue #652).
+//
+// Non-Dart toolchains are returned unchanged.
+func resolveDartFlutter(tc *langToolchain, dir string) *langToolchain {
+	// Only process toolchain entries whose first marker is pubspec.yaml.
+	if len(tc.markerFiles) == 0 || tc.markerFiles[0] != "pubspec.yaml" {
+		return tc
+	}
+	if !isFlutterProject(filepath.Join(dir, "pubspec.yaml")) {
+		return tc
+	}
+	// Return a new langToolchain with flutter binary substitutions so we do
+	// not mutate the package-level toolchains slice.
+	return &langToolchain{
+		markerFiles: tc.markerFiles,
+		vetSteps:    []gateStep{{name: "flutter analyze", binary: "flutter", args: []string{"analyze"}}},
+		testStep:    &gateStep{name: "flutter test", binary: "flutter", args: []string{"test"}, optional: true},
+	}
+}
+
+// isFlutterProject reports whether the given pubspec.yaml declares the
+// Flutter SDK as a dependency. Detection heuristic:
+//   - "sdk: flutter" substring appears (Dart or Flutter dependency block)
+//   - or "flutter:" top-level section appears (Flutter-specific config)
+//
+// Missing or unreadable files return false (safe fallback to `dart`).
+func isFlutterProject(pubspecPath string) bool {
+	data, err := os.ReadFile(pubspecPath)
+	if err != nil {
+		return false
+	}
+	content := string(data)
+	return strings.Contains(content, "sdk: flutter") ||
+		strings.Contains(content, "sdk:flutter") ||
+		hasFlutterSection(content)
+}
+
+// hasFlutterSection reports whether pubspec content has a top-level
+// `flutter:` section (not a dependency named "flutter").
+func hasFlutterSection(content string) bool {
+	for _, line := range strings.Split(content, "\n") {
+		trimmed := strings.TrimRight(line, " \t")
+		// Top-level section starts at column 0 with "flutter:"
+		if trimmed == "flutter:" {
+			return true
+		}
+	}
+	return false
+}
+
 // executeStep runs a single gate step. Optional steps skip silently when the binary is missing.
 // Steps with configFiles skip silently when none of the listed config files exist.
+// Steps with changedExts skip silently when no staged file matches any of the listed extensions.
 func (g *QualityGate) executeStep(ctx context.Context, step gateStep, timeout time.Duration) (bool, string) {
+	// Fix 3: explicitly disable via DisabledSteps configuration
+	if disabled, ok := g.config.DisabledSteps[step.name]; ok && !disabled {
+		return true, ""
+	}
+
 	if step.optional {
 		if _, err := exec.LookPath(step.binary); err != nil {
 			return true, ""
@@ -306,7 +390,87 @@ func (g *QualityGate) executeStep(ctx context.Context, step gateStep, timeout ti
 	if len(step.configFiles) > 0 && !g.anyConfigFileExists(step.configFiles) {
 		return true, ""
 	}
+
+	// Fix 1: skip when no staged file matches changedExts.
+	// If stagedFiles lookup fails or we are outside a git repository, run the step conservatively.
+	if len(step.changedExts) > 0 {
+		dir := g.config.ProjectDir
+		if dir == "" {
+			dir, _ = os.Getwd()
+		}
+		staged := g.cachedStagedFiles(ctx, dir)
+		// If staged is nil, cannot determine — run step conservatively
+		if staged != nil && !hasStagedExt(staged, step.changedExts) {
+			return true, ""
+		}
+	}
+
 	return g.runStep(ctx, step.name, timeout, step.binary, step.args...)
+}
+
+// cachedStagedFiles queries stagedFiles exactly once per Run call and caches the result.
+// Also caches when stagedFiles returns nil (conservative fallback).
+func (g *QualityGate) cachedStagedFiles(ctx context.Context, dir string) []string {
+	if !g.stagedCacheReady {
+		files, _ := stagedFiles(ctx, dir)
+		g.stagedCache = files
+		g.stagedCacheReady = true
+		g.stagedCacheNil = files == nil
+	}
+	if g.stagedCacheNil {
+		return nil
+	}
+	return g.stagedCache
+}
+
+// hasStagedExt returns true if any file in the staged list has an extension in exts.
+func hasStagedExt(staged []string, exts []string) bool {
+	for _, f := range staged {
+		ext := filepath.Ext(f)
+		for _, want := range exts {
+			if strings.EqualFold(ext, want) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// stagedFiles runs git diff --cached --name-only and returns the list of staged files.
+// Returns nil when outside a git repository, the git binary is absent, or there are no staged files.
+// Also returns nil on error (conservative fallback); callers must run the step when nil is returned.
+func stagedFiles(ctx context.Context, dir string) ([]string, error) {
+	// Check whether the git binary exists
+	if _, err := exec.LookPath("git"); err != nil {
+		return nil, nil //nolint:nilerr // conservative fallback
+	}
+
+	cmd := exec.CommandContext(ctx, "git", "diff", "--cached", "--name-only")
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		// Outside a git repository or command failed — conservative fallback
+		return nil, nil //nolint:nilerr
+	}
+
+	raw := strings.TrimSpace(string(out))
+	if raw == "" {
+		// No staged files — return nil (conservative: run the step)
+		return nil, nil
+	}
+
+	lines := strings.Split(raw, "\n")
+	result := make([]string, 0, len(lines))
+	for _, l := range lines {
+		l = strings.TrimSpace(l)
+		if l != "" {
+			result = append(result, l)
+		}
+	}
+	if len(result) == 0 {
+		return nil, nil
+	}
+	return result, nil
 }
 
 // anyConfigFileExists returns true if at least one of the given config files exists in ProjectDir.
@@ -352,10 +516,39 @@ func (g *QualityGate) runStep(ctx context.Context, stepName string, timeout time
 		return false, msg
 	}
 
+	// Fix 2: when a NuGet restore failure (cross-platform TFM mismatch) is detected in the dotnet step,
+	// log a warning and pass. Other linters still propagate failures (issue #667).
+	if strings.Contains(strings.ToLower(stepName), "dotnet") && isDotnetRestoreFailure(combined) {
+		slog.Warn("dotnet restore failed: assumed cross-platform TFM mismatch, skipping",
+			"step", stepName,
+			"hint", "a Windows-only TFM may have failed to restore on macOS",
+		)
+		return true, ""
+	}
+
 	if output == "" {
 		output = err.Error()
 	}
 	return false, fmt.Sprintf("quality gate failed: %s\n\n%s", stepName, output)
+}
+
+// isDotnetRestoreFailure checks whether the stderr/stdout output contains NuGet restore failure markers.
+// Detects the error pattern that occurs when a Windows-only TFM (e.g., net9.0-windows10.0.22621.0)
+// fails to restore on macOS (issue #667 Fix 2).
+// This function applies only to the dotnet step; other linters propagate failures as-is.
+func isDotnetRestoreFailure(output string) bool {
+	markers := []string{
+		"Restore operation failed",
+		"NU1202",
+		"NETSDK1005",
+		"not supported on this platform",
+	}
+	for _, m := range markers {
+		if strings.Contains(output, m) {
+			return true
+		}
+	}
+	return false
 }
 
 // isGitCommitRe matches git commit commands.

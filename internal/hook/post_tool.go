@@ -3,15 +3,20 @@ package hook
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	astgrep "github.com/modu-ai/moai-adk/internal/astgrep"
+	"github.com/modu-ai/moai-adk/internal/hook/memo/taxonomy"
 	"github.com/modu-ai/moai-adk/internal/hook/mx"
 	"github.com/modu-ai/moai-adk/internal/hook/quality"
+	lsp "github.com/modu-ai/moai-adk/internal/lsp"
 	lsphook "github.com/modu-ai/moai-adk/internal/lsp/hook"
+	"github.com/modu-ai/moai-adk/internal/loop"
 )
 
 // FileAnalyzer is the interface for performing AST-based code scanning on a single file.
@@ -37,6 +42,10 @@ type postToolHandler struct {
 	// cfg provides access to ralph configuration for lint_as_instruction (REQ-LAI-003).
 	// If nil, lint_as_instruction defaults to true.
 	cfg ConfigProvider
+	// feedbackCh is an optional bounded channel for emitting loop.Feedback events.
+	// REQ-LL-003: PostTool hook emits diagnostics to both systemMessage and this channel.
+	// If nil, channel emission is skipped (no-op).
+	feedbackCh *loop.FeedbackChannel
 }
 
 // NewPostToolHandler creates a new PostToolUse event handler.
@@ -96,6 +105,32 @@ func NewPostToolHandlerWithConfig(diagnostics lsphook.LSPDiagnosticsCollector, a
 	}
 }
 
+// NewPostToolHandlerWithFeedbackChannel creates a PostToolUse handler that emits
+// diagnostics to both the agent systemMessage and the provided loop.FeedbackChannel.
+// REQ-LL-003: PostTool hook connects to LoopController via the feedback channel.
+// If feedbackCh is nil, channel emission is a no-op (backwards compatible).
+func NewPostToolHandlerWithFeedbackChannel(
+	diagnostics lsphook.LSPDiagnosticsCollector,
+	analyzer FileAnalyzer,
+	projectRoot string,
+	timeout time.Duration,
+	cfg ConfigProvider,
+	feedbackCh *loop.FeedbackChannel,
+) Handler {
+	var validator mx.Validator
+	if projectRoot != "" {
+		validator = mx.NewValidator(nil, projectRoot)
+	}
+	return &postToolHandler{
+		diagnostics: diagnostics,
+		analyzer:    analyzer,
+		mxValidator: validator,
+		mxTimeout:   timeout,
+		cfg:         cfg,
+		feedbackCh:  feedbackCh,
+	}
+}
+
 // EventType returns EventPostToolUse.
 func (h *postToolHandler) EventType() EventType {
 	return EventPostToolUse
@@ -134,12 +169,24 @@ func (h *postToolHandler) Handle(ctx context.Context, input *HookInput) (*HookOu
 		logTaskMetrics(input)
 	}
 
+	// Record Skill tool invocations for telemetry (SPEC-TELEMETRY-001 R1).
+	// Best-effort: errors are logged and never propagated.
+	if input.ToolName == "Skill" {
+		logSkillUsage(input)
+	}
+
 	var systemMessage string
+	var collectedDiags []lsphook.Diagnostic
 
 	// Collect LSP diagnostics for Write/Edit operations (REQ-HOOK-150, REQ-HOOK-153).
 	// Also generates systemMessage if lint_as_instruction is enabled (REQ-LAI-001).
 	if (input.ToolName == "Write" || input.ToolName == "Edit") && h.diagnostics != nil {
-		systemMessage = h.collectDiagnosticsWithInstruction(ctx, input, metrics)
+		systemMessage, collectedDiags = h.collectDiagnosticsWithInstructionAndReturn(ctx, input, metrics)
+	}
+
+	// REQ-LL-003: emit diagnostics to FeedbackChannel for LoopController consumption.
+	if (input.ToolName == "Write" || input.ToolName == "Edit") && h.feedbackCh != nil {
+		h.emitToFeedbackChannel(collectedDiags)
 	}
 
 	// Perform AST file scan after Write/Edit operations (observation-only, never blocks).
@@ -162,6 +209,15 @@ func (h *postToolHandler) Handle(ctx context.Context, input *HookInput) (*HookOu
 		h.runMxValidation(ctx, input, metrics)
 	}
 
+	// Audit memory files on Write/Edit targeting agent-memory paths (SPEC-V3R2-EXT-001 T6).
+	// Observation-only: emits warnings to stderr, never blocks.
+	if input.ToolName == "Write" || input.ToolName == "Edit" {
+		runMemoryAudit(input)
+	}
+
+	// REQ-CC2122-HOOK-001-001~004: duration_ms 기반 slow hook 메트릭 기록 (observation-only).
+	writeHookMetric(input, "handle-post-tool", "")
+
 	jsonData, err := json.Marshal(metrics)
 	if err != nil {
 		slog.Error("failed to marshal post-tool metrics",
@@ -170,13 +226,24 @@ func (h *postToolHandler) Handle(ctx context.Context, input *HookInput) (*HookOu
 		return NewPostToolOutput(""), nil
 	}
 
-	return &HookOutput{
+	// REQ-CC2122-HOOK-001-005: updatedToolOutput scaffold (v2.1.121+).
+	// MOAI_HOOK_OUTPUT_TRANSFORM=1 환경변수가 설정된 경우에만 활성화.
+	// 기본값(env 미설정): 기존 동작 보존 (updatedToolOutput 출력 없음).
+	var updatedToolOutput string
+	if os.Getenv("MOAI_HOOK_OUTPUT_TRANSFORM") == "1" {
+		// 변환 로직은 향후 SPEC에서 정의됨 (현재 no-op).
+		updatedToolOutput = ""
+	}
+
+	out := &HookOutput{
 		HookSpecificOutput: &HookSpecificOutput{
-			HookEventName: "PostToolUse",
+			HookEventName:     "PostToolUse",
+			UpdatedToolOutput: updatedToolOutput,
 		},
 		SystemMessage: systemMessage,
 		Data:          jsonData,
-	}, nil
+	}
+	return out, nil
 }
 
 // runAstScan performs an AST-based scan on the modified file.
@@ -352,21 +419,22 @@ func (h *postToolHandler) warnAsInstructionEnabled() bool {
 	return cfg.Ralph.WarnAsInstruction
 }
 
-// collectDiagnosticsWithInstruction collects LSP diagnostics for the modified file,
-// populates the metrics map (REQ-LAI-005, backward compatible), and returns a
-// formatted systemMessage string when lint_as_instruction is enabled (REQ-LAI-001).
-// This is observation-only and MUST NOT block per REQ-HOOK-153.
-func (h *postToolHandler) collectDiagnosticsWithInstruction(ctx context.Context, input *HookInput, metrics map[string]any) string {
+// collectDiagnosticsWithInstructionAndReturn collects LSP diagnostics for the
+// modified file, populates the metrics map (REQ-LAI-005), and returns a formatted
+// systemMessage string when lint_as_instruction is enabled (REQ-LAI-001), along
+// with the raw diagnostics for FeedbackChannel emission (REQ-LL-003).
+// Observation-only and MUST NOT block per REQ-HOOK-153.
+func (h *postToolHandler) collectDiagnosticsWithInstructionAndReturn(ctx context.Context, input *HookInput, metrics map[string]any) (string, []lsphook.Diagnostic) {
 	// Extract file path from tool input
 	var parsed map[string]any
 	if err := json.Unmarshal(input.ToolInput, &parsed); err != nil {
 		slog.Debug("failed to parse tool input for diagnostics", "error", err)
-		return ""
+		return "", nil
 	}
 
 	filePath, ok := parsed["file_path"].(string)
 	if !ok || filePath == "" {
-		return ""
+		return "", nil
 	}
 
 	// Get diagnostics (observation only, never block)
@@ -376,7 +444,7 @@ func (h *postToolHandler) collectDiagnosticsWithInstruction(ctx context.Context,
 			"file_path", filePath,
 			"error", err,
 		)
-		return ""
+		return "", nil
 	}
 
 	// Calculate severity counts
@@ -409,10 +477,95 @@ func (h *postToolHandler) collectDiagnosticsWithInstruction(ctx context.Context,
 
 	// REQ-LAI-003: skip systemMessage injection when lint_as_instruction is false.
 	if !h.lintAsInstructionEnabled() {
-		return ""
+		return "", diagnostics
 	}
 
 	// REQ-LAI-001 / REQ-LAI-002 / REQ-LAI-004 / REQ-LAI-006 / REQ-LAI-007:
 	// Format diagnostics as an instruction for the AI.
-	return quality.FormatDiagnosticsAsInstructionWithFile(filePath, diagnostics, counts, h.warnAsInstructionEnabled())
+	msg := quality.FormatDiagnosticsAsInstructionWithFile(filePath, diagnostics, counts, h.warnAsInstructionEnabled())
+	return msg, diagnostics
+}
+
+// emitToFeedbackChannel converts collected lsphook.Diagnostic entries to
+// lsp.Diagnostic and emits a Feedback event to the feedback channel.
+// REQ-LL-003: observation-only, never blocks.
+func (h *postToolHandler) emitToFeedbackChannel(diags []lsphook.Diagnostic) {
+	if h.feedbackCh == nil || len(diags) == 0 {
+		return
+	}
+	lspDiags := convertHookDiagsToLSP(diags)
+	fb := loop.Feedback{
+		LSPDiagnostics: lspDiags,
+		Phase:          loop.PhaseImplement, // PostTool fires during implement phase
+	}
+	h.feedbackCh.Send(fb)
+}
+
+// convertHookDiagsToLSP converts lsphook.Diagnostic to lsp.Diagnostic.
+// lsphook uses string severity; lsp uses integer severity per LSP 3.17 spec.
+func convertHookDiagsToLSP(diags []lsphook.Diagnostic) []lsp.Diagnostic {
+	if len(diags) == 0 {
+		return nil
+	}
+	result := make([]lsp.Diagnostic, 0, len(diags))
+	for _, d := range diags {
+		lspDiag := lsp.Diagnostic{
+			Code:    d.Code,
+			Source:  d.Source,
+			Message: d.Message,
+		}
+		switch d.Severity {
+		case lsphook.SeverityError:
+			lspDiag.Severity = lsp.SeverityError
+		case lsphook.SeverityWarning:
+			lspDiag.Severity = lsp.SeverityWarning
+		case lsphook.SeverityInformation:
+			lspDiag.Severity = lsp.SeverityInfo
+		case lsphook.SeverityHint:
+			lspDiag.Severity = lsp.SeverityHint
+		default:
+			lspDiag.Severity = lsp.SeverityInfo
+		}
+		result = append(result, lspDiag)
+	}
+	return result
+}
+
+// runMemoryAudit checks whether the Write/Edit target is an agent-memory markdown file,
+// and if so runs taxonomy.AuditFile on it, emitting any findings to stderr.
+// Observation-only: never returns an error or blocks execution.
+// MOAI_MEMORY_AUDIT=0 disables all audit output (SPEC-V3R2-EXT-001 T6).
+func runMemoryAudit(input *HookInput) {
+	if os.Getenv("MOAI_MEMORY_AUDIT") == "0" {
+		return
+	}
+
+	// Extract file_path from tool input.
+	var parsed map[string]any
+	if err := json.Unmarshal(input.ToolInput, &parsed); err != nil {
+		return
+	}
+	filePath, ok := parsed["file_path"].(string)
+	if !ok || filePath == "" {
+		return
+	}
+
+	// Only audit .md files inside agent-memory directories.
+	if !strings.HasSuffix(filePath, ".md") {
+		return
+	}
+	normalized := filepath.ToSlash(filePath)
+	if !strings.Contains(normalized, "agent-memory/") && !strings.Contains(normalized, "agent-memory\\") {
+		return
+	}
+
+	findings, err := taxonomy.AuditFile(filePath)
+	if err != nil {
+		slog.Debug("memory audit: AuditFile error (observation-only)", "path", filePath, "error", err)
+		return
+	}
+
+	for _, f := range findings {
+		fmt.Fprintf(os.Stderr, "[memory-audit] %s: %s — %s\n", f.Code, f.Path, f.Detail)
+	}
 }

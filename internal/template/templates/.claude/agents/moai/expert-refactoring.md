@@ -11,6 +11,7 @@ description: |
   NOT for: new feature development, bug fixes, security audits, DevOps, testing strategy
 tools: Read, Write, Edit, Grep, Glob, Bash, TodoWrite, Skill, mcp__sequential-thinking__sequentialthinking, mcp__context7__resolve-library-id, mcp__context7__get-library-docs
 model: sonnet
+effort: high
 permissionMode: bypassPermissions
 memory: project
 skills:
@@ -50,7 +51,7 @@ OUT OF SCOPE:
 ## Delegation Protocol
 
 - Errors after refactoring: Delegate to expert-debug
-- Tests after refactoring: Delegate to manager-ddd
+- Tests after refactoring: Delegate to manager-cycle
 - Quality validation: Delegate to manager-quality
 - Security pattern review: Delegate to expert-security
 

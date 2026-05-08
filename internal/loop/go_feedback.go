@@ -12,37 +12,55 @@ import (
 	"strings"
 	"time"
 
+	lsp "github.com/modu-ai/moai-adk/internal/lsp"
 	"github.com/modu-ai/moai-adk/internal/lsp/gopls"
 )
 
-// GoplsBridge는 gopls.Bridge의 GetDiagnostics 메서드를 노출하는 인터페이스다.
-// *gopls.Bridge를 직접 의존하지 않아 테스트에서 mock으로 교체할 수 있다.
+// GoplsBridge is an interface that exposes the GetDiagnostics method of gopls.Bridge.
+// Does not directly depend on *gopls.Bridge, so it can be replaced with a mock in tests.
 // GOPLS-BRIDGE-001: Phase 6 integration
 type GoplsBridge interface {
 	GetDiagnostics(ctx context.Context, path string) ([]gopls.Diagnostic, error)
 }
 
+// DiagnosticsAggregator abstracts the Aggregator facade (SPEC-LSP-AGG-003)
+// so that GoFeedbackGenerator does not depend on the concrete aggregator type.
+// REQ-LL-002: GoFeedbackGenerator wires Aggregator for Go files through this interface.
+type DiagnosticsAggregator interface {
+	GetDiagnostics(ctx context.Context, path string) ([]lsp.Diagnostic, error)
+}
+
 // GoFeedbackGenerator collects feedback by running Go toolchain commands
 // (go test, go vet) and parsing their output. It implements FeedbackGenerator.
-// GOPLS-BRIDGE-001: bridge 필드가 nil이 아니면 LSP 진단도 수집한다.
+// GOPLS-BRIDGE-001: also collects LSP diagnostics when the bridge field is non-nil.
+// REQ-LL-002: also collects Aggregator-based lsp.Diagnostic when the aggregator field is non-nil.
 type GoFeedbackGenerator struct {
 	projectRoot string
-	bridge      GoplsBridge // nil이면 LSP 진단 수집 비활성화
+	bridge      GoplsBridge          // nil disables gopls diagnostic collection
+	aggregator  DiagnosticsAggregator // nil disables Aggregator diagnostic collection (REQ-LL-002)
 }
 
 // NewGoFeedbackGenerator creates a FeedbackGenerator for Go projects.
 // projectRoot is the directory where go test and go vet will be executed.
-// 하위 호환성: bridge는 nil로 설정된다 (LSP 진단 비활성화).
+// Backward compatibility: bridge is set to nil (LSP diagnostic collection disabled).
 func NewGoFeedbackGenerator(projectRoot string) FeedbackGenerator {
 	return &GoFeedbackGenerator{projectRoot: projectRoot, bridge: nil}
 }
 
 // NewGoFeedbackGeneratorWithBridge creates a FeedbackGenerator for Go projects
 // with an optional gopls bridge for LSP diagnostics.
-// GOPLS-BRIDGE-001: bridge가 nil이면 기존 동작(go test + go vet)만 수행한다.
-// bridge가 non-nil이면 LSP 진단도 Feedback.Diagnostics에 추가한다.
+// GOPLS-BRIDGE-001: when bridge is nil, only the existing behavior (go test + go vet) is performed.
+// When bridge is non-nil, LSP diagnostics are also added to Feedback.Diagnostics.
 func NewGoFeedbackGeneratorWithBridge(projectRoot string, bridge GoplsBridge) FeedbackGenerator {
 	return &GoFeedbackGenerator{projectRoot: projectRoot, bridge: bridge}
+}
+
+// NewGoFeedbackGeneratorWithAggregator creates a FeedbackGenerator for Go projects
+// with an optional Aggregator for LSP diagnostics via lsp.Diagnostic.
+// REQ-LL-002: when aggregator is nil, only the existing behavior (go test + go vet) is performed.
+// When aggregator is non-nil, lsp.Diagnostic is collected into Feedback.LSPDiagnostics.
+func NewGoFeedbackGeneratorWithAggregator(projectRoot string, agg DiagnosticsAggregator) FeedbackGenerator {
+	return &GoFeedbackGenerator{projectRoot: projectRoot, aggregator: agg}
 }
 
 // goTestEvent represents a single JSON event from `go test -json`.
@@ -102,18 +120,46 @@ func (g *GoFeedbackGenerator) Collect(ctx context.Context) (*Feedback, error) {
 
 	fb.Duration = time.Since(start)
 
-	// GOPLS-BRIDGE-001: bridge가 non-nil이면 LSP 진단을 수집한다.
-	// GetDiagnostics 오류는 무시한다 — bridge 실패가 전체 피드백을 차단해선 안 된다.
+	// GOPLS-BRIDGE-001: when bridge is non-nil, collect gopls.Diagnostic.
+	// Errors from GetDiagnostics are ignored — bridge failures must not block the entire feedback.
 	if g.bridge != nil {
 		diags, err := g.bridge.GetDiagnostics(ctx, g.projectRoot)
 		if err != nil {
-			slog.Warn("gopls 진단 수집 실패, 건너뜀", "error", err)
+			slog.Warn("gopls diagnostic collection failed, skipping", "error", err)
 		} else {
 			fb.Diagnostics = diags
 		}
 	}
 
+	// REQ-LL-002: when aggregator is non-nil, collect lsp.Diagnostic into LSPDiagnostics.
+	// Aggregator errors are ignored — diagnostic failures must not block the entire feedback.
+	if g.aggregator != nil {
+		lspDiags, err := g.aggregator.GetDiagnostics(ctx, g.projectRoot)
+		if err != nil {
+			slog.Warn("aggregator diagnostic collection failed, skipping", "error", err)
+		} else {
+			// Filter to Go-only results: only include diagnostics for .go files.
+			fb.LSPDiagnostics = filterGoOnlyDiagnostics(lspDiags)
+		}
+	}
+
 	return fb, nil
+}
+
+// filterGoOnlyDiagnostics filters diagnostics to include only Go-language entries.
+// REQ-LL-002: GoFeedbackGenerator is Go-specific; non-Go diagnostics are excluded.
+// Since the aggregator is queried with the projectRoot path, all returned diagnostics
+// are considered Go-relevant when the aggregator is the Go-specific Aggregator instance.
+// This function is a no-op pass-through for now but provides an extension point.
+func filterGoOnlyDiagnostics(diags []lsp.Diagnostic) []lsp.Diagnostic {
+	if len(diags) == 0 {
+		return nil
+	}
+	// All diagnostics from the Go-project-root query are Go-relevant.
+	// Future: if multi-language aggregator is used, filter by file extension here.
+	result := make([]lsp.Diagnostic, len(diags))
+	copy(result, diags)
+	return result
 }
 
 // parseGoTestJSON parses go test -json output and returns (passed, failed) counts.

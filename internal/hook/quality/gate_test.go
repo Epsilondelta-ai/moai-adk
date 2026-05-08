@@ -2,9 +2,11 @@ package quality
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -379,6 +381,84 @@ func TestQualityGate_detectToolchain(t *testing.T) {
 	}
 }
 
+// TestQualityGate_detectToolchain_Flutter verifies that a pubspec.yaml
+// containing the Flutter SDK dependency resolves to `flutter test` / `flutter
+// analyze` rather than the Dart CLI defaults. See issue #652.
+func TestQualityGate_detectToolchain_Flutter(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name           string
+		pubspec        string
+		wantTestBinary string
+		wantTestArg0   string
+	}{
+		{
+			name: "flutter SDK dependency → flutter test",
+			pubspec: `name: my_app
+dependencies:
+  flutter:
+    sdk: flutter
+`,
+			wantTestBinary: "flutter",
+			wantTestArg0:   "test",
+		},
+		{
+			name: "flutter top-level section → flutter test",
+			pubspec: `name: my_app
+dependencies:
+  cupertino_icons: ^1.0.0
+
+flutter:
+  uses-material-design: true
+`,
+			wantTestBinary: "flutter",
+			wantTestArg0:   "test",
+		},
+		{
+			name: "pure Dart CLI project → dart test",
+			pubspec: `name: my_dart_cli
+dependencies:
+  args: ^2.4.0
+dev_dependencies:
+  test: ^1.24.0
+`,
+			wantTestBinary: "dart",
+			wantTestArg0:   "test",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(dir, "pubspec.yaml"), []byte(tc.pubspec), 0o644); err != nil {
+				t.Fatalf("write pubspec.yaml: %v", err)
+			}
+			g := NewQualityGate(&GateConfig{ProjectDir: dir})
+			tcResolved := g.detectToolchain()
+			if tcResolved == nil {
+				t.Fatalf("detectToolchain returned nil")
+			}
+			if tcResolved.testStep == nil {
+				t.Fatalf("testStep is nil")
+			}
+			if tcResolved.testStep.binary != tc.wantTestBinary {
+				t.Errorf("test binary = %q, want %q", tcResolved.testStep.binary, tc.wantTestBinary)
+			}
+			if len(tcResolved.testStep.args) == 0 || tcResolved.testStep.args[0] != tc.wantTestArg0 {
+				t.Errorf("test args[0] = %v, want %q", tcResolved.testStep.args, tc.wantTestArg0)
+			}
+			// Also verify vetSteps are in the flutter branch
+			if len(tcResolved.vetSteps) > 0 && tc.wantTestBinary == "flutter" {
+				if tcResolved.vetSteps[0].binary != "flutter" {
+					t.Errorf("vet binary = %q, want flutter", tcResolved.vetSteps[0].binary)
+				}
+			}
+		})
+	}
+}
+
 func TestQualityGate_detectToolchain_GlobPattern(t *testing.T) {
 	t.Parallel()
 
@@ -419,6 +499,297 @@ func TestQualityGate_Run_UnknownProjectPasses(t *testing.T) {
 }
 
 // TestIsGitCommit covers various command patterns.
+// ─── Issue #667: dotnet format staged file filter and graceful restore-failure handling ───
+
+// TestStagedFiles_OutsideGitRepo verifies that stagedFiles returns nil outside a git repository.
+func TestStagedFiles_OutsideGitRepo(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir() // no git init
+
+	got, err := stagedFiles(context.Background(), dir)
+	// Must not error and must return nil (conservative fallback).
+	if err != nil {
+		t.Errorf("must not error outside a git repository: %v", err)
+	}
+	if got != nil {
+		t.Errorf("expected nil outside a git repository, got: %v", got)
+	}
+}
+
+// TestStagedFiles_InsideGitRepo verifies that the staged file list is returned inside a git repository.
+func TestStagedFiles_InsideGitRepo(t *testing.T) {
+	t.Parallel()
+
+	skipIfCommandMissing(t, "git")
+
+	dir := t.TempDir()
+	// Initialize git repository
+	if out, err := runGitCmd(dir, "init"); err != nil {
+		t.Fatalf("git init failed: %v, out: %s", err, out)
+	}
+	if out, err := runGitCmd(dir, "config", "user.email", "test@test.com"); err != nil {
+		t.Fatalf("git config failed: %v, out: %s", err, out)
+	}
+	if out, err := runGitCmd(dir, "config", "user.name", "Test"); err != nil {
+		t.Fatalf("git config failed: %v, out: %s", err, out)
+	}
+
+	// Create and stage files
+	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("hello"), 0o644); err != nil {
+		t.Fatalf("failed to create file: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte("key: val"), 0o644); err != nil {
+		t.Fatalf("failed to create file: %v", err)
+	}
+	if out, err := runGitCmd(dir, "add", "README.md", "config.yaml"); err != nil {
+		t.Fatalf("git add failed: %v, out: %s", err, out)
+	}
+
+	got, err := stagedFiles(context.Background(), dir)
+	if err != nil {
+		t.Fatalf("stagedFiles error: %v", err)
+	}
+	if len(got) != 2 {
+		t.Errorf("expected 2 staged files, got: %v", got)
+	}
+}
+
+// TestStagedFiles_EmptyStaging verifies that nil is returned when there are no staged files.
+func TestStagedFiles_EmptyStaging(t *testing.T) {
+	t.Parallel()
+
+	skipIfCommandMissing(t, "git")
+
+	dir := t.TempDir()
+	if out, err := runGitCmd(dir, "init"); err != nil {
+		t.Fatalf("git init failed: %v, out: %s", err, out)
+	}
+	if out, err := runGitCmd(dir, "config", "user.email", "test@test.com"); err != nil {
+		t.Fatalf("git config failed: %v, out: %s", err, out)
+	}
+	if out, err := runGitCmd(dir, "config", "user.name", "Test"); err != nil {
+		t.Fatalf("git config failed: %v, out: %s", err, out)
+	}
+
+	// Do not stage any files
+	got, err := stagedFiles(context.Background(), dir)
+	if err != nil {
+		t.Fatalf("stagedFiles error: %v", err)
+	}
+	// Empty staging: return nil (conservative fallback — run the step)
+	if got != nil {
+		t.Errorf("expected nil when no staged files, got: %v", got)
+	}
+}
+
+// writeFakeBinary creates a fake binary shell script in a temp directory that exits with the
+// specified exit code when called, and returns the directory path.
+// Prepend the directory to PATH in tests so it is called instead of the real binary.
+func writeFakeBinary(t *testing.T, name string, exitCode int, output string) string {
+	t.Helper()
+	binDir := t.TempDir()
+	script := filepath.Join(binDir, name)
+	content := "#!/bin/sh\n"
+	if output != "" {
+		content += "echo '" + output + "' >&2\n"
+	}
+	content += "exit " + fmt.Sprintf("%d", exitCode) + "\n"
+	if err := os.WriteFile(script, []byte(content), 0o755); err != nil {
+		t.Fatalf("failed to create fake binary: %v", err)
+	}
+	return binDir
+}
+
+// TestQualityGate_SkipsDotnetFormatWhenNoCSharpStaged verifies that the dotnet format step
+// is skipped when no .cs files are staged (issue #667 Fix 1).
+// Does not call t.Parallel() because it uses t.Setenv.
+func TestQualityGate_SkipsDotnetFormatWhenNoCSharpStaged(t *testing.T) {
+	skipIfCommandMissing(t, "git")
+
+	dir := t.TempDir()
+
+	// Initialize git repository
+	if out, err := runGitCmd(dir, "init"); err != nil {
+		t.Fatalf("git init failed: %v, out: %s", err, out)
+	}
+	if out, err := runGitCmd(dir, "config", "user.email", "test@test.com"); err != nil {
+		t.Fatalf("git config failed: %v, out: %s", err, out)
+	}
+	if out, err := runGitCmd(dir, "config", "user.name", "Test"); err != nil {
+		t.Fatalf("git config failed: %v, out: %s", err, out)
+	}
+
+	// Create C# project marker (.sln file for C# toolchain detection)
+	if err := os.WriteFile(filepath.Join(dir, "MyApp.sln"), []byte(""), 0o644); err != nil {
+		t.Fatalf("failed to create sln file: %v", err)
+	}
+
+	// Stage only non-.cs files (README.md, config.yaml)
+	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("docs"), 0o644); err != nil {
+		t.Fatalf("failed to create README.md: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte("key: val"), 0o644); err != nil {
+		t.Fatalf("failed to create config.yaml: %v", err)
+	}
+	if out, err := runGitCmd(dir, "add", "README.md", "config.yaml"); err != nil {
+		t.Fatalf("git add failed: %v, out: %s", err, out)
+	}
+
+	// Inject a fake dotnet binary that fails with exit 1 when called.
+	// If the changedExts filter works correctly, this binary must never be executed.
+	fakeBinDir := writeFakeBinary(t, "dotnet", 1, "Restore operation failed")
+	t.Setenv("PATH", fakeBinDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	step := gateStep{
+		name:        "dotnet format",
+		binary:      "dotnet",
+		args:        []string{"format", "--verify-no-changes"},
+		optional:    false, // optional=false: must run when binary is present
+		changedExts: []string{".cs"},
+	}
+
+	g := NewQualityGate(&GateConfig{
+		Enabled:     true,
+		SkipTests:   true,
+		ProjectDir:  dir,
+		LintTimeout: 5 * time.Second,
+	})
+
+	// No .cs detected via stagedFiles → dotnet format skipped
+	passed, out := g.executeStep(context.Background(), step, 5*time.Second)
+
+	if !passed {
+		t.Errorf("dotnet format must be skipped when no C# files are staged (expected passed=true), output: %q", out)
+	}
+}
+
+// TestQualityGate_RunsDotnetFormatWhenCSharpStaged verifies that the dotnet format step runs
+// when .cs files are staged (issue #667 Fix 1).
+// Does not call t.Parallel() because it uses t.Setenv.
+func TestQualityGate_RunsDotnetFormatWhenCSharpStaged(t *testing.T) {
+	// Skip on Windows: shell-script fake binary is not directly executable via exec.Command.
+	// On CI with real dotnet installed, format execution would fail on timeout.
+	if runtime.GOOS == "windows" {
+		t.Skip("skipping on Windows: shell-script fake binary is not directly executable")
+	}
+	skipIfCommandMissing(t, "git")
+
+	dir := t.TempDir()
+
+	// Initialize git repository
+	if out, err := runGitCmd(dir, "init"); err != nil {
+		t.Fatalf("git init failed: %v, out: %s", err, out)
+	}
+	if out, err := runGitCmd(dir, "config", "user.email", "test@test.com"); err != nil {
+		t.Fatalf("git config failed: %v, out: %s", err, out)
+	}
+	if out, err := runGitCmd(dir, "config", "user.name", "Test"); err != nil {
+		t.Fatalf("git config failed: %v, out: %s", err, out)
+	}
+
+	// Create C# marker
+	if err := os.WriteFile(filepath.Join(dir, "MyApp.sln"), []byte(""), 0o644); err != nil {
+		t.Fatalf("failed to create sln file: %v", err)
+	}
+
+	// Stage a .cs file
+	if err := os.WriteFile(filepath.Join(dir, "Program.cs"), []byte("// C# code"), 0o644); err != nil {
+		t.Fatalf("failed to create Program.cs: %v", err)
+	}
+	if out, err := runGitCmd(dir, "add", "Program.cs"); err != nil {
+		t.Fatalf("git add failed: %v, out: %s", err, out)
+	}
+
+	// Inject a fake dotnet that succeeds (exit 0) — it must actually be called.
+	fakeBinDir := writeFakeBinary(t, "dotnet", 0, "")
+	t.Setenv("PATH", fakeBinDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	step := gateStep{
+		name:        "dotnet format",
+		binary:      "dotnet",
+		args:        []string{"format", "--verify-no-changes"},
+		optional:    false,
+		changedExts: []string{".cs"},
+	}
+
+	g := NewQualityGate(&GateConfig{
+		Enabled:     true,
+		SkipTests:   true,
+		ProjectDir:  dir,
+		LintTimeout: 5 * time.Second,
+	})
+
+	// .cs file is staged → dotnet format must run → fake dotnet exits 0
+	passed, out := g.executeStep(context.Background(), step, 5*time.Second)
+
+	if !passed {
+		t.Errorf("dotnet format must pass when .cs files are staged, output: %q", out)
+	}
+}
+
+// TestQualityGate_GracefulOnDotnetRestoreFailure verifies that the gate logs a warning and returns
+// (true, "") when a dotnet restore failure is detected (issue #667 Fix 2).
+func TestQualityGate_GracefulOnDotnetRestoreFailure(t *testing.T) {
+	t.Parallel()
+
+	// Test the dotnetRestoreFailure detection function directly.
+	cases := []struct {
+		name     string
+		stderr   string
+		wantSkip bool
+	}{
+		{
+			name:     "contains Restore operation failed",
+			stderr:   "Unhandled exception: System.Exception: Restore operation failed.",
+			wantSkip: true,
+		},
+		{
+			name:     "contains NU1202 error code",
+			stderr:   "error NU1202: Package 'foo' 1.0.0 is not compatible with net9.0-windows10.0.22621.0",
+			wantSkip: true,
+		},
+		{
+			name:     "contains NETSDK1005 error",
+			stderr:   "NETSDK1005: Assets file not found",
+			wantSkip: true,
+		},
+		{
+			name:     "contains not supported on this platform",
+			stderr:   "This target framework 'net9.0-windows10.0.22621.0' is not supported on this platform",
+			wantSkip: true,
+		},
+		{
+			name:     "general dotnet format error (not restore failure)",
+			stderr:   "error CS1001: Identifier expected",
+			wantSkip: false,
+		},
+		{
+			name:     "empty stderr",
+			stderr:   "",
+			wantSkip: false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := isDotnetRestoreFailure(tc.stderr)
+			if got != tc.wantSkip {
+				t.Errorf("isDotnetRestoreFailure(%q) = %v, want %v", tc.stderr, got, tc.wantSkip)
+			}
+		})
+	}
+}
+
+// runGitCmd is a test helper that runs a git command in the given directory.
+func runGitCmd(dir string, args ...string) (string, error) {
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	return string(out), err
+}
+
 func TestIsGitCommit(t *testing.T) {
 	t.Parallel()
 

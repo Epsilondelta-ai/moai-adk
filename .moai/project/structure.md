@@ -55,6 +55,27 @@ MoAI-ADK follows a **Modular Monolithic** architecture with clear Domain-Driven 
 
 ```
 moai-adk-go/
+├── docs-site/                        # Official documentation site (Hugo + Hextra)
+│   ├── content/                      # 4개 locale 콘텐츠 (ko 63, en/ja/zh 각 52 페이지)
+│   │   ├── ko/
+│   │   ├── en/
+│   │   ├── ja/
+│   │   └── zh/
+│   ├── layouts/                      # Hugo partial override
+│   │   ├── _default/baseof.html
+│   │   └── partials/
+│   │       ├── language-switch.html
+│   │       ├── seo-jsonld.html
+│   │       ├── version-banner.html
+│   │       └── custom/head-end.html
+│   ├── i18n/                         # 4개 locale 번역 문자열
+│   ├── config/_default/              # Hugo + Hextra 설정
+│   ├── api/                          # Vercel Edge Function
+│   │   └── i18n-detect.ts
+│   ├── static/                       # 정적 자산 (og.jpg, favicon 등)
+│   ├── go.mod                        # Hugo module system (Hextra import)
+│   ├── hugo.yaml                     # Hugo 설정
+│   └── vercel.json                   # Vercel 빌드/배포 설정
 ├── cmd/
 │   └── moai/
 │       └── main.go
@@ -66,7 +87,7 @@ moai-adk-go/
 │   ├── cli/                        # Cobra CLI commands
 │   │   ├── cc.go                   #   Claude Code integration commands
 │   │   ├── deps.go                 #   Dependency injection and wiring
-│   │   ├── doctor.go
+│   │   ├── doctor.go               #   Diagnostics (MCP scope duplicate detection v2.1.110+)
 │   │   ├── glm.go                  #   GLM (Go Language Model) commands
 │   │   ├── hook.go                 #   Hook dispatcher (moai hook <event>)
 │   │   ├── init.go
@@ -135,7 +156,7 @@ moai-adk-go/
 │   │   ├── doc.go
 │   │   ├── errors.go
 │   │   ├── notification.go         #   Notification hook handler
-│   │   ├── permission_request.go   #   Permission request hook handler
+│   │   ├── permission_request.go   #   Permission request hook handler (updatedInput deny re-validation v2.1.110+)
 │   │   ├── post_tool.go            #   Linter, formatter, LSP diagnostics
 │   │   ├── post_tool_failure.go    #   Post-tool failure handler
 │   │   ├── pre_tool.go             #   Security guard, validation
@@ -143,7 +164,7 @@ moai-adk-go/
 │   │   ├── rank_session.go         #   Session ranking hook handler
 │   │   ├── registry.go             #   Hook registration & dispatch
 │   │   ├── session_end.go          #   Cleanup, rank submission
-│   │   ├── session_start.go        #   Project info, config validation
+│   │   ├── session_start.go        #   Project info, config validation, Windows CLAUDE_ENV_FILE injection (v2.1.111+)
 │   │   ├── stop.go                 #   Loop controller
 │   │   ├── subagent_start.go       #   Subagent start hook handler
 │   │   ├── task_completed.go       #   Task completed hook handler
@@ -201,9 +222,10 @@ moai-adk-go/
 │   │   ├── deployer.go             #   go:embed extraction with manifest
 │   │   ├── deployer_mode.go        #   Model policy application to agent definitions
 │   │   ├── errors.go               #   Template error types
-│   │   ├── model_policy.go         #   Per-agent model assignment (high/medium/low)
+│   │   ├── model_policy.go         #   Per-agent model assignment (5-level effort: low/medium/high/xhigh/max; Opus 4.7 support)
+│   │   ├── agent_effort_map.go     #   Effort level mapping for critical reasoning agents (SPEC-OPUS47-COMPAT-001)
 │   │   ├── renderer.go             #   Go text/template strict rendering
-│   │   ├── settings.go             #   Platform-aware settings.json generation
+│   │   ├── settings.go             #   Platform-aware settings.json generation (v2.1.110+ disableBypassPermissionsMode)
 │   │   ├── validator.go            #   Post-deployment validation
 │   │   └── templates/              #   go:embed source (bundled into binary)
 │   │       ├── .claude/            #       Agent definitions, skills, commands, rules
@@ -247,6 +269,15 @@ moai-adk-go/
 ├── CHANGELOG.md
 └── .goreleaser.yml
 ```
+
+---
+
+## Build Pipeline (docs-site)
+
+- Local: `cd docs-site && hugo server`
+- Build: `hugo --minify --gc` → `docs-site/public/`
+- Deploy: Vercel (Framework=Hugo, Root Directory=docs-site)
+- Edge: `docs-site/api/i18n-detect.ts` (Accept-Language + cookie 검출)
 
 ---
 
@@ -367,6 +398,56 @@ moai update
 | `updater.go` | Binary download and self-replacement |
 | `rollback.go` | Atomic rollback on failure (keeps previous binary) |
 | `orchestrator.go` | Full update workflow: check → download → merge → replace → verify |
+
+### `internal/lsp/` -- LSP Client Suite (SPEC-LSP-CORE-002 .. MULTI-006, v2.10.3)
+
+Multi-language LSP client foundation based on `github.com/charmbracelet/x/powernap`. Supports 16 languages via project_markers auto-detection.
+
+| Package | Purpose |
+|---------|---------|
+| `internal/lsp/core/` | `Client`, `Manager`, `Document`, Lifecycle State Machine, Capability Negotiation |
+| `internal/lsp/subprocess/` | `Supervisor`, `Launcher` with graceful degradation |
+| `internal/lsp/transport/` | JSON-RPC 2.0 codec via powernap |
+| `internal/lsp/cache/` | TTL cache for diagnostic results (SPEC-LSP-AGG-003) |
+| `internal/lsp/aggregator/` | Parallel diagnostic collection + circuit breaker |
+| `internal/lsp/gopls/` | gopls bridge (SPEC-GOPLS-BRIDGE-001, coexists via `lsp.client_impl` feature flag) |
+| `internal/lsp/config/` | `lsp.yaml` loader with multi-language server matrix |
+| `internal/lsp/hook/` | Phase-aware quality gate (SPEC-LSP-QGATE-004) |
+
+**Feature flag**: `lsp.client_impl` in `.moai/config/sections/lsp.yaml` selects `gopls_bridge` (legacy, Go-only) or `powernap_core` (default, 16 languages).
+
+### `internal/astgrep/` -- Code Quality Scanner (SPEC-ASTG-UPGRADE-001, v2.10.3)
+
+Unified ast-grep (sg CLI) scanner replacing separate quality-gate and PostToolUse hook implementations.
+
+| File | Purpose |
+|------|---------|
+| `scanner.go` | `Scanner.Scan` single entry point (`@MX:ANCHOR`, fan_in >= 3), binary allowlist via `ValidateBinary` |
+| `rules.go` | YAML rule loader with `---` document splitting (malformed docs skipped individually) |
+| `sarif.go` | SARIF 2.1.0 output for GitHub code scanning |
+| `analyzer.go` | Finding aggregation, language filtering, severity ranking |
+
+### `internal/evolution/` -- Skill Evolution System (SPEC-EVO-001, v2.10.4)
+
+Reflective Write Hook infrastructure with 5-layer safety (Frozen Guard / Rate Limiter / Human Oversight).
+
+| File | Purpose |
+|------|---------|
+| `safety.go` | `CheckFrozenGuard` (path traversal / agency constitution / absolute-path rejection), `UpdateRateLimit` with `rateMu` serialization |
+| `learning.go` | `LearningEntry` CRUD with `validateLearningID` regex `^LEARN-\d{8}-\d{3}$` |
+| `graduation.go` | Observation → Heuristic → Rule → Graduated tier progression |
+| `apply.go` | `ApplyProposal` with `merge.ReplaceEvolvableZone` + `filepath.Rel` containment check |
+| `types.go` | Sentinel errors: `ErrFrozenPath`, `ErrRateLimit`, `ErrInvalidLearningID`, `ErrZoneNotFound` |
+
+### `internal/telemetry/` -- Skill Usage Metrics (SPEC-TELEMETRY-001, v2.10.4)
+
+Daily JSONL telemetry with async writer.
+
+| File | Purpose |
+|------|---------|
+| `recorder.go` | Sync `RecordSkillUsage`, `PruneOldFiles` (day-granularity retention) |
+| `async_recorder.go` | `AsyncRecorder` with channel-based single writer, date-keyed file handle cache, `bufio.Writer` (4KB), drop policy on buffer full |
+| `report.go` | Daily/weekly/monthly aggregation, `moai telemetry report` CLI |
 
 ### `internal/template/` -- Template Deployment (Improved)
 

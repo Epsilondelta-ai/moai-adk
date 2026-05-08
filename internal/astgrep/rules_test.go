@@ -188,3 +188,53 @@ func TestRules_ReturnsCopy(t *testing.T) {
 		}
 	}
 }
+
+// --- F5 regression test: YAML parse error silent break ---
+
+// TestLoadFromDir_ContinuesAfterMalformedDocument: verifies that even when a malformed
+// document appears in the middle of a multi-document YAML, subsequent valid documents
+// continue to be loaded.
+func TestLoadFromDir_ContinuesAfterMalformedDocument(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// doc1: valid, doc2: malformed YAML, doc3: valid
+	// yaml.v3 decoder separates documents with ---.
+	multiDocYAML := `---
+id: rule-first
+language: go
+severity: warning
+message: "첫 번째 규칙"
+pattern: "fmt.Println($X)"
+---
+: 잘못된 yaml 문서 !!invalid
+---
+id: rule-third
+language: python
+severity: error
+message: "세 번째 규칙"
+pattern: "eval($CODE)"
+`
+	if err := os.WriteFile(filepath.Join(tmpDir, "mixed.yml"), []byte(multiDocYAML), 0o644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+
+	loader := NewRuleLoader()
+	rules, err := loader.LoadFromDir(tmpDir)
+	// must not return an error (partial success)
+	if err != nil {
+		t.Fatalf("LoadFromDir() error = %v; must not return error even with malformed documents", err)
+	}
+
+	// both rule-first and rule-third must be loaded (after F5 fix)
+	ids := make(map[string]bool)
+	for _, r := range rules {
+		ids[r.ID] = true
+	}
+
+	if !ids["rule-first"] {
+		t.Error("rule-first not loaded — first valid document is missing")
+	}
+	if !ids["rule-third"] {
+		t.Error("rule-third not loaded — valid document after malformed one is missing (F5 bug)")
+	}
+}

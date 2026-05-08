@@ -1,7 +1,7 @@
 package astgrep
 
 import (
-	"errors"
+	"bytes"
 	"fmt"
 	"io"
 	"log/slog"
@@ -139,25 +139,37 @@ func (l *RuleLoader) LoadFromDir(dir string) ([]Rule, error) {
 }
 
 // loadFileSkipOnError loads rules from a single YAML file.
-// Returns partial results on decode errors to allow partial success per file.
+// Parsing failures in individual documents of a multi-document YAML do not
+// prevent subsequent documents from being loaded (F5 fix).
+//
+// Because yaml.v3 Decoder does not recover state after a parse error,
+// the file is split on the "---" separator and each document is parsed
+// independently for failure isolation.
 func (l *RuleLoader) loadFileSkipOnError(path string) ([]Rule, error) {
-	f, err := os.Open(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("opening rule file %s: %w", path, err)
 	}
-	defer func() { _ = f.Close() }()
+
+	// Split documents on the "---" separator (multi-document YAML support).
+	// Each document is parsed independently to isolate parsing failures.
+	docs := splitYAMLDocs(data)
 
 	var rules []Rule
-	decoder := yaml.NewDecoder(f)
+	var parseErrors int
 
-	for {
+	for i, doc := range docs {
+		trimmed := bytes.TrimSpace(doc)
+		if len(trimmed) == 0 {
+			continue
+		}
+
 		var rule Rule
-		if err := decoder.Decode(&rule); err != nil {
-			if errors.Is(err, io.EOF) {
-				break
-			}
-			slog.Warn("partial decode in rule file", "path", path, "error", err)
-			break
+		if err := yaml.Unmarshal(trimmed, &rule); err != nil {
+			parseErrors++
+			slog.Warn("rule file document parse failed, advancing to next document",
+				"path", path, "doc_index", i, "error", err)
+			continue
 		}
 		if rule.ID == "" {
 			continue
@@ -165,5 +177,34 @@ func (l *RuleLoader) loadFileSkipOnError(path string) ([]Rule, error) {
 		rules = append(rules, rule)
 	}
 
+	if parseErrors > 0 {
+		slog.Warn("parse errors encountered in rule file",
+			"path", path, "valid_rules", len(rules), "parse_errors", parseErrors)
+	}
+
 	return rules, nil
+}
+
+// splitYAMLDocs splits YAML multi-document data on the "---" separator.
+// Returns each document as an independent byte slice for individual parsing.
+func splitYAMLDocs(data []byte) [][]byte {
+	var docs [][]byte
+	// Split on \n--- or a leading --- at the start of the file.
+	// bytes.Split separates on lines that contain exactly "---".
+	lines := bytes.Split(data, []byte("\n"))
+	var current [][]byte
+	for _, line := range lines {
+		if bytes.Equal(bytes.TrimSpace(line), []byte("---")) {
+			if len(current) > 0 {
+				docs = append(docs, bytes.Join(current, []byte("\n")))
+			}
+			current = nil
+			continue
+		}
+		current = append(current, line)
+	}
+	if len(current) > 0 {
+		docs = append(docs, bytes.Join(current, []byte("\n")))
+	}
+	return docs
 }

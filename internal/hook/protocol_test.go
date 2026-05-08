@@ -88,10 +88,16 @@ func TestReadInput(t *testing.T) {
 			},
 		},
 		{
-			name:      "missing session_id",
-			input:     `{"cwd": "/tmp", "hook_event_name": "SessionStart"}`,
-			wantErr:   true,
-			errTarget: ErrHookInvalidInput,
+			// when session_id is absent, falls back to "unknown" (graceful degradation)
+			name:    "missing session_id defaults to unknown",
+			input:   `{"cwd": "/tmp", "hook_event_name": "SessionStart"}`,
+			wantErr: false,
+			check: func(t *testing.T, got *HookInput) {
+				t.Helper()
+				if got.SessionID != "unknown" {
+					t.Errorf("SessionID = %q, want %q", got.SessionID, "unknown")
+				}
+			},
 		},
 		{
 			// Workaround for Claude Code bug #538: PostToolUse payloads from
@@ -133,10 +139,16 @@ func TestReadInput(t *testing.T) {
 			},
 		},
 		{
-			name:      "missing cwd",
-			input:     `{"session_id": "sess-1", "hook_event_name": "SessionStart"}`,
-			wantErr:   true,
-			errTarget: ErrHookInvalidInput,
+			// when cwd is absent, falls back to $CLAUDE_PROJECT_DIR or allows empty string
+			name:    "missing cwd falls back gracefully",
+			input:   `{"session_id": "sess-1", "hook_event_name": "SessionStart"}`,
+			wantErr: false,
+			check: func(t *testing.T, got *HookInput) {
+				t.Helper()
+				if got.SessionID != "sess-1" {
+					t.Errorf("SessionID = %q, want %q", got.SessionID, "sess-1")
+				}
+			},
 		},
 		{
 			name:      "missing hook_event_name",

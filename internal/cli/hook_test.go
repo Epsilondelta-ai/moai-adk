@@ -60,8 +60,22 @@ func TestHookCmd_HasSubcommands(t *testing.T) {
 
 func TestHookCmd_SubcommandCount(t *testing.T) {
 	count := len(hookCmd.Commands())
-	if count != 30 {
-		t.Errorf("hook should have 30 subcommands, got %d", count)
+	// 32 previous + 1 new: spec-status (SPEC-STATUS-AUTO-001)
+	if count != 33 {
+		t.Errorf("hook should have 33 subcommands, got %d", count)
+	}
+}
+
+func TestHookCmd_HasHarnessObserve(t *testing.T) {
+	found := false
+	for _, cmd := range hookCmd.Commands() {
+		if cmd.Name() == "harness-observe" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("hook should have 'harness-observe' subcommand")
 	}
 }
 

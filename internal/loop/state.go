@@ -7,6 +7,7 @@ import (
 	"errors"
 	"time"
 
+	lsp "github.com/modu-ai/moai-adk/internal/lsp"
 	"github.com/modu-ai/moai-adk/internal/lsp/gopls"
 )
 
@@ -118,9 +119,15 @@ type Feedback struct {
 	Coverage     float64       `json:"coverage"`
 	Duration     time.Duration `json:"duration"`
 	Notes        string        `json:"notes"`
-	// Diagnostics는 gopls 브릿지로 수집한 LSP 진단 목록이다.
-	// GOPLS-BRIDGE-001: bridge가 nil이면 nil을 유지한다 (하위 호환성 보장).
+	// Diagnostics is the list of LSP diagnostics collected via the gopls bridge.
+	// GOPLS-BRIDGE-001: remains nil when bridge is nil (backward compatibility guaranteed).
+	// Deprecated: use LSPDiagnostics instead (REQ-LL-001).
 	Diagnostics []gopls.Diagnostic `json:"diagnostics,omitempty"`
+
+	// LSPDiagnostics is the list of lsp.Diagnostic collected via the Aggregator.
+	// REQ-LL-001: stores the result of Aggregator-based diagnostic collection.
+	// Populated by GoFeedbackGenerator through the Aggregator (REQ-LL-002).
+	LSPDiagnostics []lsp.Diagnostic `json:"lsp_diagnostics,omitempty"`
 }
 
 // Decision represents the decision engine's output after evaluating feedback.

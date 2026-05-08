@@ -6,6 +6,22 @@
 
 Go is the implementation language for the MoAI-ADK rewrite. The project uses Go 1.26, which provides Green Tea GC (10-40% GC overhead reduction), enhanced routing patterns in `net/http`, range-over-int iterators, and the latest `log/slog` structured logging capabilities.
 
+## Claude Code Integration
+
+**Minimum Recommended Version: Claude Code v2.1.110** (released April 2026)
+
+MoAI-ADK v2.12+ requires Claude Code v2.1.110 or later to support:
+- MCP scope duplicate detection in `moai doctor` (v2.1.110+)
+- Bash tool timeout ceiling enforcement (600,000ms) (v2.1.110+)
+- `disableBypassPermissionsMode` policy for security gates (v2.1.110+)
+
+**Opus 4.7 Support** (v2.12.0+):
+- Model: `claude-opus-4-7`
+- Effort levels: `low`, `medium`, `high`, `xhigh` (default), `max`
+- Recommended for: manager-spec, plan-auditor, evaluator-active, manager-strategy, expert-security, expert-refactoring
+- Backward compatibility: Opus 4.6, Sonnet 4.6, Haiku 4.5 supported with effort field auto-downgrade
+- Windows support: CLAUDE_ENV_FILE injection via SessionStart hook (v2.12.0+)
+
 ## Go Module
 
 ```
@@ -39,6 +55,28 @@ The module path follows Go conventions with the GitHub organization and reposito
 | Concurrency | goroutines + channels (stdlib) | Go 1.26 | Native concurrent execution for LSP, quality gates, and parallel operations |
 | File Embedding | `embed` (stdlib) | Go 1.26 | Compile-time template embedding into the binary |
 | Context | `context` (stdlib) | Go 1.26 | Cancellation, timeouts, and request-scoped values |
+| LSP Client | `github.com/charmbracelet/x/powernap` | v0.1.3 | Multi-language LSP client foundation (SPEC-LSP-CORE-002). Wraps `sourcegraph/jsonrpc2` with VSCode-compatible codec. Used by `internal/lsp/core/` and `internal/lsp/transport/` |
+| URI Encoding | `net/url` (stdlib) | Go 1.26 | RFC 3986 file:// URI encoding for LSP (`internal/lsp/gopls/uri.go`). Handles space, unicode, Windows drive paths correctly |
+
+### Security Patterns (v2.10.4)
+
+Cross-cutting security patterns established by the 3-perspective review bundle:
+
+| Pattern | Where | Purpose |
+|---------|-------|---------|
+| Path traversal rejection | `internal/evolution/safety.go` | `CheckFrozenGuard` rejects absolute paths (`filepath.IsAbs` + leading `/` for Windows) and `..` components |
+| Binary allowlist | `internal/lsp/gopls/config.go`, `internal/astgrep/scanner.go` | Trusted prefix list (`/usr/bin`, `/usr/local/bin`, `/opt/homebrew/bin`, `$HOME/{go,.local,.cargo}/bin`) + shell metachar rejection (`;&|\`$`) |
+| Cross-platform path normalization | Both above | `filepath.ToSlash` on both sides before HasPrefix comparison (Windows `filepath.Clean` produces backslashes) |
+| ID validation | `internal/evolution/learning.go` | `validateLearningID` regex enforcement prevents path injection via `LearningEntry.ID` |
+
+### Cross-Platform CI Compatibility (v2.10.4)
+
+Established patterns for `Test (windows-latest)` parity:
+
+1. **Path handling**: Use `filepath.ToSlash` for all prefix/equality comparisons. `filepath.IsAbs` returns false for Unix-style `/foo` on Windows — check leading `/` explicitly when Unix-style inputs are expected.
+2. **Test paths**: Use `t.TempDir()` + explicit URI/path conversion helpers. Never hardcode Unix-style test paths that will be compared against OS-generated paths.
+3. **Shell metachar lists**: Do NOT include backslash `\`. Go's `exec.Command` does not invoke a shell, so backslashes in Windows paths are safe and must not be rejected.
+4. **Timing thresholds**: Use generous thresholds (100ms+) with small allowances (5%+) for async operations on Windows CI — scheduler granularity is coarser than Linux/macOS.
 
 ### Language Support
 
@@ -62,6 +100,25 @@ MoAI-ADK provides built-in internationalization with 4 supported languages:
 - `internal/cli/wizard/`: Language selection in init wizard
 - `internal/template/`: Template context language resolution
 - Configuration files: Language settings validation
+
+### Documentation Site Stack
+
+Official documentation site running at `https://adk.mo.ai.kr`:
+
+| 항목 | 기술 | 버전 |
+|------|------|------|
+| 정적 사이트 생성기 | Hugo Extended | v0.160.1+ |
+| 테마 | Hextra | v0.12.2+ (Hugo module) |
+| 콘텐츠 포맷 | Hugo Markdown + shortcode | — |
+| 다이어그램 | Mermaid (Hextra 내장, 클라이언트 사이드) | v11+ |
+| 다국어 | Hugo multilingual (파일 기반) | ko/en/ja/zh 4개 |
+| 검색 | FlexSearch | Hextra 내장 |
+| 배포 | Vercel | Framework Preset=Hugo |
+| Edge Runtime | Vercel Edge Function | @runtime: 'edge' |
+| 릴리스 자동화 | Go + git archive | scripts/docs-version-snapshot |
+
+**Bun/Node.js 제거**: Phase 2 이전의 Nextra(Next.js + Bun) 스택을 전면 교체하여
+`docs-site/` 빌드에 Node 런타임 의존성이 0건이다. 로컬 개발도 Hugo 단일 바이너리만으로 가능.
 
 ### LSP Dependencies
 

@@ -8,9 +8,13 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"time"
 
 	"github.com/modu-ai/moai-adk/internal/config"
+	"github.com/modu-ai/moai-adk/internal/hook/memo/taxonomy"
+	"github.com/modu-ai/moai-adk/internal/telemetry"
 )
 
 // sessionStartHandler processes SessionStart events.
@@ -79,6 +83,66 @@ func (h *sessionStartHandler) Handle(ctx context.Context, input *HookInput) (*Ho
 	if input.ProjectDir != "" {
 		if mode := ensureTeammateMode(input.ProjectDir); mode != "" {
 			data["teammate_mode"] = mode
+		}
+	}
+
+	// GLM 팀 모드에서 팀원 tmux 팬이 ANTHROPIC_AUTH_TOKEN을 상속하도록
+	// 현재 tmux 세션에 GLM 환경변수를 주입합니다.
+	// ensureGLMCredentials가 settings.local.json에 토큰을 기록한 후에 실행해야
+	// 최신 값을 읽을 수 있습니다.
+	if input.ProjectDir != "" {
+		if msg := ensureTmuxGLMEnv(input.ProjectDir); msg != "" {
+			data["tmux_glm_env"] = msg
+			slog.Info("tmux GLM 환경변수 주입", "message", msg)
+		}
+	}
+
+	// Windows only: inject CLAUDE_ENV_FILE into settings.local.json when a
+	// .env file is present in the project root (T-016, R-P1-1).
+	// Guarded to Windows so macOS/Linux GLM env injection is never affected.
+	if claudeEnvFileGuard(runtime.GOOS) && input.ProjectDir != "" {
+		if msg := injectCLAUDEEnvFile(input.ProjectDir); msg != "" {
+			data["claude_env_file"] = msg
+			slog.Info("CLAUDE_ENV_FILE injected", "message", msg)
+		}
+	}
+
+	// Enforce telemetry retention: prune files older than 90 days (SPEC-TELEMETRY-001 R4).
+	// Best-effort: errors are logged and never propagated.
+	if input.ProjectDir != "" {
+		if err := pruneTelemetry(input.ProjectDir); err != nil {
+			slog.Warn("session start: telemetry pruning failed", "error", err)
+		}
+	}
+
+	// Detect stale agent memories and inject staleness caveat (SPEC-V3R2-EXT-001 REQ-006/017).
+	// Best-effort: errors are logged and never propagated.
+	if input.ProjectDir != "" {
+		if staleMsg := detectAndWrapStaleMemories(input.ProjectDir, time.Now()); staleMsg != "" {
+			data["memory_stale_warning"] = staleMsg
+			slog.Info("session start: stale memory files detected",
+				"session_id", input.SessionID,
+			)
+		}
+	}
+
+	// Create symlinks in .claude/skills/ for any new evolved skills
+	// stored under .moai/evolution/new-skills/ (R5: New Skill Symlink).
+	if input.ProjectDir != "" {
+		if n := ensureNewSkillSymlinks(input.ProjectDir); n > 0 {
+			data["evolved_skills_linked"] = n
+			slog.Info("evolved skill symlinks created", "count", n)
+		}
+	}
+
+	// Present pending skill improvement proposals from the reflective learning
+	// system.  This is non-blocking: errors are silently ignored.
+	if input.ProjectDir != "" {
+		if summary := PresentPendingProposals(input.ProjectDir); summary != "" {
+			data["skill_proposals"] = summary
+			slog.Info("reflective_write: pending proposals available for review",
+				"session_id", input.SessionID,
+			)
 		}
 	}
 
@@ -307,6 +371,241 @@ func ensureTeammateMode(projectDir string) string {
 	return desired
 }
 
+// ensureNewSkillSymlinks scans .moai/evolution/new-skills/ for subdirectories
+// and creates corresponding symlinks (or directory copies on Windows) in
+// .claude/skills/ so that Claude Code can discover evolved skills at session start.
+//
+// Rules:
+//   - Target: .claude/skills/<name> → ../../.moai/evolution/new-skills/<name>
+//   - Existing valid symlinks are skipped.
+//   - Broken symlinks are removed with a warning.
+//   - On Windows, a directory copy is used as fallback.
+//
+// Returns the number of symlinks created in this call.
+func ensureNewSkillSymlinks(projectDir string) int {
+	newSkillsDir := filepath.Join(projectDir, ".moai", "evolution", "new-skills")
+	skillsDir := filepath.Join(projectDir, ".claude", "skills")
+
+	entries, err := os.ReadDir(newSkillsDir)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			slog.Warn("ensureNewSkillSymlinks: cannot read new-skills dir",
+				"path", newSkillsDir,
+				"error", err.Error(),
+			)
+		}
+		return 0
+	}
+
+	// Ensure .claude/skills/ exists.
+	if err := os.MkdirAll(skillsDir, 0o755); err != nil {
+		slog.Warn("ensureNewSkillSymlinks: cannot create skills dir",
+			"path", skillsDir,
+			"error", err.Error(),
+		)
+		return 0
+	}
+
+	created := 0
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		name := entry.Name()
+
+		// 이름 검증: 경로 순회, null 바이트, 슬래시, 백슬래시, 숨김 파일 거부
+		// TOCTOU 완화: ReadDir 결과 이름만 사용하고 직접 경로 조합하지 않음
+		if name == "" || name == "." || name == ".." ||
+			strings.ContainsAny(name, "/\\\x00") ||
+			strings.HasPrefix(name, ".") {
+			slog.Warn("ensureNewSkillSymlinks: 잘못된 스킬 이름 건너뜀",
+				"name", name,
+			)
+			continue
+		}
+
+		linkPath := filepath.Join(skillsDir, name)
+
+		// Check if a symlink (or directory copy) already exists.
+		fi, err := os.Lstat(linkPath)
+		if err == nil {
+			// Path exists — validate it.
+			if fi.Mode()&os.ModeSymlink != 0 {
+				// It's a symlink — verify it points to a valid target.
+				if _, err := os.Stat(linkPath); err == nil {
+					// Valid symlink — skip.
+					continue
+				}
+				// Broken symlink — remove it.
+				slog.Warn("ensureNewSkillSymlinks: removing broken symlink",
+					"path", linkPath,
+				)
+				if removeErr := os.Remove(linkPath); removeErr != nil {
+					slog.Warn("ensureNewSkillSymlinks: cannot remove broken symlink",
+						"path", linkPath,
+						"error", removeErr.Error(),
+					)
+					continue
+				}
+			} else if fi.IsDir() {
+				// Directory already exists (Windows copy or manual placement) — skip.
+				continue
+			} else {
+				// Something else — skip to avoid clobbering.
+				slog.Warn("ensureNewSkillSymlinks: unexpected file at link path, skipping",
+					"path", linkPath,
+				)
+				continue
+			}
+		} else if !os.IsNotExist(err) {
+			slog.Warn("ensureNewSkillSymlinks: lstat error",
+				"path", linkPath,
+				"error", err.Error(),
+			)
+			continue
+		}
+
+		// Create symlink or directory copy.
+		srcDir := filepath.Join(newSkillsDir, name)
+
+		if runtime.GOOS == "windows" {
+			// Windows fallback: copy directory contents instead of symlink.
+			if copyErr := copyDirRecursive(srcDir, linkPath); copyErr != nil {
+				slog.Warn("ensureNewSkillSymlinks: failed to copy directory on Windows",
+					"src", srcDir,
+					"dst", linkPath,
+					"error", copyErr.Error(),
+				)
+				continue
+			}
+		} else {
+			// Use a relative symlink so the project is portable.
+			// From .claude/skills/<name> to ../../.moai/evolution/new-skills/<name>
+			relTarget := filepath.Join("..", "..", ".moai", "evolution", "new-skills", name)
+			if symlinkErr := os.Symlink(relTarget, linkPath); symlinkErr != nil {
+				slog.Warn("ensureNewSkillSymlinks: failed to create symlink",
+					"link", linkPath,
+					"target", relTarget,
+					"error", symlinkErr.Error(),
+				)
+				continue
+			}
+		}
+
+		slog.Info("ensureNewSkillSymlinks: linked evolved skill",
+			"name", name,
+		)
+		created++
+	}
+
+	return created
+}
+
+// copyDirRecursive copies src directory to dst recursively.
+// Used as a Windows fallback when symlinks are not available.
+func copyDirRecursive(src, dst string) error {
+	if err := os.MkdirAll(dst, 0o755); err != nil {
+		return fmt.Errorf("mkdir %s: %w", dst, err)
+	}
+
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return fmt.Errorf("readdir %s: %w", src, err)
+	}
+
+	for _, entry := range entries {
+		srcPath := filepath.Join(src, entry.Name())
+		dstPath := filepath.Join(dst, entry.Name())
+
+		if entry.IsDir() {
+			if err := copyDirRecursive(srcPath, dstPath); err != nil {
+				return err
+			}
+			continue
+		}
+
+		data, err := os.ReadFile(srcPath)
+		if err != nil {
+			return fmt.Errorf("read %s: %w", srcPath, err)
+		}
+		if err := os.WriteFile(dstPath, data, 0o644); err != nil {
+			return fmt.Errorf("write %s: %w", dstPath, err)
+		}
+	}
+	return nil
+}
+
+// pruneTelemetry enforces the 90-day retention policy for telemetry files.
+// It delegates to telemetry.PruneOldFiles and wraps any error with context.
+func pruneTelemetry(projectDir string) error {
+	return telemetry.PruneOldFiles(projectDir, 90)
+}
+
+// injectCLAUDEEnvFile checks whether a .env file exists in projectRoot. If it
+// does, it injects CLAUDE_ENV_FILE into the env section of
+// .claude/settings.local.json so that Claude Code loads the project's env file
+// automatically (Windows CLAUDE_ENV_FILE support, T-016).
+//
+// Returns a non-empty status message when the value was written, empty string
+// when the .env file does not exist or when no write was needed.
+func injectCLAUDEEnvFile(projectRoot string) string {
+	envFilePath := filepath.Join(projectRoot, ".env")
+	if _, err := os.Stat(envFilePath); os.IsNotExist(err) {
+		return ""
+	}
+
+	settingsPath := filepath.Join(projectRoot, ".claude", "settings.local.json")
+
+	var raw map[string]json.RawMessage
+	if data, err := os.ReadFile(settingsPath); err == nil && len(data) > 0 {
+		if err := json.Unmarshal(data, &raw); err != nil {
+			raw = nil
+		}
+	}
+	if raw == nil {
+		raw = make(map[string]json.RawMessage)
+	}
+
+	// Read current env section.
+	env := make(map[string]string)
+	if envRaw, ok := raw["env"]; ok {
+		_ = json.Unmarshal(envRaw, &env)
+	}
+
+	// Skip write if already set to the same value.
+	if env["CLAUDE_ENV_FILE"] == envFilePath {
+		return ""
+	}
+
+	env["CLAUDE_ENV_FILE"] = envFilePath
+
+	envData, err := json.Marshal(env)
+	if err != nil {
+		return ""
+	}
+	raw["env"] = envData
+
+	newData, err := json.MarshalIndent(raw, "", "  ")
+	if err != nil {
+		return ""
+	}
+
+	if err := os.MkdirAll(filepath.Join(projectRoot, ".claude"), 0o755); err != nil {
+		return ""
+	}
+
+	if err := os.WriteFile(settingsPath, newData, 0o644); err != nil {
+		slog.Error("injectCLAUDEEnvFile: failed to write settings.local.json",
+			"error", err.Error(),
+		)
+		return ""
+	}
+
+	return fmt.Sprintf("injected CLAUDE_ENV_FILE=%s into %s", envFilePath, settingsPath)
+}
+
 // loadGLMKeyFromEnvFile reads the GLM API key from ~/.moai/.env.glm.
 func loadGLMKeyFromEnvFile() string {
 	home, err := os.UserHomeDir()
@@ -340,4 +639,71 @@ func loadGLMKeyFromEnvFile() string {
 		}
 	}
 	return ""
+}
+
+// detectAndWrapStaleMemories scans all agent memory directories under
+// .claude/agent-memory/<agent>/ and wraps stale files in <system-reminder> tags.
+//
+// When MOAI_MEMORY_AUDIT=0, the function returns empty string (disabled path).
+// When 10+ stale files are found, a single aggregated warning is returned.
+// Otherwise per-file wrapped content is concatenated (REQ-EXT001-006/017).
+//
+// The now parameter is accepted to allow deterministic testing.
+func detectAndWrapStaleMemories(projectDir string, now time.Time) string {
+	// Respect kill-switch (rollback safety — plan.md §6.2).
+	if os.Getenv("MOAI_MEMORY_AUDIT") == "0" {
+		return ""
+	}
+
+	agentMemBase := filepath.Join(projectDir, ".claude", "agent-memory")
+	entries, err := os.ReadDir(agentMemBase)
+	if err != nil {
+		// Directory may not exist yet — not an error.
+		return ""
+	}
+
+	var allReports []taxonomy.StaleReport
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		agentDir := filepath.Join(agentMemBase, e.Name())
+		reports, err := taxonomy.DetectStale(agentDir, config.DefaultMemoryStalenessHours, now)
+		if err != nil {
+			slog.Warn("session start: staleness scan error",
+				"dir", agentDir,
+				"error", err.Error(),
+			)
+			continue
+		}
+		allReports = append(allReports, reports...)
+	}
+
+	if len(allReports) == 0 {
+		return ""
+	}
+
+	// When count reaches the aggregation threshold, return a single short warning.
+	// Otherwise return wrapped content (each file's content in <system-reminder>).
+	if len(allReports) >= config.DefaultMemoryStaleAggregateThreshold {
+		return taxonomy.AggregateWarning(allReports)
+	}
+
+	// Per-file: return each file's wrapped content (the <system-reminder> block).
+	var sb strings.Builder
+	for _, r := range allReports {
+		sb.WriteString(r.Wrapped)
+		sb.WriteByte('\n')
+	}
+	return strings.TrimRight(sb.String(), "\n")
+}
+
+// claudeEnvFileGuard reports whether the CLAUDE_ENV_FILE injection should run
+// for the given OS name. Injection is Windows-only (T-016, R-P1-1).
+//
+// Extracted from Handle() so that unit tests can exercise the guard without
+// depending on runtime.GOOS (a compile-time constant that cannot be overridden
+// via os.Setenv). See TestSessionStartHandler_Handle_NonWindowsGuard.
+func claudeEnvFileGuard(goos string) bool {
+	return goos == "windows"
 }

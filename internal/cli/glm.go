@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/modu-ai/moai-adk/internal/config"
 	"github.com/modu-ai/moai-adk/internal/defs"
+	"github.com/modu-ai/moai-adk/internal/statusline"
 	"github.com/modu-ai/moai-adk/internal/tmux"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -38,6 +40,12 @@ Flags:
 
 Note: Auto mode is not available with GLM (third-party provider).
 Use 'moai cc --permission-mode auto' or 'moai cg --permission-mode auto' instead.
+
+Note: Z.AI enforces low concurrency limits (paid tiers observe 1-3 in-flight
+requests). Multi-agent workflows that exceed this limit can surface as opaque
+errors (sometimes misreported by clients as "context window limit"). The GLM
+models themselves have ample context (glm-5.1 ~204K, glm-4.7 ~202K). For more
+stable parallel execution with MoAI Agent Teams, prefer 'moai cg' (hybrid mode).
 
 Examples:
   moai glm setup sk-xxx    # Save API key (one-time)
@@ -129,6 +137,16 @@ func runGLM(cmd *cobra.Command, args []string) error {
 		_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "use 'moai cc --permission-mode auto' or 'moai cg --permission-mode auto' instead")
 		return fmt.Errorf("auto mode is not available with GLM (third-party provider)")
 	}
+
+	// Warn about main-session GLM limitations before launch.
+	// DISABLE_PROMPT_CACHING=1 forces full system prompt re-send per request (~30-40K tokens),
+	// which hits GLM context limits faster than expected. Z.AI concurrency limits (1-3 in-flight
+	// requests per paid tier) are sometimes misreported by Claude Code as "context window limit".
+	_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "WARNING: moai glm uses GLM models for the MAIN SESSION. Known limitations:")
+	_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "  - Main session context window: 128K (glm-4.5-air), 202K (glm-4.7), 204K (glm-5.1)")
+	_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "  - DISABLE_PROMPT_CACHING=1 causes full system prompt re-send per request")
+	_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "  - Z.AI concurrency is limited (1-3 in-flight requests per paid tier)")
+	_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "If you want Claude as leader and GLM for teammates, use 'moai cg' instead.")
 
 	return unifiedLaunch(profileName, "glm", filteredArgs)
 }
@@ -289,7 +307,12 @@ func enableTeamMode(cmd *cobra.Command, isHybrid bool) error {
 
 		tmuxStatus := "tmux session: active (env vars injected)"
 		if !inTmux {
-			tmuxStatus = "tmux session: NOT DETECTED (start claude inside tmux for teammates)"
+			tmuxStatus = "Warning: tmux session NOT DETECTED. GLM teammates require tmux for env propagation.\n" +
+				"  Recommended steps:\n" +
+				"    1. tmux new -s moai\n" +
+				"    2. moai glm                # (re-run inside tmux to configure session env)\n" +
+				"    3. claude\n" +
+				"    4. /moai --team \"task\""
 		}
 
 		_, _ = fmt.Fprintln(out, renderSuccessCard(
@@ -325,6 +348,11 @@ func enableTeamMode(cmd *cobra.Command, isHybrid bool) error {
 }
 
 // injectTmuxSessionEnv sets GLM environment variables at the tmux session level.
+//
+// Issue #742: Pre-computes MOAI_STATUSLINE_CONTEXT_SIZE from the High slot
+// (Opus equivalent) so the Claude Code statusline reflects the real GLM model
+// context window (128K/200K/etc.) instead of the Claude slot's nominal size
+// (1M for the Opus slot).
 func injectTmuxSessionEnv(glmConfig *GLMConfigFromYAML, apiKey string) error {
 	if isTestEnvironment() {
 		return nil
@@ -344,6 +372,12 @@ func injectTmuxSessionEnv(glmConfig *GLMConfigFromYAML, apiKey string) error {
 		"DISABLE_PROMPT_CACHING":                    "1",
 		"API_TIMEOUT_MS":                            "3000000",
 		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+	}
+
+	// Issue #742: Map the High slot model to its real context window so
+	// statusline gauge reflects GLM limits, not Claude's Opus slot 1M nominal.
+	if size := statusline.ResolveGLMContextWindow(glmConfig.Models.High); size > 0 {
+		vars[config.EnvStatuslineContextSize] = strconv.Itoa(size)
 	}
 
 	mgr := tmux.NewSessionManager()
@@ -377,6 +411,8 @@ func clearTmuxSessionEnv() error {
 		"DISABLE_PROMPT_CACHING",
 		"API_TIMEOUT_MS",
 		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC",
+		// Issue #742: clear GLM context-size hint when leaving GLM mode
+		config.EnvStatuslineContextSize,
 	}
 
 	mgr := tmux.NewSessionManager()
@@ -512,6 +548,14 @@ func injectGLMEnvForTeam(settingsPath string, glmConfig *GLMConfigFromYAML, apiK
 	settings.Env["DISABLE_PROMPT_CACHING"] = "1"
 	settings.Env["API_TIMEOUT_MS"] = "3000000"
 	settings.Env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] = "1"
+	// Issue #742: pre-compute statusline context size from the High slot
+	// (Opus equivalent) so SessionStart hook propagates it via tmux env.
+	if size := statusline.ResolveGLMContextWindow(glmConfig.Models.High); size > 0 {
+		settings.Env[config.EnvStatuslineContextSize] = strconv.Itoa(size)
+	} else {
+		// Clean up stale value from a prior session that resolved a known model.
+		delete(settings.Env, config.EnvStatuslineContextSize)
+	}
 
 	// Force tmux display mode: GLM team mode uses tmux for env var inheritance.
 	// "auto" can fall back to inline mode, causing teammates to lose GLM env vars (#468).

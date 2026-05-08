@@ -112,13 +112,15 @@ func applyGLMMode(root, profileName string) error {
 
 	setGLMEnv(glmConfig, apiKey)
 
+	// settings.local.json injection is intentionally omitted here: setGLMEnv()
+	// already sets env for the current process which syscall.Exec inherits into
+	// `claude`. Writing to settings.local.json (as previous behavior) would leak
+	// GLM env to subsequent `claude` invocations after `moai glm` exits.
+	// Tmux team panes still receive env via injectTmuxSessionEnv below (moai cg path).
+	// For persistent settings.local.json injection used by `moai --team`, see enableTeamMode().
+
 	if err := persistTeamMode(root, "glm"); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Warning: failed to persist team mode: %v\n", err)
-	}
-
-	settingsPath := filepath.Join(root, defs.ClaudeDir, defs.SettingsLocalJSON)
-	if err := injectGLMEnvForTeam(settingsPath, glmConfig, apiKey); err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Warning: failed to inject GLM env into settings: %v\n", err)
 	}
 
 	if tmux.NewDetector().InTmuxSession() {
@@ -241,6 +243,9 @@ func removeGLMEnv(settingsPath string) error {
 		delete(settings.Env, "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC")
 		// Remove teammate display env var override (CG/GLM set this)
 		delete(settings.Env, "CLAUDE_CODE_TEAMMATE_DISPLAY")
+		// Issue #742: drop GLM context-size hint when leaving GLM mode so the
+		// statusline reverts to the Claude slot's nominal size.
+		delete(settings.Env, "MOAI_STATUSLINE_CONTEXT_SIZE")
 
 		if len(settings.Env) == 0 {
 			settings.Env = nil
@@ -529,7 +534,8 @@ func launchClaudeDefault(profileName string, extraArgs []string) error {
 	// NOTE: syscall.Exec replaces the current process entirely.
 	// No defer() functions will execute after this point.
 	// Ensure all cleanup and setup is complete before calling.
-	return syscall.Exec(claudeBin, buildArgs(false), os.Environ())
+	launchEnv := buildEnvForLaunch(prefs.EffortLevel, os.Environ())
+	return syscall.Exec(claudeBin, buildArgs(false), launchEnv)
 }
 
 // --- Flag Parsing ---
@@ -665,6 +671,34 @@ func syncPermissionModeToSettingsLocal(settingsPath string, permissionMode strin
 // to enable the 1M token context window.
 func expandModelString(model string) string {
 	return model
+}
+
+// buildEnvForLaunch returns an environment slice with CLAUDE_CODE_EFFORT_LEVEL
+// set to effortLevel when non-empty. Any existing CLAUDE_CODE_EFFORT_LEVEL entry
+// in base is replaced to avoid duplicates. When effortLevel is empty, base is
+// returned unchanged.
+//
+// @MX:NOTE: [AUTO] Effort injection point — separate from model routing (ModelPolicy⊥Effort).
+func buildEnvForLaunch(effortLevel string, base []string) []string {
+	if effortLevel == "" {
+		return base
+	}
+	const key = "CLAUDE_CODE_EFFORT_LEVEL"
+	entry := key + "=" + effortLevel
+	result := make([]string, 0, len(base)+1)
+	replaced := false
+	for _, e := range base {
+		if strings.HasPrefix(e, key+"=") {
+			result = append(result, entry)
+			replaced = true
+		} else {
+			result = append(result, e)
+		}
+	}
+	if !replaced {
+		result = append(result, entry)
+	}
+	return result
 }
 
 // syncBypassToSettingsLocal is a backward-compatible wrapper for

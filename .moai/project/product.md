@@ -145,12 +145,13 @@ Code analysis via structural AST (Abstract Syntax Tree) pattern matching.
 
 ### 11. Multi-Model Architecture
 
-Support for multiple LLM providers and hybrid cost-optimization modes.
+Support for multiple LLM providers and hybrid cost-optimization modes with Opus 4.7 integration.
 
-- **Claude Mode** (`moai cc`): Full Claude model stack with per-agent model assignment (opus, sonnet, haiku) controlled by model policy
+- **Claude Mode** (`moai cc`): Full Claude model stack including Opus 4.7 with 5-level effort scaling (low/medium/high/xhigh/max) for critical reasoning agents, with automatic fallback to Opus 4.6/Sonnet 4.6/Haiku 4.5 for backward compatibility (Requires Claude Code v2.1.110+)
+- **Opus 4.7 Prompt Philosophy**: Built-in support for Opus 4.7's "one-turn fully-loaded" principle with effort configuration at agent level, enabling xhigh/max effort assignments for critical reasoning workflows (manager-spec, plan-auditor, evaluator-active, manager-strategy, expert-security, expert-refactoring)
 - **GLM Mode** (`moai glm`): Switch all agents to Z.AI's GLM models for cost reduction
 - **Hybrid CG Mode** (`moai cg`): Claude leader with GLM workers via worktree-based environment isolation for 60-70% cost reduction on implementation tasks
-- **Model Policy** (`moai init --model-policy`): Apply high/medium/low model distribution across all agent definitions based on role-specific mappings
+- **Model Policy** (`moai init --model-policy`): Apply high/medium/low/xhigh/max effort distribution across all agent definitions based on role-specific mappings and model capabilities
 
 ### 12. Agent Teams Integration (Experimental)
 
@@ -203,6 +204,20 @@ Support for Claude Code's experimental Agent Teams API for parallel phase execut
 | Hook regression commits | 0 per release cycle | Git log analysis (vs Python's 41+ over 5 months) |
 | settings.json generation failures | 0 | Contract test suite (vs Python's 4 regression cycles) |
 | Destructive update overwrites | 0 | Manifest-based update verification (vs Python's 6 overwrite issues) |
+
+### 13. Official Documentation Site
+
+공식 사용자 문서는 `https://adk.mo.ai.kr`에서 서비스되며, moai-adk-go 모노레포의 `docs-site/` 하위에서 관리된다.
+
+**구성**:
+- 4개국어 지원 (한국어, English, 日本語, 简体中文)
+- 버전별 문서 관리 (최신은 unversioned, 과거는 `/v2.X/` 경로)
+- Hugo + Hextra 정적 사이트 생성기 (Go 단일 바이너리 빌드)
+- Vercel 배포 (Edge Function으로 Accept-Language 기반 locale detection)
+
+**책임**:
+- 기능 추가/변경 시 4개국어 문서 동시 업데이트 (CLAUDE.local.md §17.3)
+- Minor/Major 릴리스 시 이전 버전 스냅샷 자동 생성 (scripts/docs-version-snapshot)
 
 ---
 

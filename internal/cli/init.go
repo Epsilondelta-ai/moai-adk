@@ -56,6 +56,7 @@ func init() {
 	initCmd.Flags().String("gitlab-instance-url", "", "GitLab instance URL for self-hosted")
 	initCmd.Flags().Bool("non-interactive", false, "Skip interactive wizard; use flags and defaults")
 	initCmd.Flags().Bool("force", false, "Reinitialize an existing project (backs up current .moai/)")
+	initCmd.Flags().Bool("no-hooks", false, "Skip git hook installation (REQ-CIAUT-002)")
 }
 
 // getStringFlag retrieves a string flag value from the command.
@@ -336,10 +337,29 @@ func runInit(cmd *cobra.Command, args []string) error {
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  Warning: Failed to sync profile to project config: %v\n", err)
 	}
 
+	// Scaffold .moai/evolution/ directory structure (R2: Directory Scaffolding).
+	// This is also handled by template deployment, but scaffoldEvolutionDir ensures
+	// all required subdirectories and placeholder files are present even when the
+	// template fs doesn't track empty directories.
+	if err := scaffoldEvolutionDir(opts.ProjectRoot); err != nil {
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  Warning: Failed to scaffold evolution directory: %v\n", err)
+	}
+
+	// Scaffold .moai/design/ directory structure (REQ-001, REQ-002, REQ-003, REQ-010).
+	// Deploy README.md, research.md, system.md, spec.md templates and create
+	// wireframes/ and screenshots/ subdirectories. Skips deployment if design dir
+	// already contains regular files to prevent overwriting user assets.
+	if _, err := scaffoldDesignDir(opts.ProjectRoot, cmd.OutOrStderr()); err != nil {
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  Warning: Failed to scaffold design directory: %v\n", err)
+	}
+
 	// Ensure global settings.json has required env variables
 	if err := ensureGlobalSettingsEnv(); err != nil {
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  Warning: Failed to update global settings env: %v\n", err)
 	}
+
+	// Install pre-push hook (REQ-CIAUT-002). Non-fatal; --no-hooks opts out.
+	installPrePushHookOptional(opts.ProjectRoot, getBoolFlag(cmd, "no-hooks"), cmd.OutOrStdout())
 
 	return nil
 }
