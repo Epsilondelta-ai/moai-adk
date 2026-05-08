@@ -17,6 +17,8 @@ export interface QuotaSnapshot {
 	planType?: string;
 }
 
+const CODEX_RATE_LIMIT_MAX_AGE_MS = 60 * 60 * 1000;
+
 let latestQuota: QuotaSnapshot = {};
 let codexCacheLastChecked = 0;
 
@@ -119,10 +121,23 @@ export function refreshQuotaFromCodexSessionCache(options: { force?: boolean } =
 	codexCacheLastChecked = now;
 
 	const observed = readLatestCodexRateLimits();
-	if (!observed) return;
+	if (!observed) {
+		if (latestQuota.source?.includes("codex-session-cache") && !latestQuota.source.startsWith("provider-headers")) {
+			latestQuota = {
+				...latestQuota,
+				source: "codex-session-cache-stale",
+				shortWindowPercent: undefined,
+				weeklyWindowPercent: undefined,
+				shortWindowLabel: undefined,
+				weeklyWindowLabel: undefined,
+			};
+		}
+		return;
+	}
 
-	const shortWindowPercent = latestQuota.shortWindowPercent ?? observed.shortWindowPercent;
-	const weeklyWindowPercent = latestQuota.weeklyWindowPercent ?? observed.weeklyWindowPercent;
+	const preserveProviderQuota = latestQuota.source?.startsWith("provider-headers") ?? false;
+	const shortWindowPercent = preserveProviderQuota ? latestQuota.shortWindowPercent ?? observed.shortWindowPercent : observed.shortWindowPercent;
+	const weeklyWindowPercent = preserveProviderQuota ? latestQuota.weeklyWindowPercent ?? observed.weeklyWindowPercent : observed.weeklyWindowPercent;
 	if (shortWindowPercent === undefined && weeklyWindowPercent === undefined) return;
 
 	latestQuota = {
@@ -260,25 +275,45 @@ function codexRateLimitObservationFromLine(line: string, file: string): CodexRat
 
 	const primary = rateLimits.primary;
 	const secondary = rateLimits.secondary;
-	const shortWindowPercent = percentFromCodexLimit(primary);
-	const weeklyWindowPercent = percentFromCodexLimit(secondary);
+	const observedAt = Date.parse(entry?.timestamp) || Date.now();
+	const shortWindowPercent = isFreshCodexLimit(primary, observedAt) ? percentFromCodexLimit(primary) : undefined;
+	const weeklyWindowPercent = isFreshCodexLimit(secondary, observedAt) ? percentFromCodexLimit(secondary) : undefined;
 	if (shortWindowPercent === undefined && weeklyWindowPercent === undefined) return undefined;
 
 	return {
 		shortWindowPercent,
 		weeklyWindowPercent,
 		resetAt: resetAtFromCodexLimit(primary),
-		observedAt: Date.parse(entry?.timestamp) || Date.now(),
+		observedAt,
 		file,
 		planType: typeof rateLimits.plan_type === "string" ? rateLimits.plan_type : undefined,
 	};
 }
 
+function isFreshCodexLimit(limit: unknown, observedAt: number): boolean {
+	if (!limit || typeof limit !== "object") return false;
+	const now = Date.now();
+	if (now - observedAt > CODEX_RATE_LIMIT_MAX_AGE_MS) return false;
+	const resetAt = resetAtFromCodexLimit(limit);
+	return resetAt === undefined || resetAt > now;
+}
+
 function percentFromCodexLimit(limit: unknown): number | undefined {
 	if (!limit || typeof limit !== "object") return undefined;
-	const used = (limit as { used_percent?: unknown }).used_percent;
-	const value = typeof used === "number" ? used : typeof used === "string" ? Number(used) : undefined;
-	return value !== undefined && Number.isFinite(value) ? clamp(Math.round(value)) : undefined;
+	const used = numericField(limit, "used_percent", "used_percentage");
+	if (used !== undefined) return clamp(Math.round(used));
+	const remaining = numericField(limit, "remaining_percent", "remaining_percentage");
+	return remaining !== undefined ? clamp(Math.round(100 - remaining)) : undefined;
+}
+
+function numericField(source: unknown, ...keys: string[]): number | undefined {
+	if (!source || typeof source !== "object") return undefined;
+	for (const key of keys) {
+		const raw = (source as Record<string, unknown>)[key];
+		const value = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : undefined;
+		if (value !== undefined && Number.isFinite(value)) return value;
+	}
+	return undefined;
 }
 
 function resetAtFromCodexLimit(limit: unknown): number | undefined {
