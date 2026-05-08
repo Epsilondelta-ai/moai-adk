@@ -16,12 +16,12 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/modu-ai/moai-adk/actions/workflows/ci.yml"><img src="https://github.com/modu-ai/moai-adk/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/modu-ai/moai-adk/actions/workflows/codeql.yml"><img src="https://github.com/modu-ai/moai-adk/actions/workflows/codeql.yml/badge.svg" alt="CodeQL"></a>
-  <a href="https://codecov.io/gh/modu-ai/moai-adk"><img src="https://codecov.io/gh/modu-ai/moai-adk/branch/main/graph/badge.svg" alt="Codecov"></a>
+  <a href="https://github.com/Epsilondelta-ai/moai-adk/actions/workflows/ci.yml"><img src="https://github.com/Epsilondelta-ai/moai-adk/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/Epsilondelta-ai/moai-adk/actions/workflows/codeql.yml"><img src="https://github.com/Epsilondelta-ai/moai-adk/actions/workflows/codeql.yml/badge.svg" alt="CodeQL"></a>
+  <a href="https://codecov.io/gh/Epsilondelta-ai/moai-adk"><img src="https://codecov.io/gh/Epsilondelta-ai/moai-adk/branch/main/graph/badge.svg" alt="Codecov"></a>
   <br>
   <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.26+-00ADD8?style=flat&logo=go&logoColor=white" alt="Go"></a>
-  <a href="https://github.com/modu-ai/moai-adk/releases"><img src="https://img.shields.io/github/v/release/modu-ai/moai-adk?sort=semver" alt="Release"></a>
+  <a href="https://github.com/Epsilondelta-ai/moai-adk/releases"><img src="https://img.shields.io/github/v/release/Epsilondelta-ai/moai-adk?sort=semver" alt="Release"></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-blue.svg" alt="License: Apache-2.0"></a>
 </p>
 
@@ -109,7 +109,7 @@ MoAI-ADK implements the **Harness Engineering** paradigm — designing the envir
 #### macOS / Linux / WSL
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/modu-ai/moai-adk/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Epsilondelta-ai/moai-adk/main/install.sh | bash
 ```
 
 #### Windows (PowerShell 7.x+)
@@ -117,7 +117,7 @@ curl -fsSL https://raw.githubusercontent.com/modu-ai/moai-adk/main/install.sh | 
 > **Recommended**: Use WSL with the Linux installation command above for the best experience.
 
 ```powershell
-irm https://raw.githubusercontent.com/modu-ai/moai-adk/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/Epsilondelta-ai/moai-adk/main/install.ps1 | iex
 ```
 
 > Requires [Git for Windows](https://gitforwindows.org/) to be installed first.
@@ -125,11 +125,11 @@ irm https://raw.githubusercontent.com/modu-ai/moai-adk/main/install.ps1 | iex
 #### Build from Source (Go 1.26+)
 
 ```bash
-git clone https://github.com/modu-ai/moai-adk.git
+git clone https://github.com/Epsilondelta-ai/moai-adk.git
 cd moai-adk && make build
 ```
 
-> Prebuilt binaries are available on the [Releases](https://github.com/modu-ai/moai-adk/releases) page.
+> Prebuilt binaries are available on the [Releases](https://github.com/Epsilondelta-ai/moai-adk/releases) page.
 
 ### 2. Windows-Specific Issues
 
@@ -1352,13 +1352,13 @@ Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed g
 
 ### Community
 
-- [Issues](https://github.com/modu-ai/moai-adk/issues) -- Bug reports, feature requests
+- [Issues](https://github.com/Epsilondelta-ai/moai-adk/issues) -- Bug reports, feature requests
 
 ---
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=modu-ai/moai-adk&type=date&legend=top-left)](https://www.star-history.com/#modu-ai/moai-adk&type=date&legend=top-left)
+[![Star History Chart](https://api.star-history.com/svg?repos=Epsilondelta-ai/moai-adk&type=date&legend=top-left)](https://www.star-history.com/#Epsilondelta-ai/moai-adk&type=date&legend=top-left)
 
 ---
 

@@ -71,7 +71,7 @@ detect_platform() {
 
 # Get latest Go edition version from GitHub
 get_latest_version() {
-    local version_url="https://api.github.com/repos/modu-ai/moai-adk/releases"
+    local version_url="https://api.github.com/repos/Epsilondelta-ai/moai-adk/releases"
 
     if command -v curl &> /dev/null; then
         # Try go-v* tags first, then fall back to v* tags
@@ -87,7 +87,7 @@ get_latest_version() {
         print_error "Failed to fetch latest Go edition version from GitHub"
         print_info "No releases found. You can:"
         echo "  1. Install a specific version: $0 --version 2.0.0"
-        echo "  2. Install from source: go install github.com/modu-ai/moai-adk/cmd/moai@latest"
+        echo "  2. Install from source: go install github.com/Epsilondelta-ai/moai-adk/cmd/moai@latest"
         exit 1
     fi
 
@@ -111,8 +111,8 @@ download_binary() {
 
     # Build archive filename matching goreleaser format
     local archive_name="moai-adk_${version}_${os}_${arch}.${ext}"
-    local download_url="https://github.com/modu-ai/moai-adk/releases/download/v${version}/${archive_name}"
-    local checksum_url="https://github.com/modu-ai/moai-adk/releases/download/v${version}/checksums.txt"
+    local download_url="https://github.com/Epsilondelta-ai/moai-adk/releases/download/v${version}/${archive_name}"
+    local checksum_url="https://github.com/Epsilondelta-ai/moai-adk/releases/download/v${version}/checksums.txt"
 
     # Create temp directory
     TMP_DIR=$(mktemp -d)
@@ -345,7 +345,7 @@ main() {
     echo ""
     print_success "Installation complete!"
     echo ""
-    print_info "Documentation: https://github.com/modu-ai/moai-adk"
+    print_info "Documentation: https://github.com/Epsilondelta-ai/moai-adk"
 }
 
 # Run main function

@@ -55,7 +55,7 @@ if "%VERSION%"=="" (
     echo [INFO] Fetching latest Go edition version from GitHub...
 
     REM Use PowerShell to get latest version (accept both v* and go-v* tags)
-    for /f "tokens=*" %%i in ('powershell -Command "$releases = Invoke-RestMethod -Uri https://api.github.com/repos/modu-ai/moai-adk/releases; $goRelease = $releases ^| Where-Object { $_.tag_name -like 'v*' -or $_.tag_name -like 'go-v*' } ^| Select-Object -First 1; if ($goRelease) { $goRelease.tag_name -replace '^go-v', '' -replace '^v', '' } else { '' }" 2^>nul') do (
+    for /f "tokens=*" %%i in ('powershell -Command "$releases = Invoke-RestMethod -Uri https://api.github.com/repos/Epsilondelta-ai/moai-adk/releases; $goRelease = $releases ^| Where-Object { $_.tag_name -like 'v*' -or $_.tag_name -like 'go-v*' } ^| Select-Object -First 1; if ($goRelease) { $goRelease.tag_name -replace '^go-v', '' -replace '^v', '' } else { '' }" 2^>nul') do (
         set "VERSION=%%i"
     )
 
@@ -63,7 +63,7 @@ if "%VERSION%"=="" (
         echo [ERROR] Failed to fetch latest version
         echo [INFO] No releases found. You can:
         echo   1. Install a specific version: install.bat --version 2.0.0
-        echo   2. Install from source: go install github.com/modu-ai/moai-adk/cmd/moai@latest
+        echo   2. Install from source: go install github.com/Epsilondelta-ai/moai-adk/cmd/moai@latest
         exit /b 1
     )
 )
@@ -75,9 +75,9 @@ if not exist "%TEMP_DIR%" mkdir "%TEMP_DIR%"
 
 REM Build archive filename matching goreleaser format
 set "ARCHIVE_NAME=moai-adk_!VERSION!_%OS%_%ARCH%.zip"
-set "DOWNLOAD_URL=https://github.com/modu-ai/moai-adk/releases/download/v!VERSION!/!ARCHIVE_NAME!"
+set "DOWNLOAD_URL=https://github.com/Epsilondelta-ai/moai-adk/releases/download/v!VERSION!/!ARCHIVE_NAME!"
 set "ARCHIVE_FILE=%TEMP_DIR%\!ARCHIVE_NAME!"
-set "CHECKSUM_URL=https://github.com/modu-ai/moai-adk/releases/download/v!VERSION!/checksums.txt"
+set "CHECKSUM_URL=https://github.com/Epsilondelta-ai/moai-adk/releases/download/v!VERSION!/checksums.txt"
 set "CHECKSUM_FILE=%TEMP_DIR%\checksums.txt"
 
 echo [INFO] Downloading from: !DOWNLOAD_URL!
@@ -164,7 +164,7 @@ echo     moai init          # Initialize a new project
 echo     moai doctor        # Check system health
 echo     moai update --project # Update project templates
 echo.
-echo Documentation: https://github.com/modu-ai/moai-adk
+echo Documentation: https://github.com/Epsilondelta-ai/moai-adk
 goto :eof
 
 :show_help

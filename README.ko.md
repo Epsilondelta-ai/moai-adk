@@ -16,12 +16,12 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/modu-ai/moai-adk/actions/workflows/ci.yml"><img src="https://github.com/modu-ai/moai-adk/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/modu-ai/moai-adk/actions/workflows/codeql.yml"><img src="https://github.com/modu-ai/moai-adk/actions/workflows/codeql.yml/badge.svg" alt="CodeQL"></a>
-  <a href="https://codecov.io/gh/modu-ai/moai-adk"><img src="https://codecov.io/gh/modu-ai/moai-adk/branch/main/graph/badge.svg" alt="Codecov"></a>
+  <a href="https://github.com/Epsilondelta-ai/moai-adk/actions/workflows/ci.yml"><img src="https://github.com/Epsilondelta-ai/moai-adk/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/Epsilondelta-ai/moai-adk/actions/workflows/codeql.yml"><img src="https://github.com/Epsilondelta-ai/moai-adk/actions/workflows/codeql.yml/badge.svg" alt="CodeQL"></a>
+  <a href="https://codecov.io/gh/Epsilondelta-ai/moai-adk"><img src="https://codecov.io/gh/Epsilondelta-ai/moai-adk/branch/main/graph/badge.svg" alt="Codecov"></a>
   <br>
   <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.26+-00ADD8?style=flat&logo=go&logoColor=white" alt="Go"></a>
-  <a href="https://github.com/modu-ai/moai-adk/releases"><img src="https://img.shields.io/github/v/release/modu-ai/moai-adk?sort=semver" alt="Release"></a>
+  <a href="https://github.com/Epsilondelta-ai/moai-adk/releases"><img src="https://img.shields.io/github/v/release/Epsilondelta-ai/moai-adk?sort=semver" alt="Release"></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-blue.svg" alt="License: Apache-2.0"></a>
 </p>
 
@@ -155,7 +155,7 @@ MoAI-ADK는 **하네스 엔지니어링(Harness Engineering)** 패러다임을 �
 #### macOS / Linux / WSL
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/modu-ai/moai-adk/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Epsilondelta-ai/moai-adk/main/install.sh | bash
 ```
 
 #### Windows (PowerShell 7.x+)
@@ -163,7 +163,7 @@ curl -fsSL https://raw.githubusercontent.com/modu-ai/moai-adk/main/install.sh | 
 > **권장**: 최상의 경험을 위해 WSL에서 위의 Linux 설치 명령어를 사용하세요.
 
 ```powershell
-irm https://raw.githubusercontent.com/modu-ai/moai-adk/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/Epsilondelta-ai/moai-adk/main/install.ps1 | iex
 ```
 
 > [Git for Windows](https://gitforwindows.org/)가 먼저 설치되어 있어야 합니다.
@@ -171,11 +171,11 @@ irm https://raw.githubusercontent.com/modu-ai/moai-adk/main/install.ps1 | iex
 #### 소스에서 빌드 (Go 1.26+)
 
 ```bash
-git clone https://github.com/modu-ai/moai-adk.git
+git clone https://github.com/Epsilondelta-ai/moai-adk.git
 cd moai-adk && make build
 ```
 
-> 프리빌트 바이너리는 [Releases](https://github.com/modu-ai/moai-adk/releases) 페이지에서 다운로드할 수 있습니다.
+> 프리빌트 바이너리는 [Releases](https://github.com/Epsilondelta-ai/moai-adk/releases) 페이지에서 다운로드할 수 있습니다.
 
 ### 2. Windows 특정 이슈
 
@@ -1399,13 +1399,13 @@ External imports:
 
 ### 커뮤니티
 
-- [Issues](https://github.com/modu-ai/moai-adk/issues) — 버그 리포트, 기능 요청
+- [Issues](https://github.com/Epsilondelta-ai/moai-adk/issues) — 버그 리포트, 기능 요청
 
 ---
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=modu-ai/moai-adk&type=date&legend=top-left)](https://www.star-history.com/#modu-ai/moai-adk&type=date&legend=top-left)
+[![Star History Chart](https://api.star-history.com/svg?repos=Epsilondelta-ai/moai-adk&type=date&legend=top-left)](https://www.star-history.com/#Epsilondelta-ai/moai-adk&type=date&legend=top-left)
 
 ---
 
