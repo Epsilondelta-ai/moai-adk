@@ -105,7 +105,7 @@ function Get-Platform {
     # Validate detection result
     if (-not $detectedArch) {
         Print-Error "Failed to detect system architecture through all detection methods"
-        Print-Error "Please report this issue at: https://github.com/modu-ai/moai-adk/issues"
+        Print-Error "Please report this issue at: https://github.com/Epsilondelta-ai/moai-adk/issues"
         Print-Info "System information:"
         Write-Host "  - ARCHITEW6432: $env:ARCHITEW6432" -ForegroundColor Gray
         Write-Host "  - PROCESSOR_ARCHITECTURE: $env:PROCESSOR_ARCHITECTURE" -ForegroundColor Gray
@@ -136,7 +136,7 @@ function Get-Platform {
 
 # Get latest Go edition version
 function Get-LatestVersion {
-    $versionUrl = "https://api.github.com/repos/modu-ai/moai-adk/releases"
+    $versionUrl = "https://api.github.com/repos/Epsilondelta-ai/moai-adk/releases"
 
     try {
         $response = Invoke-RestMethod -Uri $versionUrl -Method Get
@@ -147,7 +147,7 @@ function Get-LatestVersion {
             Print-Error "No releases found"
             Print-Info "You can:"
             Write-Host "  1. Install a specific version: .\install.ps1 -version 2.0.0"
-            Write-Host "  2. Install from source: go install github.com/modu-ai/moai-adk/cmd/moai@latest"
+            Write-Host "  2. Install from source: go install github.com/Epsilondelta-ai/moai-adk/cmd/moai@latest"
             exit 1
         }
 
@@ -175,8 +175,8 @@ function Download-Binary {
 
     # Build archive filename matching goreleaser format
     $archiveName = "moai-adk_${Version}_${os}_${arch}.zip"
-    $downloadUrl = "https://github.com/modu-ai/moai-adk/releases/download/v$Version/$archiveName"
-    $checksumUrl = "https://github.com/modu-ai/moai-adk/releases/download/v$Version/checksums.txt"
+    $downloadUrl = "https://github.com/Epsilondelta-ai/moai-adk/releases/download/v$Version/$archiveName"
+    $checksumUrl = "https://github.com/Epsilondelta-ai/moai-adk/releases/download/v$Version/checksums.txt"
 
     # Use cross-platform temp directory
     $tmpBase = ([System.IO.Path]::GetTempPath())
@@ -434,7 +434,7 @@ function Main {
     Write-Host ""
     Print-Success "Installation complete!"
     Write-Host ""
-    Print-Info "Documentation: https://github.com/modu-ai/moai-adk"
+    Print-Info "Documentation: https://github.com/Epsilondelta-ai/moai-adk"
 }
 
 # Run main function with script arguments

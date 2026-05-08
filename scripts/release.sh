@@ -142,7 +142,7 @@ if [[ "$SKIP_CI_CHECK" != true ]]; then
         CI_STATE="$(gh pr list --head "$CURRENT_BRANCH" --state merged --limit 1 --json number --jq '.[0].number // ""' 2>/dev/null || echo "")"
 
         # 직접 HEAD commit의 check suite 상태 조회 (main push 이후 CI)
-        HEAD_CHECKS="$(gh api "/repos/modu-ai/moai-adk/commits/$LOCAL_SHA/status" --jq '.state' 2>/dev/null || echo "unknown")"
+        HEAD_CHECKS="$(gh api "/repos/Epsilondelta-ai/moai-adk/commits/$LOCAL_SHA/status" --jq '.state' 2>/dev/null || echo "unknown")"
 
         case "$HEAD_CHECKS" in
             success)
@@ -230,7 +230,7 @@ log_ok "Tag pushed to origin"
 # ─── Wait for GoReleaser workflow ──────────────────────────────────────────
 if command -v gh >/dev/null 2>&1; then
     log_info "Monitoring GoReleaser workflow..."
-    echo "  → https://github.com/modu-ai/moai-adk/actions"
+    echo "  → https://github.com/Epsilondelta-ai/moai-adk/actions"
     echo
     sleep 5 # Allow workflow dispatch to register
 
@@ -260,7 +260,7 @@ if command -v gh >/dev/null 2>&1; then
 
     # Verify GitHub Release exists
     if gh release view "$VERSION" >/dev/null 2>&1; then
-        RELEASE_URL="https://github.com/modu-ai/moai-adk/releases/tag/$VERSION"
+        RELEASE_URL="https://github.com/Epsilondelta-ai/moai-adk/releases/tag/$VERSION"
         log_ok "GitHub Release available: $RELEASE_URL"
     else
         log_warn "GitHub Release for $VERSION not found yet (may take additional time)"

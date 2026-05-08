@@ -18,7 +18,7 @@ import (
 )
 
 // installScriptURL is the URL for the moai-adk installation script.
-const installScriptURL = "https://raw.githubusercontent.com/modu-ai/moai-adk/main/install.sh"
+const installScriptURL = "https://raw.githubusercontent.com/Epsilondelta-ai/moai-adk/main/install.sh"
 
 // updaterImpl is the concrete implementation of Updater.
 type updaterImpl struct {

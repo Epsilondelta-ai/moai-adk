@@ -29,7 +29,7 @@ import (
 
 const (
 	// githubReleasesURL is the GitHub API endpoint for moai-adk releases.
-	githubReleasesURL = "https://api.github.com/repos/modu-ai/moai-adk/releases"
+	githubReleasesURL = "https://api.github.com/repos/Epsilondelta-ai/moai-adk/releases"
 	// githubLatestReleaseURL is the GitHub API endpoint for the latest moai-adk release.
 	githubLatestReleaseURL = githubReleasesURL + "/latest"
 )
