@@ -54,11 +54,12 @@ func TestRunInit(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// default execution requires an interactive TTY for the wizard
-			if len(tt.args) == 0 {
-				if _, err := os.OpenFile("/dev/tty", os.O_RDONLY, 0); err != nil {
-					t.Skip("skipping: no TTY available (CI environment)")
-				}
+			// default execution launches the Bubble Tea wizard and waits for keyboard input.
+			// A process may have /dev/tty available during local `go test`, so checking for
+			// TTY existence is not enough and can hang the whole package until timeout.
+			// Run this manually only when explicitly requested.
+			if len(tt.args) == 0 && os.Getenv("MOAI_RUN_INTERACTIVE_TESTS") != "1" {
+				t.Skip("skipping interactive wizard test; set MOAI_RUN_INTERACTIVE_TESTS=1 to run manually")
 			}
 
 			cmd := newInitCmd()

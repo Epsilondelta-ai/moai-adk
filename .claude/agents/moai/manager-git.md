@@ -90,9 +90,9 @@ SPEC/Phase tracking: `SPEC: SPEC-XXX-NNN` and `Phase: [PLAN|RUN-*|SYNC|FIX|LOOP]
 
 ```
 https://adk.mo.ai.kr
-
-Co-Authored-By: Claude <noreply@anthropic.com>
 ```
+
+[HARD] AI co-author attribution MUST NOT be hardcoded. If the runtime provides an explicit assistant identity, append `Co-Authored-By: {assistant_name} <{assistant_email}>`. If the identity is unknown or provider-specific attribution is not configured, omit the AI co-author trailer.
 
 ## Branch Management
 

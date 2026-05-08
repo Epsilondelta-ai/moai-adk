@@ -250,7 +250,7 @@ fix(scope): description
 
 Fixes #{issue_number}
 
-Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+# Optional: Co-Authored-By: {assistant_name} <{assistant_email}>
 ```
 
 ## Issues Phase 4: Create PR
