@@ -62,6 +62,14 @@ export function getQuotaDiagnostics(): string {
 
 export function updateQuotaFromHeaders(headers: unknown, ctx: ExtensionContext): void {
 	const normalized = normalizeHeaders(headers);
+	const codexShortQuota = quotaFromUsedPercent(normalized, [
+		"x-codex-primary-used-percent",
+		"x-codex-bengalfox-primary-used-percent",
+	]);
+	const codexWeeklyQuota = quotaFromUsedPercent(normalized, [
+		"x-codex-secondary-used-percent",
+		"x-codex-bengalfox-secondary-used-percent",
+	]);
 	const tokenQuota = quotaFromLimitRemaining(normalized, [
 		["anthropic-ratelimit-tokens-limit", "anthropic-ratelimit-tokens-remaining"],
 		["x-ratelimit-limit-tokens", "x-ratelimit-remaining-tokens"],
@@ -73,12 +81,12 @@ export function updateQuotaFromHeaders(headers: unknown, ctx: ExtensionContext):
 		["x-ratelimit-limit-requests", "x-ratelimit-remaining-requests"],
 		["x-ms-ratelimit-limit-requests", "x-ms-ratelimit-remaining-requests"],
 	]);
-	const weeklyQuota = quotaFromLimitRemaining(normalized, [
+	const weeklyQuota = codexWeeklyQuota ?? quotaFromLimitRemaining(normalized, [
 		["x-ratelimit-limit-tokens-7d", "x-ratelimit-remaining-tokens-7d"],
 		["x-ratelimit-limit-7d", "x-ratelimit-remaining-7d"],
 		["x-weekly-ratelimit-limit", "x-weekly-ratelimit-remaining"],
 	]);
-	const shortQuota = tokenQuota ?? requestQuota;
+	const shortQuota = codexShortQuota ?? tokenQuota ?? requestQuota;
 	const resetAt = resetFromHeaders(normalized);
 	const headerKeys = Object.keys(normalized).sort();
 	const source = shortQuota || weeklyQuota
@@ -174,7 +182,9 @@ function normalizeHeaders(headers: unknown): Record<string, string> {
 	return normalized;
 }
 
-function quotaFromLimitRemaining(headers: Record<string, string>, pairs: Array<[string, string]>): { percent: number; label: string } | undefined {
+type QuotaReading = { percent: number; label?: string };
+
+function quotaFromLimitRemaining(headers: Record<string, string>, pairs: Array<[string, string]>): QuotaReading | undefined {
 	for (const [limitKey, remainingKey] of pairs) {
 		const limit = numberHeader(headers, limitKey);
 		const remaining = numberHeader(headers, remainingKey);
@@ -184,6 +194,14 @@ function quotaFromLimitRemaining(headers: Record<string, string>, pairs: Array<[
 				label: `${formatQuotaNumber(remaining)}/${formatQuotaNumber(limit)}`,
 			};
 		}
+	}
+	return undefined;
+}
+
+function quotaFromUsedPercent(headers: Record<string, string>, keys: string[]): QuotaReading | undefined {
+	for (const key of keys) {
+		const used = numberHeader(headers, key);
+		if (used !== undefined) return { percent: clamp(Math.round(used)) };
 	}
 	return undefined;
 }
