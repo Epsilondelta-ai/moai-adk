@@ -12,6 +12,7 @@ import {
   hookBridgeStatus,
 } from "./hook-bridge.ts";
 import { teamRuntimeStatus } from "./team-runtime.ts";
+import { loadMoaiCompatConfig, outputStyleStatus } from "./config.ts";
 
 function exists(path: string): boolean {
   return existsSync(resolve(process.cwd(), path));
@@ -91,6 +92,7 @@ function hookParityReport(): string[] {
 
 export function buildDoctorReport(): string[] {
   const packages = configuredPackages();
+  const config = loadMoaiCompatConfig();
   const packageFindings = formatFindings(analyzePackageConflicts(packages));
 
   return [
@@ -105,6 +107,7 @@ export function buildDoctorReport(): string[] {
     "ok: permissionMode excluded-by-design; metadata only",
     getSkillIndexStatus(),
     ...getAgentConversionStatus(),
+    ...outputStyleStatus(config),
     hookBridgeStatus(),
     ...hookParityReport(),
     teamRuntimeStatus(),

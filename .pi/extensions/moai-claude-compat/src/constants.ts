@@ -2,8 +2,10 @@ export const EXTENSION_ID = "moai-claude-compat";
 export const STATUS_ID = "moai-status";
 export const WIDGET_ID = "moai-dashboard";
 
+export const PI_ROOT_PATH = ".pi";
 export const SOURCE_MAP_PATH = ".pi/claude-compat/source-map.json";
 export const TOOL_ALIASES_PATH = ".pi/claude-compat/tool-aliases.json";
+export const OUTPUT_STYLES_CONFIG_PATH = ".pi/claude-compat/output-styles.json";
 export const PI_SOURCE_ROOT = ".pi/generated/source";
 export const PI_SKILLS_SOURCE_PATH = `${PI_SOURCE_ROOT}/skills`;
 export const PI_COMMANDS_SOURCE_PATH = `${PI_SOURCE_ROOT}/commands`;

@@ -1,14 +1,28 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { buildCoreInstruction, loadMoaiCompatConfig } from "./src/config.ts";
+import { buildCoreInstruction, loadMoaiCompatConfig, type OutputStyleConfig } from "./src/config.ts";
 import { registerCommands } from "./src/command-router.ts";
 import { EXTENSION_ID, PI_RULES_SOURCE_PATH } from "./src/constants.ts";
 import { NON_BLOCKING_HOOK_BRIDGE_POLICY, runMoaiHook } from "./src/hook-bridge.ts";
 import { updateMoaiStatus } from "./src/statusline.ts";
 import { buildSkillTriggerHints } from "./src/trigger-indexer.ts";
 
+function buildCompactOutputStyleInstruction(outputStyle: OutputStyleConfig): string {
+  return [
+    `MoAI output style '${outputStyle.name}' is active at prompt level.`,
+    "Follow concise, professional, transparent, language-aware Markdown.",
+    "Use MoAI status/summary formatting only when it improves clarity.",
+    "Never display internal completion markers or XML tags in user-facing responses.",
+    outputStyle.loaded ? `Style source: ${outputStyle.sourcePath}` : `Style source unavailable: ${outputStyle.error ?? "unknown"}`,
+  ].join("\n");
+}
+
 export default function moaiClaudeCompat(pi: ExtensionAPI) {
   const config = loadMoaiCompatConfig();
   const coreInstruction = buildCoreInstruction(config);
+  const outputStyleInstruction = buildCompactOutputStyleInstruction(config.outputStyle);
+  const baseAdditionalContext = [coreInstruction, outputStyleInstruction]
+    .filter(Boolean)
+    .join("\n\n");
 
   registerCommands(pi, config);
 
@@ -32,6 +46,12 @@ export default function moaiClaudeCompat(pi: ExtensionAPI) {
       qualityMode: config.qualityMode,
       permissionMode: "excluded-by-design",
       hookBridgePolicy: NON_BLOCKING_HOOK_BRIDGE_POLICY,
+      outputStyle: {
+        name: config.outputStyle.name,
+        loaded: config.outputStyle.loaded,
+        sanitized: config.outputStyle.sanitized,
+        enforcement: config.outputStyle.enforcement,
+      },
     });
   });
 
@@ -64,9 +84,8 @@ export default function moaiClaudeCompat(pi: ExtensionAPI) {
     hints.push(...buildSkillTriggerHints(text));
     if (hookResult.stdout.trim()) hints.push(`MoAI user-prompt hook output: ${hookResult.stdout.trim()}`);
 
-    if (hints.length === 0) return;
     return {
-      additionalContext: [coreInstruction, ...hints].join("\n"),
+      additionalContext: [baseAdditionalContext, ...hints].filter(Boolean).join("\n"),
     };
   });
 
