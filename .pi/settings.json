@@ -15,6 +15,11 @@
     "npm:pi-yaml-hooks@2026.5.8"
   ],
   "moaiCompat": {
+    "autoRoute": {
+      "enabled": true,
+      "mode": "all-natural-language",
+      "excludePrefixes": ["/", "!", "!!"]
+    },
     "packageActivationPolicy": "Activated only the verified minimal runtime set. Do not activate the remaining candidate packages until their spike and conflict check pass.",
     "coreCandidates": [
       "pi-subagents@0.24.0",

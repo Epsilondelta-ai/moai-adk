@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { buildCoreInstruction, loadMoaiCompatConfig, type MoaiRulesConfig } from "./src/config.ts";
 import { registerCommands } from "./src/command-router.ts";
@@ -18,6 +20,47 @@ function buildCompactRulesInstruction(rules: MoaiRulesConfig): string {
   return rules.loaded
     ? rules.guidance
     : [rules.guidance, `Rules status warning: ${rules.error ?? "rules snapshot incomplete"}`].join("\n");
+}
+
+interface AutoRouteConfig {
+  enabled: boolean;
+  mode: "all-natural-language" | "moai-keyword-only";
+  excludePrefixes: string[];
+}
+
+function loadAutoRouteConfig(): AutoRouteConfig {
+  const fallback: AutoRouteConfig = { enabled: false, mode: "all-natural-language", excludePrefixes: ["/", "!", "!!"] };
+  try {
+    const path = resolve(process.cwd(), ".pi/settings.json");
+    if (!existsSync(path)) return fallback;
+    const parsed = JSON.parse(readFileSync(path, "utf8")) as { moaiCompat?: { autoRoute?: Partial<AutoRouteConfig> } };
+    const autoRoute = parsed.moaiCompat?.autoRoute;
+    return {
+      enabled: autoRoute?.enabled === true,
+      mode: autoRoute?.mode === "moai-keyword-only" ? "moai-keyword-only" : "all-natural-language",
+      excludePrefixes: Array.isArray(autoRoute?.excludePrefixes)
+        ? autoRoute.excludePrefixes.filter((value): value is string => typeof value === "string")
+        : fallback.excludePrefixes,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+function shouldAutoRouteToMoai(text: string, source: unknown): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+  if (source === "extension") return false;
+  if (/^Use\s+Skill\(["']moai["']\)/i.test(trimmed)) return false;
+  const autoRoute = loadAutoRouteConfig();
+  if (!autoRoute.enabled) return false;
+  if (autoRoute.excludePrefixes.some((prefix) => prefix && trimmed.startsWith(prefix))) return false;
+  if (autoRoute.mode === "moai-keyword-only" && !isMoaiRelatedInput(trimmed)) return false;
+  return true;
+}
+
+function buildMoaiAutoRoutePrompt(text: string): string {
+  return `Use Skill("moai") with arguments: ${text.trim()}`;
 }
 
 export default function moaiClaudeCompat(pi: ExtensionAPI) {
@@ -109,8 +152,9 @@ export default function moaiClaudeCompat(pi: ExtensionAPI) {
     if (!text.trim()) return { action: "continue" };
 
     const hookResult = await invokeHook("user-prompt-submit", { hook_event_name: "UserPromptSubmit", prompt: text, event, cwd: ctx.cwd }, ctx);
-    pendingPromptContext = { prompt: text, context: buildPromptHints(text, hookResult.stdout) };
-    return { action: "continue" };
+    const routedText = shouldAutoRouteToMoai(text, event.source) ? buildMoaiAutoRoutePrompt(text) : text;
+    pendingPromptContext = { prompt: routedText, context: buildPromptHints(text, hookResult.stdout) };
+    return routedText === text ? { action: "continue" } : { action: "transform", text: routedText };
   });
 
   pi.on("before_agent_start", async (event) => {
