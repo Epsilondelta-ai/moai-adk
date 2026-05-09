@@ -9,9 +9,12 @@
     "context-mode": "^1.0.111",
     "pi-docparser": "^1.1.1",
     "pi-markdown-preview": "^0.9.8",
-    "pi-mcp-adapter": "^2.5.4",
+    "pi-mcp-adapter": "2.4.2",
     "pi-subagents": "^0.24.0",
     "pi-web-access": "^0.10.7",
     "pi-yaml-hooks": "^2026.5.8"
+  },
+  "overrides": {
+    "@mozilla/readability": "0.6.0"
   }
 }
