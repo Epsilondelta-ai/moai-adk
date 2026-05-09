@@ -31,6 +31,7 @@ import (
 	"github.com/modu-ai/moai-adk/internal/shell"
 	"github.com/modu-ai/moai-adk/internal/statusline"
 	"github.com/modu-ai/moai-adk/internal/template"
+	"github.com/modu-ai/moai-adk/internal/tui"
 	"github.com/modu-ai/moai-adk/pkg/version"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -41,14 +42,18 @@ const (
 	maxConfigSize = 10 * 1024 * 1024 // 10MB
 )
 
-// CLI output styles for consistent MoAI-themed terminal output.
+// CLI output styles sourced from tui.LightTheme/DarkTheme — single source of truth.
+// AC-CLI-TUI-013: no hex literals outside internal/tui/. M4-S4d cleanup uses
+// AdaptiveColor with tui.LightTheme()/DarkTheme() values evaluated at package init.
+// cliPrimary now resolves to tui.Accent (deep teal) replacing the deprecated
+// terra cotta accent — brand consistency restored per M3 banner.go.
 var (
-	cliSuccess = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#059669", Dark: "#10B981"})
-	cliWarn    = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#D97706", Dark: "#F59E0B"})
-	cliError   = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#DC2626", Dark: "#EF4444"})
-	cliMuted   = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#9CA3AF", Dark: "#6B7280"})
-	cliPrimary = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#C45A3C", Dark: "#DA7756"})
-	cliBorder  = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#D1D5DB", Dark: "#4B5563"})
+	cliSuccess = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: tui.LightTheme().Success, Dark: tui.DarkTheme().Success})
+	cliWarn    = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: tui.LightTheme().Warning, Dark: tui.DarkTheme().Warning})
+	cliError   = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: tui.LightTheme().Danger, Dark: tui.DarkTheme().Danger})
+	cliMuted   = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: tui.LightTheme().Dim, Dark: tui.DarkTheme().Dim})
+	cliPrimary = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: tui.LightTheme().Accent, Dark: tui.DarkTheme().Accent})
+	cliBorder  = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: tui.LightTheme().Rule, Dark: tui.DarkTheme().Rule})
 )
 
 func symSuccess() string  { return cliSuccess.Render("\u2713") }
@@ -86,6 +91,11 @@ func init() {
 
 // @MX:ANCHOR: [AUTO] runUpdate orchestrates binary update and template synchronization
 // @MX:REASON: [AUTO] fan_in=3, called from update.go init(), coverage_test.go, remaining_coverage_test.go
+// @MX:NOTE: [AUTO] M4-S4d-1 DDD 마이그레이션 — 18개 print site를 tui primitives로 변환.
+// 패턴: tui.KV (Current/Latest/New version), tui.CheckLine (warn/run/err 상태), tui.Pill
+// (Binary updated · Already up to date · Skipped 등 final outcome). 본문 보존, 외부 caller
+// 무영향. 디자인 소스: screens.jsx ScreenUpdate (M4-S4a~c IMPROVE 패턴 mirror).
+//
 // runUpdate checks for binary updates first, then synchronizes embedded
 // templates with the project directory. If a newer binary is installed,
 // the process re-execs itself so the latest templates are used.
@@ -106,6 +116,7 @@ func runUpdate(cmd *cobra.Command, _ []string) error {
 	binaryOnly := getBoolFlag(cmd, "binary")
 	templatesOnly := getBoolFlag(cmd, "templates-only")
 	out := cmd.OutOrStdout()
+	th := resolveTheme()
 
 	// Validate mutually exclusive flags
 	if binaryOnly && templatesOnly {
@@ -137,7 +148,7 @@ func runUpdate(cmd *cobra.Command, _ []string) error {
 	}
 
 	currentVersion := version.GetVersion()
-	_, _ = fmt.Fprintf(out, "Current version: moai-adk %s\n", currentVersion)
+	_, _ = fmt.Fprintln(out, tui.KV("Current version", "moai-adk "+currentVersion, tui.KVOpts{Theme: &th, KeyWidth: 16}))
 
 	// Handle shell-env mode
 	if shellEnv {
@@ -154,7 +165,7 @@ func runUpdate(cmd *cobra.Command, _ []string) error {
 		}
 
 		if deps == nil || deps.UpdateChecker == nil {
-			_, _ = fmt.Fprintln(out, "Update checker not available. Using current version.")
+			_, _ = fmt.Fprintln(out, tui.CheckLine("warn", "Update checker", "not available", "using current version", &th))
 			return nil
 		}
 
@@ -165,8 +176,9 @@ func runUpdate(cmd *cobra.Command, _ []string) error {
 		if err != nil {
 			return fmt.Errorf("check latest version: %w", err)
 		}
-		_, _ = fmt.Fprintf(out, "Latest version:  %s\n", info.Version)
-		_, _ = fmt.Fprintln(out, "\nNote: Binary updates happen automatically at session start.")
+		_, _ = fmt.Fprintln(out, tui.KV("Latest version", info.Version, tui.KVOpts{Theme: &th, KeyWidth: 16}))
+		_, _ = fmt.Fprintln(out)
+		_, _ = fmt.Fprintln(out, tui.CheckLine("info", "Note", "Binary updates happen automatically at session start", "", &th))
 		return nil
 	}
 
@@ -175,30 +187,30 @@ func runUpdate(cmd *cobra.Command, _ []string) error {
 		updated, err := runBinaryUpdateStep(cmd)
 		if err != nil {
 			// Binary update failure is never fatal; warn and continue
-			_, _ = fmt.Fprintf(out, "Warning: binary update check failed: %v\n", err)
+			_, _ = fmt.Fprintln(out, tui.CheckLine("warn", "Binary update", "check failed", err.Error(), &th))
 		}
 		if updated {
 			if binaryOnly {
 				// --binary mode: skip re-exec and template sync
-				_, _ = fmt.Fprintln(out, "Binary updated successfully (template sync skipped).")
+				_, _ = fmt.Fprintln(out, tui.Pill(tui.PillOpts{Kind: tui.PillOk, Solid: false, Label: "Binary updated (template sync skipped)", Theme: &th}))
 				return nil
 			}
 			// New binary installed; re-exec so the latest templates are used
 			if err := reexecNewBinary(); err != nil {
-				_, _ = fmt.Fprintf(out, "Warning: failed to re-exec new binary: %v\n", err)
+				_, _ = fmt.Fprintln(out, tui.CheckLine("warn", "Re-exec", "failed", err.Error(), &th))
 				// Fall through to template sync with the current binary
 			}
 			// reexecNewBinary replaces the process on success, so we only
 			// reach here if it failed.
 		} else if binaryOnly {
-			_, _ = fmt.Fprintln(out, "Already up to date (no newer binary available).")
+			_, _ = fmt.Fprintln(out, tui.Pill(tui.PillOpts{Kind: tui.PillInfo, Solid: false, Label: "Already up to date", Theme: &th}))
 			return nil
 		}
 	}
 
 	// Step 2: Template sync (skipped when --binary is set)
 	if binaryOnly {
-		_, _ = fmt.Fprintln(out, "Binary update skipped (dev build). Template sync skipped (--binary).")
+		_, _ = fmt.Fprintln(out, tui.Pill(tui.PillOpts{Kind: tui.PillNeutral, Solid: false, Label: "Skipped (dev build, --binary)", Theme: &th}))
 		return nil
 	}
 
@@ -223,20 +235,20 @@ func runUpdate(cmd *cobra.Command, _ []string) error {
 			return fmt.Errorf("get working directory for archive: %w", err)
 		}
 		if _, archiveErr := archiveLegacySkills(cwd, out); archiveErr != nil {
-			_, _ = fmt.Fprintf(out, "Warning: legacy skill archive failed: %v\n", archiveErr)
+			_, _ = fmt.Fprintln(out, tui.CheckLine("warn", "Legacy skill archive", "failed", archiveErr.Error(), &th))
 		}
 	}
 
 	// Ensure .moai/evolution/ directory tree exists for existing projects
 	// that predate the evolution infrastructure (R2: Directory Scaffolding).
 	if err := scaffoldEvolutionDir("."); err != nil {
-		_, _ = fmt.Fprintf(out, "  Warning: failed to scaffold evolution directory: %v\n", err)
+		_, _ = fmt.Fprintln(out, tui.CheckLine("warn", "Evolution dir", "scaffold failed", err.Error(), &th))
 	}
 
 	// Sync .moai/design/ templates (REQ-005, REQ-008).
 	// Preserves user-modified files (SHA-256 mismatch) and rejects reserved filename collisions.
 	if err := updateDesignDir(".", out); err != nil {
-		_, _ = fmt.Fprintf(out, "  Error: .moai/design/ update: %v\n", err)
+		_, _ = fmt.Fprintln(out, tui.CheckLine("err", ".moai/design/ update", "failed", err.Error(), &th))
 		return err
 	}
 
@@ -244,10 +256,10 @@ func runUpdate(cmd *cobra.Command, _ []string) error {
 	profileName := profile.GetCurrentName()
 	prefs, err := profile.ReadPreferences(profileName)
 	if err != nil {
-		_, _ = fmt.Fprintf(out, "Warning: failed to read profile preferences: %v\n", err)
+		_, _ = fmt.Fprintln(out, tui.CheckLine("warn", "Profile preferences", "read failed", err.Error(), &th))
 	} else {
 		if err := profile.SyncToProjectConfig(".", prefs); err != nil {
-			_, _ = fmt.Fprintf(out, "Warning: failed to sync profile to project config: %v\n", err)
+			_, _ = fmt.Fprintln(out, tui.CheckLine("warn", "Profile sync", "failed", err.Error(), &th))
 		}
 	}
 
@@ -281,6 +293,9 @@ func shouldSkipBinaryUpdate(cmd *cobra.Command) bool {
 	return false
 }
 
+// @MX:NOTE: [AUTO] runBinaryUpdateStep — M4-S4d-1 DDD 마이그레이션. New version 알림은
+// tui.KV 두 줄(New / Current), 진행 상태는 tui.CheckLine "run", 결과는 tui.Pill PillOk.
+//
 // runBinaryUpdateStep checks whether a newer moai binary is available and,
 // if so, downloads and installs it. The caller should re-exec the process
 // when updated is true.
@@ -289,6 +304,7 @@ func shouldSkipBinaryUpdate(cmd *cobra.Command) bool {
 // continue with the original operation (template sync or init).
 func runBinaryUpdateStep(cmd *cobra.Command) (updated bool, err error) {
 	out := cmd.OutOrStdout()
+	th := resolveTheme()
 
 	// Lazily initialise update dependencies
 	if deps != nil {
@@ -312,8 +328,9 @@ func runBinaryUpdateStep(cmd *cobra.Command) (updated bool, err error) {
 		return false, nil
 	}
 
-	_, _ = fmt.Fprintf(out, "New version available: %s (current: %s)\n", info.Version, currentVersion)
-	_, _ = fmt.Fprintln(out, "Installing update...")
+	_, _ = fmt.Fprintln(out, tui.KV("New version", info.Version, tui.KVOpts{Theme: &th, KeyWidth: 16}))
+	_, _ = fmt.Fprintln(out, tui.KV("Current version", currentVersion, tui.KVOpts{Theme: &th, KeyWidth: 16}))
+	_, _ = fmt.Fprintln(out, tui.CheckLine("run", "Installing update", "", "", &th))
 
 	if deps.UpdateOrch == nil {
 		return false, nil
@@ -327,7 +344,7 @@ func runBinaryUpdateStep(cmd *cobra.Command) (updated bool, err error) {
 		return false, fmt.Errorf("install update: %w", err)
 	}
 
-	_, _ = fmt.Fprintf(out, "Updated: %s -> %s\n", result.PreviousVersion, result.NewVersion)
+	_, _ = fmt.Fprintln(out, tui.Pill(tui.PillOpts{Kind: tui.PillOk, Solid: false, Label: "Updated " + result.PreviousVersion + " → " + result.NewVersion, Theme: &th}))
 	return true, nil
 }
 
@@ -376,9 +393,14 @@ func runTemplateSync(cmd *cobra.Command) error {
 	return runTemplateSyncWithReporter(cmd, nil, false)
 }
 
+// @MX:NOTE: [AUTO] runTemplateSyncWithReporter — M4-S4d-2 DDD 마이그레이션. Top-level header/section/
+// final outcome을 tui.KV / tui.Section / tui.CheckLine / tui.Pill로 변환. Sub-step micro 메시지
+// (\r-prefixed sym* helpers)는 progress 표시 특성상 보존. 디자인 소스: screens.jsx ScreenUpdate.
+//
 // runTemplateSyncWithReporter synchronizes templates with progress reporting.
 func runTemplateSyncWithReporter(cmd *cobra.Command, reporter project.ProgressReporter, skipConfirm bool) error {
 	out := cmd.OutOrStdout()
+	th := resolveTheme()
 	ctx := cmd.Context()
 
 	// Get flags for template sync
@@ -389,8 +411,8 @@ func runTemplateSyncWithReporter(cmd *cobra.Command, reporter project.ProgressRe
 	projectRoot := "."
 
 	currentVersion := version.GetVersion()
-	_, _ = fmt.Fprintf(out, "Current version: moai-adk %s\n", currentVersion)
-	_, _ = fmt.Fprintln(out, "Syncing templates from embedded filesystem...")
+	_, _ = fmt.Fprintln(out, tui.KV("Current version", "moai-adk "+currentVersion, tui.KVOpts{Theme: &th, KeyWidth: 16}))
+	_, _ = fmt.Fprintln(out, tui.CheckLine("run", "Syncing templates", "from embedded filesystem", "", &th))
 
 	if reporter != nil {
 		reporter.StepStart("Version Check", "Checking template version...")
@@ -405,7 +427,8 @@ func runTemplateSyncWithReporter(cmd *cobra.Command, reporter project.ProgressRe
 		if reporter != nil {
 			reporter.StepComplete("Already up-to-date")
 		}
-		_, _ = fmt.Fprintf(out, "\n%s Template version up-to-date. Skipping sync.\n", symSuccess())
+		_, _ = fmt.Fprintln(out)
+		_, _ = fmt.Fprintln(out, tui.Pill(tui.PillOpts{Kind: tui.PillOk, Solid: false, Label: "Template version up-to-date · Skipping sync", Theme: &th}))
 		return nil
 	}
 
@@ -457,7 +480,8 @@ func runTemplateSyncWithReporter(cmd *cobra.Command, reporter project.ProgressRe
 	// Analyze merge and get user confirmation
 	analysis := analyzeMergeChanges(deployer, projectRoot)
 
-	_, _ = fmt.Fprintln(out, "\nAnalyzing merge changes...")
+	_, _ = fmt.Fprintln(out)
+	_, _ = fmt.Fprintln(out, tui.Section("Analyzing merge changes", tui.SectionOpts{Theme: &th}))
 
 	if reporter != nil {
 		reporter.StepUpdate("Found " + fmt.Sprintf("%d files to sync", len(analysis.Files)))
@@ -469,7 +493,7 @@ func runTemplateSyncWithReporter(cmd *cobra.Command, reporter project.ProgressRe
 		proceed = true
 	} else if autoConfirm {
 		proceed = true
-		_, _ = fmt.Fprintln(out, "Auto-confirming merge (CI/CD mode)...")
+		_, _ = fmt.Fprintln(out, tui.CheckLine("info", "Auto-confirm", "CI/CD mode", "", &th))
 	} else {
 		var err error
 		proceed, err = merge.ConfirmMerge(analysis)
@@ -483,7 +507,8 @@ func runTemplateSyncWithReporter(cmd *cobra.Command, reporter project.ProgressRe
 	}
 
 	if !proceed {
-		_, _ = fmt.Fprintln(out, "\nMerge cancelled by user.")
+		_, _ = fmt.Fprintln(out)
+		_, _ = fmt.Fprintln(out, tui.Pill(tui.PillOpts{Kind: tui.PillNeutral, Solid: false, Label: "Merge cancelled by user", Theme: &th}))
 		if reporter != nil {
 			reporter.StepError(errors.New("cancelled by user"))
 		}
@@ -491,7 +516,8 @@ func runTemplateSyncWithReporter(cmd *cobra.Command, reporter project.ProgressRe
 	}
 
 	// Deploy templates
-	_, _ = fmt.Fprintln(out, "\nProceeding with template deployment...")
+	_, _ = fmt.Fprintln(out)
+	_, _ = fmt.Fprintln(out, tui.Section("Proceeding with template deployment", tui.SectionOpts{Theme: &th}))
 	_, _ = fmt.Fprintln(out)
 
 	// Define deployment steps
@@ -702,7 +728,8 @@ func runTemplateSyncWithReporter(cmd *cobra.Command, reporter project.ProgressRe
 		}
 	}
 
-	_, _ = fmt.Fprintf(out, "\n%s Template sync complete.\n", symSuccess())
+	_, _ = fmt.Fprintln(out)
+	_, _ = fmt.Fprintln(out, tui.Pill(tui.PillOpts{Kind: tui.PillOk, Solid: false, Label: "Template sync complete", Theme: &th}))
 
 	_, _ = fmt.Fprintln(out)
 	_, _ = fmt.Fprintln(out, "To reconfigure project settings (development mode, git, model policy), run:")
@@ -710,7 +737,7 @@ func runTemplateSyncWithReporter(cmd *cobra.Command, reporter project.ProgressRe
 
 	// Ensure global settings.json has required env variables
 	if err := ensureGlobalSettingsEnv(); err != nil {
-		_, _ = fmt.Fprintf(out, "Warning: Failed to update global settings env: %v\n", err)
+		_, _ = fmt.Fprintln(out, tui.CheckLine("warn", "Global settings env", "update failed", err.Error(), &th))
 	}
 
 	// Install pre-push hook (REQ-CIAUT-002). Non-fatal; --no-hooks opts out.
@@ -719,9 +746,13 @@ func runTemplateSyncWithReporter(cmd *cobra.Command, reporter project.ProgressRe
 	return nil
 }
 
+// @MX:NOTE: [AUTO] runTemplateSyncWithProgress — M4-S4d-2 DDD 마이그레이션. Console reporter
+// wrapper. tui.Pill (skip), tui.Section (analyzing), tui.Pill (cancel) 핵심 출력만 변환.
+//
 // runTemplateSyncWithProgress runs template sync with simple console output.
 func runTemplateSyncWithProgress(cmd *cobra.Command) error {
 	out := cmd.OutOrStdout()
+	th := resolveTheme()
 	projectRoot := "."
 	autoConfirm := getBoolFlag(cmd, "yes")
 	forceUpdate := getBoolFlag(cmd, "force")
@@ -733,7 +764,8 @@ func runTemplateSyncWithProgress(cmd *cobra.Command) error {
 	packageVersion := version.GetVersion()
 	projectVersion, err := getProjectConfigVersion(projectRoot)
 	if err == nil && packageVersion == projectVersion && !forceUpdate {
-		_, _ = fmt.Fprintf(out, "\n%s Template version up-to-date. Skipping sync.\n", symSuccess())
+		_, _ = fmt.Fprintln(out)
+		_, _ = fmt.Fprintln(out, tui.Pill(tui.PillOpts{Kind: tui.PillOk, Solid: false, Label: "Template version up-to-date · Skipping sync", Theme: &th}))
 		return nil
 	}
 
@@ -747,14 +779,16 @@ func runTemplateSyncWithProgress(cmd *cobra.Command) error {
 		deployer := template.NewDeployerWithForceUpdate(embedded, true)
 		analysis := analyzeMergeChanges(deployer, projectRoot)
 
-		_, _ = fmt.Fprintln(out, "\nAnalyzing merge changes...")
+		_, _ = fmt.Fprintln(out)
+		_, _ = fmt.Fprintln(out, tui.Section("Analyzing merge changes", tui.SectionOpts{Theme: &th}))
 		proceed, err := merge.ConfirmMerge(analysis)
 		if err != nil {
 			return fmt.Errorf("confirm merge for %d files (risk: %s): %w",
 				len(analysis.Files), analysis.RiskLevel, err)
 		}
 		if !proceed {
-			_, _ = fmt.Fprintln(out, "\nMerge cancelled by user.")
+			_, _ = fmt.Fprintln(out)
+			_, _ = fmt.Fprintln(out, tui.Pill(tui.PillOpts{Kind: tui.PillNeutral, Solid: false, Label: "Merge cancelled by user", Theme: &th}))
 			return nil
 		}
 	}
@@ -1129,22 +1163,26 @@ func analyzeMergeChanges(deployer template.Deployer, projectRoot string) merge.M
 	return buildMergeAnalysis(files)
 }
 
+// @MX:NOTE: [AUTO] runShellEnvConfig — M4-S4d-2 DDD 마이그레이션. tui.Section header,
+// tui.KV (Shell/Config/Explanation), tui.CheckLine (Changes list), tui.Pill (final outcome).
+//
 // runShellEnvConfig configures shell environment variables for Claude Code.
 func runShellEnvConfig(cmd *cobra.Command) error {
 	out := cmd.OutOrStdout()
+	th := resolveTheme()
 
-	_, _ = fmt.Fprintln(out, "Configuring shell environment for Claude Code...")
+	_, _ = fmt.Fprintln(out, tui.Section("Configuring shell environment for Claude Code", tui.SectionOpts{Theme: &th}))
 
 	// Get recommendation first
 	configurator := shell.NewEnvConfigurator(nil)
 	rec := configurator.GetRecommendation()
 
-	_, _ = fmt.Fprintf(out, "  Shell: %s\n", rec.Shell)
-	_, _ = fmt.Fprintf(out, "  Config file: %s\n", rec.ConfigFile)
-	_, _ = fmt.Fprintf(out, "  Explanation: %s\n", rec.Explanation)
-	_, _ = fmt.Fprintln(out, "  Changes to add:")
+	_, _ = fmt.Fprintln(out, tui.KV("Shell", string(rec.Shell), tui.KVOpts{Theme: &th, KeyWidth: 12}))
+	_, _ = fmt.Fprintln(out, tui.KV("Config file", rec.ConfigFile, tui.KVOpts{Theme: &th, KeyWidth: 12}))
+	_, _ = fmt.Fprintln(out, tui.KV("Explanation", rec.Explanation, tui.KVOpts{Theme: &th, KeyWidth: 12}))
+	_, _ = fmt.Fprintln(out, tui.Section("Changes to add", tui.SectionOpts{Theme: &th}))
 	for _, change := range rec.Changes {
-		_, _ = fmt.Fprintf(out, "    - %s\n", change)
+		_, _ = fmt.Fprintln(out, tui.CheckLine("info", "·", change, "", &th))
 	}
 	_, _ = fmt.Fprintln(out)
 
@@ -1160,11 +1198,11 @@ func runShellEnvConfig(cmd *cobra.Command) error {
 	}
 
 	if result.Skipped {
-		_, _ = fmt.Fprintf(out, "Shell environment already configured in %s\n", result.ConfigFile)
+		_, _ = fmt.Fprintln(out, tui.Pill(tui.PillOpts{Kind: tui.PillInfo, Solid: false, Label: "Shell environment already configured in " + result.ConfigFile, Theme: &th}))
 	} else {
-		_, _ = fmt.Fprintf(out, "Shell environment configured in %s\n", result.ConfigFile)
+		_, _ = fmt.Fprintln(out, tui.Pill(tui.PillOpts{Kind: tui.PillOk, Solid: false, Label: "Shell environment configured in " + result.ConfigFile, Theme: &th}))
 		_, _ = fmt.Fprintln(out, "Please restart your terminal or run:")
-		_, _ = fmt.Fprintf(out, "  source %s\n", result.ConfigFile)
+		_, _ = fmt.Fprintln(out, tui.KV("source", result.ConfigFile, tui.KVOpts{Theme: &th, KeyWidth: 8}))
 	}
 
 	return nil
@@ -1918,8 +1956,11 @@ func deepMergeMaps(newMap, oldMap map[string]any) map[string]any {
 
 // runInitWizard runs the configuration wizard for reconfiguring an existing project.
 // Used by 'moai update -c/--config' to edit project settings.
+// @MX:NOTE: [AUTO] runInitWizard — M4-S4d-3 DDD 마이그레이션. tui.Pill (uninitialized warning,
+// cancelled, success) + tui.Section (Reconfiguration header, AC-017 emoji 제거).
 func runInitWizard(cmd *cobra.Command, reconfigure bool) error {
 	out := cmd.OutOrStdout()
+	th := resolveTheme()
 
 	// Verify the project is initialized
 	cwd, err := os.Getwd()
@@ -1928,15 +1969,14 @@ func runInitWizard(cmd *cobra.Command, reconfigure bool) error {
 	}
 
 	if _, err := os.Stat(filepath.Join(cwd, defs.MoAIDir)); os.IsNotExist(err) {
-		_, _ = fmt.Fprintln(out, "Project not initialized. Run 'moai init' first.")
+		_, _ = fmt.Fprintln(out, tui.Pill(tui.PillOpts{Kind: tui.PillWarn, Solid: false, Label: "Project not initialized · Run 'moai init' first", Theme: &th}))
 		return fmt.Errorf("project not initialized")
 	}
 
 	// Print banner and welcome message
 	PrintBanner(version.GetVersion())
 	if reconfigure {
-		_, _ = fmt.Fprintln(out, "🔧 Project Reconfiguration Wizard")
-		_, _ = fmt.Fprintln(out)
+		_, _ = fmt.Fprintln(out, tui.Section("Project Reconfiguration Wizard", tui.SectionOpts{Theme: &th}))
 		_, _ = fmt.Fprintln(out, "This wizard will help you update your project configuration.")
 	} else {
 		PrintWelcomeMessage()
@@ -1975,7 +2015,7 @@ func runInitWizard(cmd *cobra.Command, reconfigure bool) error {
 	result, err := wizard.RunWithLocale(questions, nil, locale)
 	if err != nil {
 		if errors.Is(err, wizard.ErrCancelled) {
-			_, _ = fmt.Fprintln(out, "Configuration cancelled.")
+			_, _ = fmt.Fprintln(out, tui.Pill(tui.PillOpts{Kind: tui.PillNeutral, Solid: false, Label: "Configuration cancelled", Theme: &th}))
 			return nil
 		}
 		return fmt.Errorf("wizard failed: %w", err)
@@ -1987,7 +2027,7 @@ func runInitWizard(cmd *cobra.Command, reconfigure bool) error {
 		return fmt.Errorf("apply configuration: %w", err)
 	}
 
-	_, _ = fmt.Fprintf(out, "%s Configuration updated successfully.\n", symSuccess())
+	_, _ = fmt.Fprintln(out, tui.Pill(tui.PillOpts{Kind: tui.PillOk, Solid: false, Label: "Configuration updated successfully", Theme: &th}))
 
 	return nil
 }
