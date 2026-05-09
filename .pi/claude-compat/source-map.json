@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-05-09T00:00:00.000Z",
+  "generatedAt": "2026-05-10T00:00:00.000Z",
   "policy": {
     "permissionMode": "excluded-by-design; record as metadata only; do not enforce runtime semantics",
     "packageFirst": true
@@ -20,9 +20,12 @@
   "generatedRoot": "./generated",
   "compatRoot": "./claude-compat",
   "expectedCounts": {
-    "agents": 19,
-    "skills": 51,
-    "outputStyles": 3
+    "agents": 25,
+    "skills": 38,
+    "outputStyles": 2,
+    "rules": 46,
+    "hooks": 28,
+    "commands": 19
   },
   "packagePriority": {
     "agentTeams": [

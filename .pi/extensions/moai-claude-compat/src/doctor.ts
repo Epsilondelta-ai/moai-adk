@@ -88,10 +88,12 @@ function securityAdvisoryReport(settings: MoaiSettings | null): string[] {
 const CLAUDE_HOOK_EVENT_TO_BRIDGE_EVENT: Record<string, string> = {
   SessionStart: "session-start",
   PreCompact: "compact",
+  PostCompact: "post-compact",
   SessionEnd: "session-end",
   PreToolUse: "pre-tool",
   PostToolUse: "post-tool",
   Stop: "stop",
+  StopFailure: "stop-failure",
   SubagentStop: "subagent-stop",
   PostToolUseFailure: "post-tool-failure",
   Notification: "notification",
@@ -99,7 +101,16 @@ const CLAUDE_HOOK_EVENT_TO_BRIDGE_EVENT: Record<string, string> = {
   UserPromptSubmit: "user-prompt-submit",
   PermissionRequest: "permission-request",
   TeammateIdle: "teammate-idle",
+  TaskCreated: "task-created",
   TaskCompleted: "task-completed",
+  WorktreeCreate: "worktree-create",
+  WorktreeRemove: "worktree-remove",
+  ConfigChange: "config-change",
+  CwdChanged: "cwd-changed",
+  Elicitation: "elicitation",
+  ElicitationResult: "elicitation-result",
+  FileChanged: "file-changed",
+  InstructionsLoaded: "instructions-loaded",
 };
 
 function claudeSettingsHookParityReport(): string[] {
