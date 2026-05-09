@@ -107,6 +107,7 @@ ehthumbs.db
 logs/
 *.tmp
 *.temp
+tmp/
 *.bak
 *.backup
 
