@@ -3,19 +3,22 @@
 package cli
 
 import (
+	"errors"
 	"os"
 )
 
-// lockFile is a no-op on Windows; flock(2) is not available.
-// Windows file locking requires LockFileEx via syscall/windows, but ClaimTask
-// is only exercised from tmux-based team workflows that do not run on Windows.
-// A no-op is intentional here to allow the binary to compile on Windows
-// while preserving correct concurrent behaviour on Unix.
+// errLockNotSupported is returned by lockFile on Windows where flock(2) is unavailable.
+// ClaimTask relies on file locking for concurrent writes; use tmux-based team workflows
+// on macOS/Linux instead of running team commands on Windows.
+var errLockNotSupported = errors.New("file locking not supported on Windows; use tmux-based team workflows on macOS/Linux")
+
+// lockFile returns errLockNotSupported on Windows. ClaimTask's caller receives a
+// clear error instead of silently proceeding without the lock, preventing data races.
 func lockFile(_ *os.File) error {
-	return nil
+	return errLockNotSupported
 }
 
-// unlockFile is a no-op on Windows; see lockFile.
+// unlockFile is a no-op on Windows; lockFile never succeeds so there is nothing to unlock.
 func unlockFile(_ *os.File) error {
 	return nil
 }

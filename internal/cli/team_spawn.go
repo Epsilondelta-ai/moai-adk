@@ -44,7 +44,7 @@ type MailboxMessage struct {
 type TeamTaskEntry struct {
 	TaskID    string `yaml:"task_id"`
 	Subject   string `yaml:"subject"`
-	Status    string `yaml:"status"`    // pending|claimed|completed|blocked
+	Status    string `yaml:"status"` // pending|claimed|completed|blocked
 	ClaimedBy string `yaml:"claimed_by"`
 	BlockedBy string `yaml:"blocked_by,omitempty"`
 	Timestamp string `yaml:"timestamp"`
@@ -162,10 +162,10 @@ func ParseMailboxMessage(data []byte) (MailboxMessage, error) {
 			continue
 		}
 
-		parts := strings.SplitN(line, ":", 2)
-		if len(parts) == 2 {
-			key := strings.TrimSpace(parts[0])
-			value := strings.TrimSpace(parts[1])
+		lineParts := strings.SplitN(line, ":", 2)
+		if len(lineParts) == 2 {
+			key := strings.TrimSpace(lineParts[0])
+			value := strings.TrimSpace(lineParts[1])
 			frontmatterMap[key] = value
 		}
 	}

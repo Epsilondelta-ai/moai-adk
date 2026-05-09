@@ -4,15 +4,20 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"github.com/modu-ai/moai-adk/internal/defs"
+	"github.com/spf13/cobra"
 )
+
+// errLintViolations signals that lint violations were detected.
+// cobra's RunE returns this to exit non-zero without printing an "Error: " prefix.
+var errLintViolations = errors.New("lint violations detected")
 
 // LintSeverity represents the severity level of a lint violation.
 type LintSeverity string
@@ -26,17 +31,17 @@ const (
 
 // LintViolation represents a single lint rule violation.
 type LintViolation struct {
-	Rule    string       `json:"rule"`
+	Rule     string       `json:"rule"`
 	Severity LintSeverity `json:"severity"`
-	File    string       `json:"file"`
-	Line    int          `json:"line"`
-	Message string       `json:"message"`
+	File     string       `json:"file"`
+	Line     int          `json:"line"`
+	Message  string       `json:"message"`
 }
 
 // LintOutput is the JSON output format for the lint command.
 type LintOutput struct {
-	Version  string         `json:"version"`
-	Summary  LintSummary    `json:"summary"`
+	Version    string          `json:"version"`
+	Summary    LintSummary     `json:"summary"`
 	Violations []LintViolation `json:"violations"`
 }
 
@@ -60,7 +65,7 @@ type AgentFrontmatter struct {
 
 // Hook represents a single hook configuration.
 type Hook struct {
-	Matcher string   `yaml:"matcher"`
+	Matcher string    `yaml:"matcher"`
 	Hooks   []SubHook `yaml:"hooks"`
 }
 
@@ -91,7 +96,9 @@ Exit Codes:
   1: Violations found
   2: Malformed frontmatter
   3: IO error`,
-	RunE: runAgentLint,
+	RunE:          runAgentLint,
+	SilenceErrors: true,
+	SilenceUsage:  true,
 }
 
 func init() {
@@ -221,7 +228,7 @@ func runAgentLint(cmd *cobra.Command, _ []string) error {
 	// Set exit code
 	if len(allViolations) > 0 {
 		// Return exit code 1 for violations found
-		return fmt.Errorf("") // Empty error triggers exit code 1
+		return errLintViolations
 	}
 
 	return nil
@@ -623,9 +630,9 @@ func checkSkillPreloadDrift(files []string) []LintViolation {
 	}
 
 	categories := map[string][]agentInfo{
-		"manager":  {},
-		"expert":   {},
-		"builder":  {},
+		"manager":   {},
+		"expert":    {},
+		"builder":   {},
 		"evaluator": {},
 	}
 
