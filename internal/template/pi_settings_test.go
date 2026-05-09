@@ -2,6 +2,7 @@ package template
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"strings"
 	"testing"
@@ -19,7 +20,7 @@ func TestPiSettingsTemplateDefaultPackages(t *testing.T) {
 	}
 
 	var settings struct {
-		Packages   []string `json:"packages"`
+		Packages   []any `json:"packages"`
 		MoAICompat struct {
 			DefaultPackages []string `json:"defaultPackages"`
 		} `json:"moaiCompat"`
@@ -43,6 +44,18 @@ func TestPiSettingsTemplateDefaultPackages(t *testing.T) {
 		}
 	}
 
+	contextMode := findPiPackageSpecForTest(settings.Packages, "context-mode")
+	contextModeObject, ok := contextMode.(map[string]any)
+	if !ok {
+		t.Fatal("context-mode package must use object filter form")
+	}
+	if extensions, ok := contextModeObject["extensions"].([]any); !ok || len(extensions) != 0 {
+		t.Fatalf("context-mode extensions must be disabled, got %#v", contextModeObject["extensions"])
+	}
+	if skills, ok := contextModeObject["skills"].([]any); !ok || len(skills) != 1 || skills[0] != "./skills" {
+		t.Fatalf("context-mode skills filter must preserve ./skills, got %#v", contextModeObject["skills"])
+	}
+
 	for _, required := range []string{
 		"@juicesharp/rpiv-ask-user-question",
 		"@tmustier/pi-agent-teams",
@@ -61,8 +74,21 @@ func TestPiSettingsTemplateDefaultPackages(t *testing.T) {
 	}
 }
 
-func normalizePiPackageSpecForTest(spec string) string {
-	value := strings.TrimPrefix(strings.TrimPrefix(spec, "npm:"), "git:")
+func findPiPackageSpecForTest(specs []any, packageName string) any {
+	for _, spec := range specs {
+		if normalizePiPackageSpecForTest(spec) == packageName {
+			return spec
+		}
+	}
+	return nil
+}
+
+func normalizePiPackageSpecForTest(spec any) string {
+	value := fmt.Sprint(spec)
+	if object, ok := spec.(map[string]any); ok {
+		value = fmt.Sprint(object["source"])
+	}
+	value = strings.TrimPrefix(strings.TrimPrefix(value, "npm:"), "git:")
 	if before, _, ok := strings.Cut(value, "#"); ok {
 		value = before
 	}

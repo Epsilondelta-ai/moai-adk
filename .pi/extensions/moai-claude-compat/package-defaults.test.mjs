@@ -5,8 +5,12 @@ const settings = JSON.parse(readFileSync("settings.json", "utf8"));
 const npmPackage = JSON.parse(readFileSync("npm/package.json", "utf8"));
 const npmLock = JSON.parse(readFileSync("npm/package-lock.json", "utf8"));
 
+function packageSpecSource(spec) {
+  return typeof spec === "string" ? spec : spec?.source ?? "";
+}
+
 function normalizePackageName(spec) {
-  let value = String(spec).replace(/^npm:/, "").replace(/^git:/, "");
+  let value = packageSpecSource(spec).replace(/^npm:/, "").replace(/^git:/, "");
   value = value.split("#")[0].split("?")[0];
   if (value.startsWith("@")) {
     const parts = value.split("@");
@@ -17,6 +21,9 @@ function normalizePackageName(spec) {
 
 const runtimeOnly = new Set(["moai-claude-compat", "pi-notify-glass.ts"]);
 const configuredNames = new Set((settings.packages ?? []).map(normalizePackageName));
+const contextMode = (settings.packages ?? []).find((spec) => normalizePackageName(spec) === "context-mode");
+assert.deepEqual(contextMode?.extensions, [], "context-mode extension must stay disabled to avoid hook overlap");
+assert.deepEqual(contextMode?.skills, ["./skills"], "context-mode skills must remain available");
 const defaultNames = (settings.moaiCompat?.defaultPackages ?? [])
   .map(normalizePackageName)
   .filter((name) => !runtimeOnly.has(name));

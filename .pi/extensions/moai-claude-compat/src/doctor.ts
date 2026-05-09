@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { PI_AGENTS_SOURCE_PATH, PI_HOOKS_SOURCE_PATH, PI_RULES_SOURCE_PATH, PI_SKILLS_SOURCE_PATH, SOURCE_MAP_PATH } from "./constants.ts";
 import { getAgentConversionStatus } from "./agent-converter.ts";
-import { analyzePackageConflicts, formatFindings, normalizePackageSpecs } from "./package-conflicts.ts";
+import { analyzePackageConflicts, formatFindings, normalizePackageSpecs, type PackageSpec } from "./package-conflicts.ts";
 import { formatTeamSchemaReport } from "./team-schema.ts";
 import { getSkillIndexStatus } from "./trigger-indexer.ts";
 import {
@@ -34,7 +34,7 @@ function status(label: string, ok: boolean, detail = ""): string {
 }
 
 interface MoaiSettings {
-  packages?: string[];
+  packages?: PackageSpec[];
   moaiCompat?: {
     defaultPackages?: string[];
     securityAdvisories?: Array<{
@@ -50,7 +50,7 @@ function readMoaiSettings(): MoaiSettings | null {
   return readJson(".pi/settings.json") as MoaiSettings | null;
 }
 
-function configuredPackages(): string[] {
+function configuredPackages(): PackageSpec[] {
   return readMoaiSettings()?.packages ?? [];
 }
 
