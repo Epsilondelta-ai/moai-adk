@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { buildCoreInstruction, loadMoaiCompatConfig, type OutputStyleConfig } from "./src/config.ts";
+import { buildCoreInstruction, loadMoaiCompatConfig, type MoaiRulesConfig, type OutputStyleConfig } from "./src/config.ts";
 import { registerCommands } from "./src/command-router.ts";
 import { EXTENSION_ID, PI_RULES_SOURCE_PATH } from "./src/constants.ts";
 import { NON_BLOCKING_HOOK_BRIDGE_POLICY, runMoaiHook } from "./src/hook-bridge.ts";
@@ -15,6 +15,19 @@ function buildCompactOutputStyleInstruction(outputStyle: OutputStyleConfig): str
     "Never display internal completion markers or XML tags in user-facing responses.",
     outputStyle.loaded ? `Style source: ${outputStyle.sourcePath}` : `Style source unavailable: ${outputStyle.error ?? "unknown"}`,
   ].join("\n");
+}
+
+function isMoaiRelatedInput(text: string): boolean {
+  return /(^|\s)\/moai\b/i.test(text)
+    || /\bSPEC-[A-Za-z0-9_-]+\b/i.test(text)
+    || /\bmoai\b/i.test(text)
+    || text.includes("모아이");
+}
+
+function buildCompactRulesInstruction(rules: MoaiRulesConfig): string {
+  return rules.loaded
+    ? rules.guidance
+    : [rules.guidance, `Rules status warning: ${rules.error ?? "rules snapshot incomplete"}`].join("\n");
 }
 
 export default function moaiClaudeCompat(pi: ExtensionAPI) {
@@ -59,6 +72,14 @@ export default function moaiClaudeCompat(pi: ExtensionAPI) {
         sanitized: config.outputStyle.sanitized,
         enforcement: config.outputStyle.enforcement,
       },
+      rules: {
+        loaded: config.rules.loaded,
+        piCount: config.rules.piCount,
+        expectedCount: config.rules.expectedCount,
+        sourceMapRegistered: config.rules.sourceMapRegistered,
+        relativePathParity: config.rules.relativePathParity,
+        enforcement: config.rules.enforcement,
+      },
     });
   });
 
@@ -86,6 +107,7 @@ export default function moaiClaudeCompat(pi: ExtensionAPI) {
     const lower = text.toLowerCase();
     const hints: string[] = [];
     if (lower.includes("--deepthink")) hints.push("Deepthink requested: prefer sequential-thinking MCP when available.");
+    if (isMoaiRelatedInput(text)) hints.push(buildCompactRulesInstruction(config.rules));
     if (lower.includes("spec-") || lower.includes("/moai run")) hints.push(`SPEC workflow context likely required: read .moai/specs and pi-local MoAI workflow rules at ${PI_RULES_SOURCE_PATH}.`);
     if (lower.includes("permissionmode")) hints.push("Reminder: Claude permissionMode is excluded by design in pi parity.");
     hints.push(...buildSkillTriggerHints(text));

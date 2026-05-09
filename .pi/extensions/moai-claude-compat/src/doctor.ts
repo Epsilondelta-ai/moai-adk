@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { PI_AGENTS_SOURCE_PATH, PI_HOOKS_SOURCE_PATH, PI_SKILLS_SOURCE_PATH, SOURCE_MAP_PATH } from "./constants.ts";
+import { PI_AGENTS_SOURCE_PATH, PI_HOOKS_SOURCE_PATH, PI_RULES_SOURCE_PATH, PI_SKILLS_SOURCE_PATH, SOURCE_MAP_PATH } from "./constants.ts";
 import { getAgentConversionStatus } from "./agent-converter.ts";
 import { analyzePackageConflicts, formatFindings } from "./package-conflicts.ts";
 import { formatTeamSchemaReport } from "./team-schema.ts";
@@ -14,7 +14,7 @@ import {
 } from "./hook-bridge.ts";
 import { teamRuntimeStatus } from "./team-runtime.ts";
 import { teamHookAdapterStatus } from "./team-hook-adapter.ts";
-import { loadMoaiCompatConfig, outputStyleStatus } from "./config.ts";
+import { loadMoaiCompatConfig, outputStyleStatus, rulesStatus } from "./config.ts";
 
 function exists(path: string): boolean {
   return existsSync(resolve(process.cwd(), path));
@@ -115,12 +115,14 @@ export function buildDoctorReport(): string[] {
     status("extension", exists(".pi/extensions/moai-claude-compat/index.ts")),
     status("pi-local skills source", exists(PI_SKILLS_SOURCE_PATH)),
     status("pi-local agents source", exists(PI_AGENTS_SOURCE_PATH)),
+    status("pi-local rules source", exists(PI_RULES_SOURCE_PATH)),
     status("pi-local hooks source", exists(PI_HOOKS_SOURCE_PATH)),
     "ok: runtime prompts/code use pi-local snapshots",
     "ok: permissionMode excluded-by-design; metadata only",
     getSkillIndexStatus(),
     ...getAgentConversionStatus(),
     ...(config ? outputStyleStatus(config) : [`missing: output style status unavailable (${configError})`]),
+    ...(config ? rulesStatus(config) : [`missing: rules status unavailable (${configError})`]),
     hookBridgeStatus(),
     ...hookParityReport(),
     teamRuntimeStatus(),
