@@ -1,15 +1,14 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 import {
   CLAUDE_RULES_SOURCE_PATH,
   EXPECTED_MOAI_RULE_COUNT,
   LANGUAGE_CONFIG_PATH,
-  OUTPUT_STYLES_CONFIG_PATH,
   PI_RULES_SOURCE_PATH,
   QUALITY_CONFIG_PATH,
-  SOURCE_MAP_PATH,
   WORKFLOW_CONFIG_PATH,
 } from "./constants.ts";
+import { COMPAT_MANIFEST_FILES, getDefaultOutputStyleSource, loadRuntimeManifest } from "./runtime-config.ts";
 
 export interface MoaiCompatConfig {
   conversationLanguage: string;
@@ -72,14 +71,14 @@ export function loadMoaiCompatConfig(): MoaiCompatConfig {
     conversationLanguage: findYamlScalar(languageYaml, ["conversation_language", "user_responses", "user"], "ko"),
     codeCommentsLanguage: findYamlScalar(languageYaml, ["code_comments", "comments"], "ko"),
     qualityMode: findYamlScalar(qualityYaml, ["mode", "development_mode"], "tdd"),
-    sourceMapPath: SOURCE_MAP_PATH,
+    sourceMapPath: COMPAT_MANIFEST_FILES.sourceMap,
     workflowConfigPath: WORKFLOW_CONFIG_PATH,
     outputStyle: loadOutputStyleConfig(),
     rules: loadMoaiRulesConfig(),
   };
 }
 
-function loadOutputStyleConfig(path = OUTPUT_STYLES_CONFIG_PATH): OutputStyleConfig {
+function loadOutputStyleConfig(): OutputStyleConfig {
   const fallback: OutputStyleConfig = {
     name: "moai",
     sourcePath: "",
@@ -91,18 +90,12 @@ function loadOutputStyleConfig(path = OUTPUT_STYLES_CONFIG_PATH): OutputStyleCon
   };
 
   try {
-    if (!pathExists(path)) return { ...fallback, error: `missing ${path}` };
-    const parsed = JSON.parse(readIfExists(path)) as {
-      default?: unknown;
-      styles?: Record<string, { source?: unknown }>;
-    };
-    const name = typeof parsed.default === "string" ? parsed.default : "moai";
-    const source = parsed.styles?.[name]?.source;
-    if (typeof source !== "string" || !source.trim()) {
+    const manifest = loadRuntimeManifest();
+    const name = manifest.outputStyles.config.default || "moai";
+    const sourcePath = getDefaultOutputStyleSource(manifest);
+    if (!sourcePath) {
       return { ...fallback, name, error: `missing source for style ${name}` };
     }
-
-    const sourcePath = resolveOutputStyleSource(path, source);
     if (!pathExists(sourcePath)) {
       return { ...fallback, name, sourcePath, error: `missing output style source ${sourcePath}` };
     }
@@ -122,16 +115,6 @@ function loadOutputStyleConfig(path = OUTPUT_STYLES_CONFIG_PATH): OutputStyleCon
   }
 }
 
-function resolveOutputStyleSource(configPath: string, source: string): string {
-  const normalized = source.replace(/^\.\//, "");
-  const piRelative = resolve(process.cwd(), ".pi", normalized);
-  if (existsSync(piRelative)) return `.pi/${normalized}`;
-
-  const configRelative = resolve(process.cwd(), dirname(configPath), source);
-  if (existsSync(configRelative)) return resolve(process.cwd(), dirname(configPath), source);
-
-  return `.pi/${normalized}`;
-}
 
 function sanitizeOutputStyleMarkdown(markdown: string): string {
   return markdown
@@ -170,8 +153,8 @@ function walkMarkdownFiles(root: string): string[] {
 
 function readSourceMapRulesPath(): string {
   try {
-    const parsed = JSON.parse(readIfExists(SOURCE_MAP_PATH)) as { sources?: { rules?: unknown } };
-    return typeof parsed.sources?.rules === "string" ? parsed.sources.rules : "";
+    const manifest = loadRuntimeManifest();
+    return typeof manifest.sourceMap.config.sources?.rules === "string" ? manifest.sourceMap.config.sources.rules : "";
   } catch {
     return "";
   }
@@ -205,10 +188,12 @@ function loadMoaiRulesConfig(): MoaiRulesConfig {
     const missingInPi = claudeFiles.filter((file) => !piSet.has(file));
     const extraInPi = piFiles.filter((file) => !claudeSet.has(file));
     const relativePathParity = claudeFiles.length > 0 && missingInPi.length === 0 && extraInPi.length === 0;
-    const loaded = piFiles.length === EXPECTED_MOAI_RULE_COUNT && sourceMapRegistered && relativePathParity;
+    const expectedCount = loadRuntimeManifest().sourceMap.config.expectedCounts?.rules ?? EXPECTED_MOAI_RULE_COUNT;
+    const loaded = piFiles.length === expectedCount && sourceMapRegistered && relativePathParity;
 
     return {
       ...fallback,
+      expectedCount,
       piCount: piFiles.length,
       claudeCount: claudeFiles.length,
       sourceMapRegistered,

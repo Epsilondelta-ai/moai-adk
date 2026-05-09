@@ -1,4 +1,4 @@
-import { QUOTA_FOOTER_PRIORITY, TEAM_BACKEND_PRIORITY } from "./constants.ts";
+import { getPackagePriority, loadRuntimeManifest } from "./runtime-config.ts";
 
 export interface PackageConflictFinding {
   level: "ok" | "warn";
@@ -19,20 +19,42 @@ export function normalizePackageSpecs(specs: string[] = []): string[] {
   return specs.map(normalizePackageName).filter(Boolean);
 }
 
+function packageCandidates(role: string): string[] {
+  return getPackagePriority(loadRuntimeManifest(), role);
+}
+
+function roleFinding(role: string, label: string, specs: string[]): PackageConflictFinding {
+  const names = normalizePackageSpecs(specs);
+  const candidates = packageCandidates(role).map(normalizePackageName);
+  const active = candidates.filter((candidate) => names.includes(candidate));
+  if (active.length === 0) return { level: "warn", message: `${label} package not active; candidates=${candidates.join(", ") || "none"}` };
+  if (active.length > 1) return { level: "warn", message: `Multiple ${label} packages active: ${active.join(", ")}` };
+  return { level: "ok", message: `${label} package active: ${active[0]}` };
+}
+
 export function analyzePackageConflicts(specs: string[] = []): PackageConflictFinding[] {
   const names = normalizePackageSpecs(specs);
   const findings: PackageConflictFinding[] = [];
-  const has = (name: string) => names.includes(name);
+  const has = (name: string) => names.includes(normalizePackageName(name));
+  const packageMap = loadRuntimeManifest().packageMap.config;
 
-  const team = TEAM_BACKEND_PRIORITY.filter(has);
-  if (team.length === 0) findings.push({ level: "warn", message: "Agent Teams backend not active; will use schema/fallback planning only" });
-  else if (team.length > 1) findings.push({ level: "warn", message: `Multiple Agent Teams backends active: ${team.join(", ")}` });
-  else findings.push({ level: "ok", message: `Agent Teams backend candidate active: ${team[0]}` });
+  findings.push(roleFinding("agentTeams", "Agent Teams backend", specs));
+  findings.push(roleFinding("quotaFooter", "Quota footer", specs));
 
-  const quota = QUOTA_FOOTER_PRIORITY.filter(has);
-  if (quota.length === 0) findings.push({ level: "warn", message: "Codex/GPT quota footer package not active" });
-  else if (quota.length > 1) findings.push({ level: "warn", message: `Multiple quota footer packages active: ${quota.join(", ")}` });
-  else findings.push({ level: "ok", message: `Quota footer package active: ${quota[0]}` });
+  const permissions = packageCandidates("permissions");
+  const guardrails = packageCandidates("guardrails");
+  const hooks = packageCandidates("hooks");
+  const activePolicyPackages = [...new Set([...permissions, ...guardrails, ...hooks]
+    .map(normalizePackageName)
+    .filter((candidate) => names.includes(candidate)))];
+
+  if (activePolicyPackages.length > 1) {
+    findings.push({ level: "warn", message: `Multiple policy/guardrail packages active: ${activePolicyPackages.join(", ")}` });
+  } else if (activePolicyPackages.length === 1) {
+    findings.push({ level: "ok", message: `Policy/guardrail package active: ${activePolicyPackages[0]}` });
+  } else {
+    findings.push({ level: "warn", message: "No configured policy/guardrail package active" });
+  }
 
   if (has("pi-yaml-hooks") && has("@aliou/pi-guardrails")) {
     findings.push({ level: "warn", message: "pi-yaml-hooks and @aliou/pi-guardrails may both confirm/block dangerous commands; verify ordering" });
@@ -42,6 +64,10 @@ export function analyzePackageConflicts(specs: string[] = []): PackageConflictFi
   }
   if (specs.length === 0) {
     findings.push({ level: "ok", message: "Active packages empty by design for skeleton mode" });
+  }
+
+  for (const [policy, description] of Object.entries(packageMap.conflictPolicy ?? {})) {
+    findings.push({ level: "ok", message: `Configured package conflict policy ${policy}: ${description}` });
   }
 
   return findings;

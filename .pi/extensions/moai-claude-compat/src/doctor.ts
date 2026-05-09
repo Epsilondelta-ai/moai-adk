@@ -15,6 +15,7 @@ import {
 import { teamRuntimeStatus } from "./team-runtime.ts";
 import { teamHookAdapterStatus } from "./team-hook-adapter.ts";
 import { loadMoaiCompatConfig, outputStyleStatus, rulesStatus } from "./config.ts";
+import { runtimeManifestStatus } from "./runtime-config.ts";
 
 function exists(path: string): boolean {
   return existsSync(resolve(process.cwd(), path));
@@ -118,6 +119,7 @@ export function buildDoctorReport(): string[] {
     status("pi-local rules source", exists(PI_RULES_SOURCE_PATH)),
     status("pi-local hooks source", exists(PI_HOOKS_SOURCE_PATH)),
     "ok: runtime prompts/code use pi-local snapshots",
+    ...runtimeManifestStatus(),
     "ok: permissionMode excluded-by-design; metadata only",
     getSkillIndexStatus(),
     ...getAgentConversionStatus(),

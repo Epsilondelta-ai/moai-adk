@@ -16,8 +16,8 @@ import {
 import {
   PI_AGENTS_SOURCE_PATH,
   PI_SKILLS_SOURCE_PATH,
-  TOOL_ALIASES_PATH,
 } from "./constants.ts";
+import { loadRuntimeManifest } from "./runtime-config.ts";
 
 export interface ConvertedAgent {
   name: string;
@@ -92,17 +92,9 @@ function hash(text: string): string {
   return createHash("sha256").update(text).digest("hex").slice(0, 16);
 }
 
-function loadToolAliases(path = TOOL_ALIASES_PATH): Record<string, string> {
-  if (!existsSync(path)) return FALLBACK_TOOL_ALIASES;
+function loadToolAliases(): Record<string, string> {
   try {
-    const parsed = JSON.parse(readFileSync(path, "utf8")) as {
-      aliases?: Record<string, unknown>;
-    };
-    const aliases: Record<string, string> = {};
-    for (const [key, value] of Object.entries(parsed.aliases ?? {})) {
-      if (typeof value === "string" && value.trim()) aliases[key] = value;
-    }
-    return { ...FALLBACK_TOOL_ALIASES, ...aliases };
+    return { ...FALLBACK_TOOL_ALIASES, ...loadRuntimeManifest().toolAliases.config.aliases };
   } catch {
     return FALLBACK_TOOL_ALIASES;
   }

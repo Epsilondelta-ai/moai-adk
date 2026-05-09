@@ -6,6 +6,7 @@ export const PI_ROOT_PATH = ".pi";
 export const SOURCE_MAP_PATH = ".pi/claude-compat/source-map.json";
 export const TOOL_ALIASES_PATH = ".pi/claude-compat/tool-aliases.json";
 export const OUTPUT_STYLES_CONFIG_PATH = ".pi/claude-compat/output-styles.json";
+export const HOOK_EVENTS_CONFIG_PATH = ".pi/claude-compat/hook-events.json";
 export const CLAUDE_RULES_SOURCE_PATH = ".claude/rules/moai";
 export const EXPECTED_MOAI_RULE_COUNT = 31;
 export const PI_SOURCE_ROOT = ".pi/generated/source";

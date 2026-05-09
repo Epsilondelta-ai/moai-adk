@@ -1,21 +1,11 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { buildCoreInstruction, loadMoaiCompatConfig, type MoaiRulesConfig, type OutputStyleConfig } from "./src/config.ts";
+import { buildCoreInstruction, loadMoaiCompatConfig, type MoaiRulesConfig } from "./src/config.ts";
 import { registerCommands } from "./src/command-router.ts";
 import { EXTENSION_ID, PI_RULES_SOURCE_PATH } from "./src/constants.ts";
 import { NON_BLOCKING_HOOK_BRIDGE_POLICY, runMoaiHook } from "./src/hook-bridge.ts";
 import { notifyMoai, type MoaiNotificationContext } from "./src/notification-adapter.ts";
 import { updateMoaiStatus } from "./src/statusline.ts";
 import { buildSkillTriggerHints } from "./src/trigger-indexer.ts";
-
-function buildCompactOutputStyleInstruction(outputStyle: OutputStyleConfig): string {
-  return [
-    `MoAI output style '${outputStyle.name}' is active at prompt level.`,
-    "Follow concise, professional, transparent, language-aware Markdown.",
-    "Use MoAI status/summary formatting only when it improves clarity.",
-    "Never display internal completion markers or XML tags in user-facing responses.",
-    outputStyle.loaded ? `Style source: ${outputStyle.sourcePath}` : `Style source unavailable: ${outputStyle.error ?? "unknown"}`,
-  ].join("\n");
-}
 
 function isMoaiRelatedInput(text: string): boolean {
   return /(^|\s)\/moai\b/i.test(text)
@@ -33,10 +23,13 @@ function buildCompactRulesInstruction(rules: MoaiRulesConfig): string {
 export default function moaiClaudeCompat(pi: ExtensionAPI) {
   const config = loadMoaiCompatConfig();
   const coreInstruction = buildCoreInstruction(config);
-  const outputStyleInstruction = buildCompactOutputStyleInstruction(config.outputStyle);
-  const baseAdditionalContext = [coreInstruction, outputStyleInstruction]
-    .filter(Boolean)
-    .join("\n\n");
+  const outputStyleInstruction = config.outputStyle.instruction;
+  const basePromptInjection = [
+    "MoAI pi compatibility runtime instructions:",
+    coreInstruction,
+    outputStyleInstruction,
+  ].filter(Boolean).join("\n\n");
+  let pendingPromptContext: { prompt: string; context: string } | undefined;
 
   registerCommands(pi, config);
 
@@ -99,11 +92,7 @@ export default function moaiClaudeCompat(pi: ExtensionAPI) {
     updateMoaiStatus(ctx, config);
   });
 
-  pi.on("input", async (event, ctx) => {
-    const text = typeof event.text === "string" ? event.text : typeof event.input === "string" ? event.input : "";
-    if (!text.trim()) return;
-
-    const hookResult = await invokeHook("user-prompt-submit", { hook_event_name: "UserPromptSubmit", prompt: text, event, cwd: ctx.cwd }, ctx);
+  function buildPromptHints(text: string, hookStdout = ""): string {
     const lower = text.toLowerCase();
     const hints: string[] = [];
     if (lower.includes("--deepthink")) hints.push("Deepthink requested: prefer sequential-thinking MCP when available.");
@@ -111,10 +100,30 @@ export default function moaiClaudeCompat(pi: ExtensionAPI) {
     if (lower.includes("spec-") || lower.includes("/moai run")) hints.push(`SPEC workflow context likely required: read .moai/specs and pi-local MoAI workflow rules at ${PI_RULES_SOURCE_PATH}.`);
     if (lower.includes("permissionmode")) hints.push("Reminder: Claude permissionMode is excluded by design in pi parity.");
     hints.push(...buildSkillTriggerHints(text));
-    if (hookResult.stdout.trim()) hints.push(`MoAI user-prompt hook output: ${hookResult.stdout.trim()}`);
+    if (hookStdout.trim()) hints.push(`MoAI user-prompt hook output: ${hookStdout.trim()}`);
+    return hints.filter(Boolean).join("\n");
+  }
+
+  pi.on("input", async (event, ctx) => {
+    const text = typeof event.text === "string" ? event.text : typeof event.input === "string" ? event.input : "";
+    if (!text.trim()) return { action: "continue" };
+
+    const hookResult = await invokeHook("user-prompt-submit", { hook_event_name: "UserPromptSubmit", prompt: text, event, cwd: ctx.cwd }, ctx);
+    pendingPromptContext = { prompt: text, context: buildPromptHints(text, hookResult.stdout) };
+    return { action: "continue" };
+  });
+
+  pi.on("before_agent_start", async (event) => {
+    const text = typeof event.prompt === "string" ? event.prompt : "";
+    const promptContext = pendingPromptContext?.prompt === text
+      ? pendingPromptContext.context
+      : buildPromptHints(text);
+    if (pendingPromptContext?.prompt === text) pendingPromptContext = undefined;
 
     return {
-      additionalContext: [baseAdditionalContext, ...hints].filter(Boolean).join("\n"),
+      systemPrompt: [event.systemPrompt, basePromptInjection, promptContext]
+        .filter(Boolean)
+        .join("\n\n"),
     };
   });
 

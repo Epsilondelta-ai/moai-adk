@@ -1,7 +1,10 @@
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { PI_HOOKS_SOURCE_PATH } from "./constants.ts";
+import { COMPAT_MANIFEST_FILES } from "./runtime-config.ts";
+
+const HOOK_EVENTS_CONFIG_PATH = COMPAT_MANIFEST_FILES.hookEvents;
 
 export interface HookBridgeResult {
   ok: boolean;
@@ -11,38 +14,6 @@ export interface HookBridgeResult {
   skipped?: string;
 }
 
-export const HOOK_SCRIPT_BY_EVENT: Record<string, string> = {
-  "session-start": `${PI_HOOKS_SOURCE_PATH}/handle-session-start.sh`,
-  compact: `${PI_HOOKS_SOURCE_PATH}/handle-compact.sh`,
-  "session-end": `${PI_HOOKS_SOURCE_PATH}/handle-session-end.sh`,
-  "pre-tool": `${PI_HOOKS_SOURCE_PATH}/handle-pre-tool.sh`,
-  "post-tool": `${PI_HOOKS_SOURCE_PATH}/handle-post-tool.sh`,
-  stop: `${PI_HOOKS_SOURCE_PATH}/handle-stop.sh`,
-  "agent-hook": `${PI_HOOKS_SOURCE_PATH}/handle-agent-hook.sh`,
-  "subagent-start": `${PI_HOOKS_SOURCE_PATH}/handle-subagent-start.sh`,
-  "subagent-stop": `${PI_HOOKS_SOURCE_PATH}/handle-subagent-stop.sh`,
-  "post-tool-failure": `${PI_HOOKS_SOURCE_PATH}/handle-post-tool-failure.sh`,
-  notification: `${PI_HOOKS_SOURCE_PATH}/handle-notification.sh`,
-  "user-prompt-submit": `${PI_HOOKS_SOURCE_PATH}/handle-user-prompt-submit.sh`,
-  "permission-request": `${PI_HOOKS_SOURCE_PATH}/handle-permission-request.sh`,
-  "teammate-idle": `${PI_HOOKS_SOURCE_PATH}/handle-teammate-idle.sh`,
-  "task-completed": `${PI_HOOKS_SOURCE_PATH}/handle-task-completed.sh`,
-  "worktree-create": `${PI_HOOKS_SOURCE_PATH}/handle-worktree-create.sh`,
-  "worktree-remove": `${PI_HOOKS_SOURCE_PATH}/handle-worktree-remove.sh`,
-};
-
-export const CONNECTED_PI_HOOK_EVENTS = [
-  "session-start",
-  "compact",
-  "session-end",
-  "user-prompt-submit",
-  "pre-tool",
-  "post-tool",
-  "post-tool-failure",
-  "stop",
-  "notification",
-] as const;
-
 type HookRuntimeState = "extension-connected" | "package-backed-adapter-available" | "package-backed-bridge-missing" | "adapter-needed" | "intentionally-excluded";
 
 export interface HookRuntimeClassification {
@@ -50,7 +21,48 @@ export interface HookRuntimeClassification {
   detail: string;
 }
 
-export const HOOK_RUNTIME_CLASSIFICATION: Record<string, HookRuntimeClassification> = {
+interface HookEventsConfig {
+  mapping?: Record<string, unknown>;
+  runtimeBridge?: {
+    connected?: unknown;
+    statusOnly?: unknown;
+    failurePolicy?: unknown;
+  };
+}
+
+const DEFAULT_CLAUDE_EVENT_TO_BRIDGE_EVENT: Record<string, string> = {
+  SessionStart: "session-start",
+  PreCompact: "compact",
+  SessionEnd: "session-end",
+  PreToolUse: "pre-tool",
+  PostToolUse: "post-tool",
+  PostToolUseFailure: "post-tool-failure",
+  Stop: "stop",
+  AgentHook: "agent-hook",
+  SubagentStart: "subagent-start",
+  SubagentStop: "subagent-stop",
+  Notification: "notification",
+  UserPromptSubmit: "user-prompt-submit",
+  PermissionRequest: "permission-request",
+  TeammateIdle: "teammate-idle",
+  TaskCompleted: "task-completed",
+  WorktreeCreate: "worktree-create",
+  WorktreeRemove: "worktree-remove",
+};
+
+const DEFAULT_CONNECTED_CLAUDE_EVENTS = [
+  "SessionStart",
+  "PreCompact",
+  "SessionEnd",
+  "UserPromptSubmit",
+  "PreToolUse",
+  "PostToolUse",
+  "PostToolUseFailure",
+  "Stop",
+  "Notification",
+];
+
+const DEFAULT_HOOK_RUNTIME_CLASSIFICATION: Record<string, HookRuntimeClassification> = {
   "session-start": { state: "extension-connected", detail: "mapped from Pi session_start" },
   compact: { state: "extension-connected", detail: "mapped from Pi session_before_compact" },
   "session-end": { state: "extension-connected", detail: "mapped from Pi session_shutdown" },
@@ -70,7 +82,93 @@ export const HOOK_RUNTIME_CLASSIFICATION: Record<string, HookRuntimeClassificati
   "worktree-remove": { state: "package-backed-bridge-missing", detail: "pi-agent-teams cleans worktrees internally, but exposes no compat extension hook for this lifecycle" },
 };
 
+function readHookEventsConfig(path = HOOK_EVENTS_CONFIG_PATH): HookEventsConfig | undefined {
+  try {
+    const abs = resolve(process.cwd(), path);
+    if (!existsSync(abs)) return undefined;
+    return JSON.parse(readFileSync(abs, "utf8")) as HookEventsConfig;
+  } catch {
+    return undefined;
+  }
+}
+
+function asStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function toBridgeEventName(claudeEvent: string): string {
+  return DEFAULT_CLAUDE_EVENT_TO_BRIDGE_EVENT[claudeEvent]
+    ?? claudeEvent.replace(/([a-z0-9])([A-Z])/g, "$1-$2").replace(/_/g, "-").toLowerCase();
+}
+
+function loadClaudeEventToBridgeEvent(config = readHookEventsConfig()): Record<string, string> {
+  return {
+    ...DEFAULT_CLAUDE_EVENT_TO_BRIDGE_EVENT,
+    ...Object.fromEntries(
+      Object.keys(config?.mapping ?? {}).map((claudeEvent) => [claudeEvent, toBridgeEventName(claudeEvent)]),
+    ),
+  };
+}
+
+function bridgeEventDetailFromConfig(claudeEvent: string, config: HookEventsConfig | undefined): string | undefined {
+  const detail = config?.mapping?.[claudeEvent];
+  return typeof detail === "string" ? detail : undefined;
+}
+
+function loadConnectedBridgeEvents(config = readHookEventsConfig(), eventMap = loadClaudeEventToBridgeEvent(config)): string[] {
+  const connectedClaudeEvents = asStringArray(config?.runtimeBridge?.connected);
+  const source = connectedClaudeEvents.length ? connectedClaudeEvents : DEFAULT_CONNECTED_CLAUDE_EVENTS;
+  return source.map((event) => eventMap[event] ?? toBridgeEventName(event));
+}
+
+function loadHookScriptByEvent(config = readHookEventsConfig(), eventMap = loadClaudeEventToBridgeEvent(config)): Record<string, string> {
+  const bridgeEvents = new Set(Object.values(eventMap));
+  for (const bridgeEvent of Object.keys(DEFAULT_HOOK_RUNTIME_CLASSIFICATION)) bridgeEvents.add(bridgeEvent);
+  return Object.fromEntries(
+    [...bridgeEvents].sort().map((bridgeEvent) => [bridgeEvent, `${PI_HOOKS_SOURCE_PATH}/handle-${bridgeEvent}.sh`]),
+  );
+}
+
+function loadHookRuntimeClassification(config = readHookEventsConfig(), eventMap = loadClaudeEventToBridgeEvent(config)): Record<string, HookRuntimeClassification> {
+  const connected = new Set(loadConnectedBridgeEvents(config, eventMap));
+  const statusOnlyClaudeEvents = asStringArray(config?.runtimeBridge?.statusOnly);
+  const out: Record<string, HookRuntimeClassification> = { ...DEFAULT_HOOK_RUNTIME_CLASSIFICATION };
+
+  for (const [claudeEvent, bridgeEvent] of Object.entries(eventMap)) {
+    const configDetail = bridgeEventDetailFromConfig(claudeEvent, config);
+    if (connected.has(bridgeEvent)) {
+      out[bridgeEvent] = {
+        state: "extension-connected",
+        detail: configDetail ? `mapped by ${HOOK_EVENTS_CONFIG_PATH}: ${configDetail}` : out[bridgeEvent]?.detail ?? "mapped by hook-events config",
+      };
+    }
+  }
+
+  for (const claudeEvent of statusOnlyClaudeEvents) {
+    const bridgeEvent = eventMap[claudeEvent] ?? toBridgeEventName(claudeEvent);
+    if (connected.has(bridgeEvent)) continue;
+    const existing = out[bridgeEvent];
+    const configDetail = bridgeEventDetailFromConfig(claudeEvent, config);
+    out[bridgeEvent] = existing && existing.state !== "extension-connected"
+      ? { ...existing, detail: configDetail ? `${existing.detail}; hook-events statusOnly: ${configDetail}` : existing.detail }
+      : {
+          state: "adapter-needed",
+          detail: configDetail ? `hook-events statusOnly: ${configDetail}` : "listed as statusOnly in hook-events config",
+        };
+  }
+
+  return out;
+}
+
+const hookEventsConfig = readHookEventsConfig();
+const claudeEventToBridgeEvent = loadClaudeEventToBridgeEvent(hookEventsConfig);
+
+export const HOOK_SCRIPT_BY_EVENT: Record<string, string> = loadHookScriptByEvent(hookEventsConfig, claudeEventToBridgeEvent);
+export const CONNECTED_PI_HOOK_EVENTS = loadConnectedBridgeEvents(hookEventsConfig, claudeEventToBridgeEvent);
+export const HOOK_RUNTIME_CLASSIFICATION: Record<string, HookRuntimeClassification> = loadHookRuntimeClassification(hookEventsConfig, claudeEventToBridgeEvent);
+
 export const NON_BLOCKING_HOOK_BRIDGE_POLICY =
+  (typeof hookEventsConfig?.runtimeBridge?.failurePolicy === "string" ? hookEventsConfig.runtimeBridge.failurePolicy : undefined) ??
   "extension hook bridge is non-blocking compatibility telemetry; blocking guardrails are enforced by pi-yaml-hooks tool.before.* policies";
 
 export function unsupportedHookEvents(): string[] {
@@ -111,10 +209,11 @@ export async function runMoaiHook(eventName: string, payload: unknown, timeoutMs
 export function hookBridgeStatus(): string {
   const mapped = Object.keys(HOOK_SCRIPT_BY_EVENT);
   const present = mapped.filter(hasHookScript).length;
+  const source = hookEventsConfig ? HOOK_EVENTS_CONFIG_PATH : "built-in fallback";
   if (present !== mapped.length) {
-    return `missing: hook bridge script files present ${present}/${mapped.length}`;
+    return `missing: hook bridge script files present ${present}/${mapped.length} (mapping source: ${source})`;
   }
-  return `info: hook bridge script files present ${present}/${mapped.length} (existence only; runtime wiring is partial)`;
+  return `info: hook bridge script files present ${present}/${mapped.length} (mapping source: ${source}; runtime wiring is partial)`;
 }
 
 export function hookRuntimeClassificationStatus(): string[] {
