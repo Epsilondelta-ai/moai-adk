@@ -3,6 +3,7 @@ import { buildCoreInstruction, loadMoaiCompatConfig, type OutputStyleConfig } fr
 import { registerCommands } from "./src/command-router.ts";
 import { EXTENSION_ID, PI_RULES_SOURCE_PATH } from "./src/constants.ts";
 import { NON_BLOCKING_HOOK_BRIDGE_POLICY, runMoaiHook } from "./src/hook-bridge.ts";
+import { notifyMoai, type MoaiNotificationContext } from "./src/notification-adapter.ts";
 import { updateMoaiStatus } from "./src/statusline.ts";
 import { buildSkillTriggerHints } from "./src/trigger-indexer.ts";
 
@@ -26,13 +27,16 @@ export default function moaiClaudeCompat(pi: ExtensionAPI) {
 
   registerCommands(pi, config);
 
-  async function invokeHook(eventName: string, payload: unknown, ctx?: { ui?: { notify?: (message: string, level?: "info" | "warning" | "error" | "success") => void } }) {
+  async function invokeHook(eventName: string, payload: unknown, ctx?: MoaiNotificationContext) {
     // Compatibility hooks intentionally do not block Pi tool execution here.
     // Security-sensitive blocking is handled by pi-yaml-hooks tool.before.* guardrails.
     const result = await runMoaiHook(eventName, payload);
     if (!result.ok) {
       const detail = (result.stderr || result.stdout || `exit ${result.exitCode ?? "unknown"}`).trim();
-      ctx?.ui?.notify?.(`MoAI hook '${eventName}' failed non-blocking: ${detail}`, "warning");
+      await notifyMoai(ctx, `MoAI hook '${eventName}' failed non-blocking: ${detail}`, "warning", {
+        source: "hook-bridge",
+        failedHookEvent: eventName,
+      });
     }
     return result;
   }
@@ -40,7 +44,10 @@ export default function moaiClaudeCompat(pi: ExtensionAPI) {
   pi.on("session_start", async (event, ctx) => {
     await invokeHook("session-start", { hook_event_name: "SessionStart", event, cwd: ctx.cwd }, ctx);
     updateMoaiStatus(ctx, config, { phase: "idle" });
-    ctx.ui.notify("MoAI pi compatibility layer loaded", "info");
+    await notifyMoai(ctx, "MoAI pi compatibility layer loaded", "info", {
+      source: "moai-claude-compat",
+      reason: event.reason,
+    });
     pi.appendEntry(`${EXTENSION_ID}:loaded`, {
       conversationLanguage: config.conversationLanguage,
       qualityMode: config.qualityMode,

@@ -40,7 +40,35 @@ export const CONNECTED_PI_HOOK_EVENTS = [
   "post-tool",
   "post-tool-failure",
   "stop",
+  "notification",
 ] as const;
+
+type HookRuntimeState = "extension-connected" | "package-backed-adapter-available" | "package-backed-bridge-missing" | "adapter-needed" | "intentionally-excluded";
+
+export interface HookRuntimeClassification {
+  state: HookRuntimeState;
+  detail: string;
+}
+
+export const HOOK_RUNTIME_CLASSIFICATION: Record<string, HookRuntimeClassification> = {
+  "session-start": { state: "extension-connected", detail: "mapped from Pi session_start" },
+  compact: { state: "extension-connected", detail: "mapped from Pi session_before_compact" },
+  "session-end": { state: "extension-connected", detail: "mapped from Pi session_shutdown" },
+  "pre-tool": { state: "extension-connected", detail: "mapped from Pi tool_call" },
+  "post-tool": { state: "extension-connected", detail: "mapped from Pi tool_result" },
+  stop: { state: "extension-connected", detail: "mapped from Pi agent_end for the main session" },
+  "post-tool-failure": { state: "extension-connected", detail: "derived from Pi tool_result when isError is true" },
+  "user-prompt-submit": { state: "extension-connected", detail: "mapped from Pi input" },
+  "agent-hook": { state: "adapter-needed", detail: "Claude agent frontmatter hooks need a Pi agent metadata execution adapter" },
+  "subagent-start": { state: "package-backed-bridge-missing", detail: "Pi subagent/team packages own worker lifecycle; no compat extension event is exposed for safe direct mapping" },
+  "subagent-stop": { state: "package-backed-bridge-missing", detail: "Pi subagent/team packages own worker lifecycle; main-session agent_end is not a safe SubagentStop equivalent" },
+  notification: { state: "extension-connected", detail: "mapped for MoAI compat internal notifyMoai calls; Pi-global notification interception is not available" },
+  "permission-request": { state: "intentionally-excluded", detail: "Claude permissionMode parity is excluded by design; pi-yaml-hooks guardrails replace it" },
+  "teammate-idle": { state: "package-backed-adapter-available", detail: "pi-agent-teams optional idle hooks can call project-local MoAI adapter scripts when explicitly enabled" },
+  "task-completed": { state: "package-backed-adapter-available", detail: "pi-agent-teams optional task_completed hooks can call project-local MoAI adapter scripts when explicitly enabled" },
+  "worktree-create": { state: "package-backed-bridge-missing", detail: "pi-agent-teams supports worktree creation internally, but exposes no compat extension hook for this lifecycle" },
+  "worktree-remove": { state: "package-backed-bridge-missing", detail: "pi-agent-teams cleans worktrees internally, but exposes no compat extension hook for this lifecycle" },
+};
 
 export const NON_BLOCKING_HOOK_BRIDGE_POLICY =
   "extension hook bridge is non-blocking compatibility telemetry; blocking guardrails are enforced by pi-yaml-hooks tool.before.* policies";
@@ -89,17 +117,46 @@ export function hookBridgeStatus(): string {
   return `info: hook bridge script files present ${present}/${mapped.length} (existence only; runtime wiring is partial)`;
 }
 
+export function hookRuntimeClassificationStatus(): string[] {
+  const mapped = Object.keys(HOOK_SCRIPT_BY_EVENT);
+  const byState = (state: HookRuntimeState) => mapped.filter((event) => HOOK_RUNTIME_CLASSIFICATION[event]?.state === state);
+  const connected = byState("extension-connected");
+  const packageBackedAvailable = byState("package-backed-adapter-available");
+  const packageBackedMissing = byState("package-backed-bridge-missing");
+  const adapterNeeded = byState("adapter-needed");
+  const excluded = byState("intentionally-excluded");
+  const notConnected = mapped.length - connected.length;
+  return [
+    `partial: extension-connected hook events ${connected.length}/${mapped.length}; ${notConnected} are package-backed, adapter-needed, or intentionally excluded`,
+    packageBackedAvailable.length
+      ? `partial: package-backed adapter-available hook events ${packageBackedAvailable.join(", ")} (requires explicit Agent Teams hook env activation)`
+      : "ok: no package-backed hook adapters are waiting for activation",
+    packageBackedMissing.length
+      ? `partial: package-backed bridge-missing hook events ${packageBackedMissing.join(", ")} (Pi packages provide the lifecycle, but no safe compat extension event/adapter is installed yet)`
+      : "ok: no package-backed hook bridges are missing",
+    adapterNeeded.length
+      ? `partial: adapter-needed hook events ${adapterNeeded.join(", ")} (compat extension needs explicit runtime adapters)`
+      : "ok: no adapter-needed hook events",
+    excluded.length
+      ? `info: intentionally excluded hook events ${excluded.join(", ")} (replaced by Pi policy/guardrail mechanisms)`
+      : "ok: no intentionally excluded hook events",
+  ];
+}
+
+export function hookRuntimeClassificationDetailStatus(): string[] {
+  return Object.entries(HOOK_RUNTIME_CLASSIFICATION)
+    .filter(([, classification]) => classification.state !== "extension-connected")
+    .map(([event, classification]) => `info: hook ${event} ${classification.state} - ${classification.detail}`);
+}
+
 export function hookBridgeParityStatus(): string[] {
   const mapped = Object.keys(HOOK_SCRIPT_BY_EVENT);
   const present = mapped.filter(hasHookScript).length;
-  const unsupported = unsupportedHookEvents();
   return [
     hookBridgeStatus(),
-    `partial: extension-connected hook events ${CONNECTED_PI_HOOK_EVENTS.length}/${mapped.length}`,
+    ...hookRuntimeClassificationStatus(),
+    ...hookRuntimeClassificationDetailStatus(),
     `info: ${NON_BLOCKING_HOOK_BRIDGE_POLICY}`,
-    unsupported.length
-      ? `partial: unsupported/unwired hook events ${unsupported.join(", ")}`
-      : "ok: all mapped hook events are wired to pi extension events",
     present === mapped.length
       ? "ok: all mapped hook scripts exist"
       : `missing: hook scripts present ${present}/${mapped.length}`,

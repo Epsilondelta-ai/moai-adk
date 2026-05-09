@@ -5,6 +5,7 @@ import { buildAuditReport, buildDoctorReport } from "./doctor.ts";
 import { inferPhaseFromCommand, setMoaiWidget, updateMoaiStatus } from "./statusline.ts";
 import type { MoaiCompatConfig } from "./config.ts";
 import { writeConvertedAgents } from "./agent-converter.ts";
+import { notifyMoai } from "./notification-adapter.ts";
 const PI_PROMPTS_PATH = ".pi/prompts";
 
 const MOAI_SUBCOMMANDS = [
@@ -155,7 +156,10 @@ export function registerCommands(pi: ExtensionAPI, config: MoaiCompatConfig) {
     handler: async (_args, ctx) => {
       const lines = buildDoctorReport();
       setMoaiWidget(ctx, lines);
-      ctx.ui.notify(lines.join("\n"), "info");
+      await notifyMoai(ctx, lines.join("\n"), "info", {
+        source: "moai-pi-doctor",
+        command: "moai-pi-doctor",
+      });
     },
   });
 
@@ -164,7 +168,10 @@ export function registerCommands(pi: ExtensionAPI, config: MoaiCompatConfig) {
     handler: async (_args, ctx) => {
       const lines = buildAuditReport();
       setMoaiWidget(ctx, lines);
-      ctx.ui.notify(lines.join("\n"), "info");
+      await notifyMoai(ctx, lines.join("\n"), "info", {
+        source: "moai-pi-audit",
+        command: "moai-pi-audit",
+      });
     },
   });
 
@@ -178,7 +185,10 @@ export function registerCommands(pi: ExtensionAPI, config: MoaiCompatConfig) {
         "permissionMode: preserved as metadata-only",
       ];
       setMoaiWidget(ctx, lines);
-      ctx.ui.notify(lines.join("\n"), "info");
+      await notifyMoai(ctx, lines.join("\n"), "info", {
+        source: "moai-pi-generate-agents",
+        command: "moai-pi-generate-agents",
+      });
     },
   });
 
@@ -187,7 +197,10 @@ export function registerCommands(pi: ExtensionAPI, config: MoaiCompatConfig) {
     handler: async (_args, ctx) => {
       const lines = ["MoAI pi validation", ...buildAuditReport().slice(1)];
       setMoaiWidget(ctx, lines);
-      ctx.ui.notify(lines.join("\n"), "info");
+      await notifyMoai(ctx, lines.join("\n"), "info", {
+        source: "moai-pi-validate",
+        command: "moai-pi-validate",
+      });
     },
   });
 }

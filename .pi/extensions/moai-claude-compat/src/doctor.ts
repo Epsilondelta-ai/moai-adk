@@ -7,11 +7,13 @@ import { formatTeamSchemaReport } from "./team-schema.ts";
 import { getSkillIndexStatus } from "./trigger-indexer.ts";
 import {
   CONNECTED_PI_HOOK_EVENTS,
+  HOOK_RUNTIME_CLASSIFICATION,
   HOOK_SCRIPT_BY_EVENT,
   hookBridgeParityStatus,
   hookBridgeStatus,
 } from "./hook-bridge.ts";
 import { teamRuntimeStatus } from "./team-runtime.ts";
+import { teamHookAdapterStatus } from "./team-hook-adapter.ts";
 import { loadMoaiCompatConfig, outputStyleStatus } from "./config.ts";
 
 function exists(path: string): boolean {
@@ -58,18 +60,23 @@ function claudeSettingsHookParityReport(): string[] {
   const connected = new Set<string>(CONNECTED_PI_HOOK_EVENTS);
   const bridgeEvents = new Set<string>(Object.keys(HOOK_SCRIPT_BY_EVENT));
   const connectedClaudeEvents = claudeEvents.filter((event) => connected.has(CLAUDE_HOOK_EVENT_TO_BRIDGE_EVENT[event] ?? ""));
-  const unsupportedClaudeEvents = claudeEvents.filter((event) => !connected.has(CLAUDE_HOOK_EVENT_TO_BRIDGE_EVENT[event] ?? ""));
+  const unconnectedClaudeEvents = claudeEvents.filter((event) => !connected.has(CLAUDE_HOOK_EVENT_TO_BRIDGE_EVENT[event] ?? ""));
+  const classifiedUnconnected = unconnectedClaudeEvents.map((event) => {
+    const bridgeEvent = CLAUDE_HOOK_EVENT_TO_BRIDGE_EVENT[event] ?? "";
+    const classification = HOOK_RUNTIME_CLASSIFICATION[bridgeEvent];
+    return classification ? `${event}=${classification.state}` : `${event}=unmapped`;
+  });
   const extraBridgeEvents = [...bridgeEvents]
     .filter((event) => !Object.values(CLAUDE_HOOK_EVENT_TO_BRIDGE_EVENT).includes(event))
     .sort();
 
   return [
     claudeEvents.length
-      ? `partial: claude settings hook events connected ${connectedClaudeEvents.length}/${claudeEvents.length}`
+      ? `partial: claude settings hook events extension-connected ${connectedClaudeEvents.length}/${claudeEvents.length}`
       : "missing: claude settings hook events unavailable",
-    unsupportedClaudeEvents.length
-      ? `partial: unsupported claude settings hook events ${unsupportedClaudeEvents.join(", ")}`
-      : "ok: all claude settings hook events are connected",
+    classifiedUnconnected.length
+      ? `partial: claude settings hook events not extension-connected ${classifiedUnconnected.join(", ")}`
+      : "ok: all claude settings hook events are extension-connected",
     extraBridgeEvents.length
       ? `info: extra mapped hook scripts not present in claude settings ${extraBridgeEvents.join(", ")}`
       : "ok: no extra bridge-only hook scripts",
@@ -92,7 +99,13 @@ function hookParityReport(): string[] {
 
 export function buildDoctorReport(): string[] {
   const packages = configuredPackages();
-  const config = loadMoaiCompatConfig();
+  let config: ReturnType<typeof loadMoaiCompatConfig> | null = null;
+  let configError = "";
+  try {
+    config = loadMoaiCompatConfig();
+  } catch (error) {
+    configError = error instanceof Error ? error.message : String(error);
+  }
   const packageFindings = formatFindings(analyzePackageConflicts(packages));
 
   return [
@@ -107,10 +120,11 @@ export function buildDoctorReport(): string[] {
     "ok: permissionMode excluded-by-design; metadata only",
     getSkillIndexStatus(),
     ...getAgentConversionStatus(),
-    ...outputStyleStatus(config),
+    ...(config ? outputStyleStatus(config) : [`missing: output style status unavailable (${configError})`]),
     hookBridgeStatus(),
     ...hookParityReport(),
     teamRuntimeStatus(),
+    ...teamHookAdapterStatus(),
     ...packageFindings,
   ];
 }
@@ -122,6 +136,7 @@ export function buildAuditReport(): string[] {
     ...formatTeamSchemaReport(),
     ...hookParityReport(),
     teamRuntimeStatus(),
+    ...teamHookAdapterStatus(),
     "pending: invoke actual teams tool after @tmustier/pi-agent-teams package activation",
     "partial: pi-yaml-hooks is the blocking guardrail; extension hook bridge is non-blocking compatibility telemetry",
     "pending: Codex/GPT quota footer validation with openai-codex OAuth login",
