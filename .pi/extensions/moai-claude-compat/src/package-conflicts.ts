@@ -27,6 +27,8 @@ function roleFinding(role: string, label: string, specs: string[]): PackageConfl
   const names = normalizePackageSpecs(specs);
   const candidates = packageCandidates(role).map(normalizePackageName);
   const active = candidates.filter((candidate) => names.includes(candidate));
+  const nativeQuota = role === "quotaFooter" && candidates.includes("moai-claude-compat-native-codex-quota");
+  if (nativeQuota && active.length === 0) return { level: "ok", message: `${label} active: moai-claude-compat-native-codex-quota` };
   if (active.length === 0) return { level: "warn", message: `${label} package not active; candidates=${candidates.join(", ") || "none"}` };
   if (active.length > 1) return { level: "warn", message: `Multiple ${label} packages active: ${active.join(", ")}` };
   return { level: "ok", message: `${label} package active: ${active[0]}` };

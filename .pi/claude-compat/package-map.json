@@ -15,7 +15,7 @@
     "context": "context-mode",
     "planning": "@ifi/pi-plan",
     "triggerPreload": "pi-prompt-template-model",
-    "quotaFooter": "@kmiyh/pi-codex-plan-limits"
+    "quotaFooter": "moai-claude-compat-native-codex-quota"
   },
   "fallbacks": {
     "agentTeams": ["pi-teams", "pi-crew", "pi-subagents"],
@@ -24,7 +24,7 @@
     "ui": ["pi-claude-style-tools", "@plannotator/pi-extension"]
   },
   "conflictPolicy": {
-    "footerQuota": "enable only one of @kmiyh/pi-codex-plan-limits, pi-chatgpt-limit, pi-codexbar",
+    "footerQuota": "MoAI native quota footer owns Codex quota display; do not also enable @kmiyh/pi-codex-plan-limits, pi-chatgpt-limit, pi-codexbar",
     "agentTeams": "select exactly one primary team backend per run",
     "permissionMode": "ignore runtime semantics by design"
   }

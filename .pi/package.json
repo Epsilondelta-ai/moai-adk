@@ -18,12 +18,13 @@
   "dependencies": {},
   "optionalDependencies": {},
   "moaiCompat": {
-    "quotaFooterPrimary": "@kmiyh/pi-codex-plan-limits@1.0.1",
+    "quotaFooterPrimary": "moai-claude-compat-native-codex-quota",
+    "quotaFooterSource": "Adapted from @kmiyh/pi-codex-plan-limits@1.0.1 (MIT)",
     "agentTeamsPrimary": "@tmustier/pi-agent-teams",
     "permissionMode": "excluded-by-design"
   },
   "scripts": {
-    "check": "for f in extensions/moai-claude-compat/index.ts extensions/moai-claude-compat/src/*.ts; do node --experimental-strip-types --check \"$f\" || exit 1; done",
+    "check": "for f in extensions/moai-claude-compat/index.ts extensions/moai-claude-compat/src/*.ts; do node --experimental-strip-types --check \"$f\" || exit 1; done; node --experimental-strip-types extensions/moai-claude-compat/statusline-footer.test.mjs",
     "doctor": "pi /moai-pi-doctor"
   }
 }

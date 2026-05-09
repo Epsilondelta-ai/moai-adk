@@ -43,6 +43,7 @@
       "moai-claude-compat"
     ],
     "quotaFooter": [
+      "moai-claude-compat-native-codex-quota",
       "@kmiyh/pi-codex-plan-limits",
       "pi-chatgpt-limit",
       "pi-usage"

@@ -5,6 +5,7 @@ import { buildCoreInstruction, loadMoaiCompatConfig, type MoaiRulesConfig } from
 import { registerCommands } from "./src/command-router.ts";
 import { EXTENSION_ID, PI_RULES_SOURCE_PATH } from "./src/constants.ts";
 import { NON_BLOCKING_HOOK_BRIDGE_POLICY, runMoaiHook } from "./src/hook-bridge.ts";
+import { registerCodexQuota } from "./src/codex-quota.ts";
 import { notifyMoai, type MoaiNotificationContext } from "./src/notification-adapter.ts";
 import { updateMoaiStatus } from "./src/statusline.ts";
 import { buildSkillTriggerHints } from "./src/trigger-indexer.ts";
@@ -197,5 +198,7 @@ export default function moaiClaudeCompat(pi: ExtensionAPI) {
   pi.on("agent_end", async (event, ctx) => {
     await invokeHook("stop", { hook_event_name: "Stop", event, cwd: ctx.cwd }, ctx);
   });
+
+  registerCodexQuota(pi, (ctx) => updateMoaiStatus(ctx, config));
 
 }

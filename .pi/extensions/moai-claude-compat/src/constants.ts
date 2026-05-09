@@ -23,7 +23,6 @@ export const LANGUAGE_CONFIG_PATH = `${PI_MOAI_CONFIG_SOURCE_PATH}/language.yaml
 export const QUALITY_CONFIG_PATH = `${PI_MOAI_CONFIG_SOURCE_PATH}/quality.yaml`;
 export const WORKFLOW_CONFIG_PATH = `${PI_MOAI_CONFIG_SOURCE_PATH}/workflow.yaml`;
 
-
 export const TEAM_BACKEND_PRIORITY = [
   "@tmustier/pi-agent-teams",
   "pi-teams",
@@ -32,7 +31,7 @@ export const TEAM_BACKEND_PRIORITY = [
 ] as const;
 
 export const QUOTA_FOOTER_PRIORITY = [
-  "@kmiyh/pi-codex-plan-limits",
+  "moai-claude-compat-native-codex-quota",
   "pi-chatgpt-limit",
   "pi-usage",
 ] as const;
