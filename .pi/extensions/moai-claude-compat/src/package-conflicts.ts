@@ -62,7 +62,16 @@ export function analyzePackageConflicts(specs: string[] = []): PackageConflictFi
     findings.push({ level: "warn", message: "pi-yaml-hooks and @aliou/pi-guardrails may both confirm/block dangerous commands; verify ordering" });
   }
   if (has("pi-yaml-hooks")) {
-    findings.push({ level: "warn", message: "pi-yaml-hooks@2026.5.8 has known peer dependency risk; install in isolation first" });
+    findings.push({ level: "warn", message: "pi-yaml-hooks@2026.5.8 has known peer dependency risk; validate hook loading after session restart" });
+  }
+  if (has("@tmustier/pi-agent-teams") && has("pi-subagents")) {
+    findings.push({ level: "ok", message: "pi-agent-teams and pi-subagents serve distinct roles: teams backend vs Agent/subagent tool" });
+  }
+  if (has("context-mode") && has("pi-yaml-hooks")) {
+    findings.push({ level: "warn", message: "context-mode and pi-yaml-hooks both inject runtime guidance/hooks; validate ordering with /moai-pi-doctor after restart" });
+  }
+  if (has("pi-mcp-adapter")) {
+    findings.push({ level: "warn", message: "pi-mcp-adapter may overlap with Pi MCP gateway; prefer one MCP route per workflow if duplicate tools appear" });
   }
   if (specs.length === 0) {
     findings.push({ level: "ok", message: "Active packages empty by design for skeleton mode" });

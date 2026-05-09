@@ -28,8 +28,7 @@
     "agentTeams": [
       "@tmustier/pi-agent-teams",
       "pi-teams",
-      "pi-crew",
-      "pi-subagents"
+      "pi-crew"
     ],
     "hooks": [
       "pi-yaml-hooks",

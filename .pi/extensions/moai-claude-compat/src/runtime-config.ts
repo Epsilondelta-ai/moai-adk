@@ -153,7 +153,7 @@ const DEFAULT_WORKFLOW_MAP: WorkflowMapConfig = {
       primaryAgents: ["manager-docs", "manager-quality", "manager-git"],
     },
   },
-  teamBackendPriority: ["@tmustier/pi-agent-teams", "pi-teams", "pi-crew", "pi-subagents"],
+  teamBackendPriority: ["@tmustier/pi-agent-teams", "pi-teams", "pi-crew"],
   tddDdd: "read .pi/generated/source/moai-config/sections/quality.yaml",
 };
 
@@ -280,7 +280,7 @@ const DEFAULT_SOURCE_MAP: SourceMapConfig = {
   compatRoot: "./claude-compat",
   expectedCounts: { agents: 19, skills: 51, outputStyles: 3 },
   packagePriority: {
-    agentTeams: ["@tmustier/pi-agent-teams", "pi-teams", "pi-crew", "pi-subagents"],
+    agentTeams: ["@tmustier/pi-agent-teams", "pi-teams", "pi-crew"],
     hooks: ["pi-yaml-hooks", "pi-autohooks", "moai-claude-compat"],
     permissions: ["@gotgenes/pi-permission-system", "@aliou/pi-guardrails", "pi-yaml-hooks", "moai-claude-compat"],
   },
@@ -306,14 +306,16 @@ const DEFAULT_PACKAGE_MAP: PackageMapConfig = {
     quotaFooter: "moai-claude-compat-native-codex-quota",
   },
   fallbacks: {
-    agentTeams: ["pi-teams", "pi-crew", "pi-subagents"],
+    agentTeams: ["pi-teams", "pi-crew"],
     quotaFooter: ["pi-chatgpt-limit", "pi-usage"],
     memory: ["pi-total-recall", "claude-recall"],
     ui: ["pi-claude-style-tools", "@plannotator/pi-extension"],
   },
   conflictPolicy: {
     footerQuota: "MoAI native quota footer owns Codex quota display; do not also enable @kmiyh/pi-codex-plan-limits, pi-chatgpt-limit, pi-codexbar",
-    agentTeams: "select exactly one primary team backend per run",
+    agentTeams: "select exactly one primary team backend per run; pi-subagents is tracked separately for Agent tool delegation, not as a team backend fallback",
+    contextHooks: "context-mode and pi-yaml-hooks can both be active, but hook/guidance ordering must be validated after restart",
+    mcp: "prefer one MCP route per workflow if pi-mcp-adapter and the native Pi MCP gateway both expose similar tools",
     permissionMode: "ignore runtime semantics by design",
   },
 };

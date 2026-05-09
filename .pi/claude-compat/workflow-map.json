@@ -15,6 +15,6 @@
       "primaryAgents": ["manager-docs", "manager-quality", "manager-git"]
     }
   },
-  "teamBackendPriority": ["@tmustier/pi-agent-teams", "pi-teams", "pi-crew", "pi-subagents"],
+  "teamBackendPriority": ["@tmustier/pi-agent-teams", "pi-teams", "pi-crew"],
   "tddDdd": "read .pi/generated/source/moai-config/sections/quality.yaml"
 }

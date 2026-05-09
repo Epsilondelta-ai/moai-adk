@@ -50,6 +50,20 @@
       "@aliou/pi-guardrails@0.11.2",
       "@ifi/pi-plan@0.5.1",
       "pi-prompt-template-model"
+    ],
+    "securityAdvisories": [
+      {
+        "package": "pi-mcp-adapter@2.5.4",
+        "severity": "moderate",
+        "via": "@mariozechner/pi-ai -> @anthropic-ai/sdk GHSA-p7fg-763f-g4gf",
+        "mitigation": "Do not run npm audit fix --force because npm suggests a downgrade. Keep MCP usage scoped to trusted servers and upgrade pi-mcp-adapter when an upstream release includes @anthropic-ai/sdk >=0.91.1."
+      },
+      {
+        "package": "pi-web-access@0.10.7",
+        "severity": "low",
+        "via": "@mozilla/readability GHSA-3p6v-hrg8-8qj7",
+        "mitigation": "Avoid fetching untrusted very large HTML documents until pi-web-access updates @mozilla/readability to >=0.6.0."
+      }
     ]
   },
   "enableSkillCommands": true,
