@@ -1,8 +1,0 @@
-{
-  "$schema": "https://pi.dev/schemas/settings.json",
-  "notes": [
-    "Manual pi-only settings overrides go here.",
-    "Generated settings are maintained under .pi/generated/**.",
-    "Pi compatibility settings are maintained under .pi/**."
-  ]
-}

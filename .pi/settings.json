@@ -4,8 +4,7 @@
     "./extensions/moai-claude-compat"
   ],
   "skills": [
-    "./generated/source/skills",
-    "./skills"
+    "./generated/source/skills"
   ],
   "prompts": [
     "./prompts"

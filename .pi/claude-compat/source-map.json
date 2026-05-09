@@ -2,7 +2,6 @@
   "version": 1,
   "generatedAt": "2026-05-09T00:00:00.000Z",
   "policy": {
-    "sourceOfTruth": ".pi/generated/source/** is the pi-local snapshot of Claude sources",
     "permissionMode": "excluded-by-design; record as metadata only; do not enforce runtime semantics",
     "packageFirst": true
   },
@@ -19,7 +18,6 @@
     "moaiProject": "../.moai/project"
   },
   "generatedRoot": "./generated",
-  "overrideRoot": "./overrides",
   "compatRoot": "./claude-compat",
   "expectedCounts": {
     "agents": 19,
