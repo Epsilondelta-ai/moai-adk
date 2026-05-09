@@ -9,6 +9,7 @@
 | Version | Date | Author | Description |
 |---------|------|--------|-------------|
 | 0.1.0 | 2026-05-09 | manager-spec (Wave 9 plan author) | Initial hierarchical AC authoring covering 18 REQs across 5 EARS modalities. Self-demonstrates SPC-001 schema. |
+| 0.1.1 | 2026-05-10 | manager-spec (Batch 3 fix) | Synchronized with spec.md v0.1.1 (no content changes, version alignment only). |
 
 ---
 
