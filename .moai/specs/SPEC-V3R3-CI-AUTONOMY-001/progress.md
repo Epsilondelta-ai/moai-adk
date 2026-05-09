@@ -421,3 +421,188 @@
 - commit_strategy: ~6-8 atomic commits per strategy-wave5 §9 cadence
 - pr_labels: type:feature, priority:P1, area:cli, area:workflow
 
+
+---
+
+## Wave 6 — Phase 1 (Strategy + Tasks) — v0.2.0 (Rework)
+
+- date: 2026-05-09
+- author: manager-strategy
+- artifacts:
+  - .moai/specs/SPEC-V3R3-CI-AUTONOMY-001/strategy-wave6.md (status: draft, version 0.2.0)
+  - .moai/specs/SPEC-V3R3-CI-AUTONOMY-001/tasks-wave6.md (status: draft, version 0.2.0)
+- summary:
+  - Wave 6 scope: T7 i18n validator (P2). Standalone Go static analyzer at scripts/i18n-validator/.
+  - 7 atomic tasks (W6-T01..W6-T07) covering 4-layer architecture (AST parser → cross-file resolver → lockset → diff comparator with DUAL ORACLE) + magic comment escape (cross-cutting) + ci-mirror integration + budget validation.
+  - W6-T05 ships BOTH `--all-files` (intra-state oracle, default) AND `--diff <git-rev>` (temporal/baseline oracle, mandatory per plan.md:252) per plan-auditor rework path A.
+  - REQ mapping: REQ-CIAUT-037..041 all bound to tasks.
+  - AC mapping: AC-CIAUT-016 (mockReleaseData block via `--diff` mode dual-tree fixture), AC-CIAUT-017 (magic comment exempt), AC-CIAUT-023 (30s budget) all bound to tasks.
+  - 4 Open Questions resolved inline (strategy §6 Wave6-Q1..Q4): vendor exclusion, testify suite receiver heuristic, const reference tracking, dual-mode oracle design.
+  - Solo mode (--branch pattern, lessons #13). Wave Base: origin/main 8760b89cd.
+  - No template-first mirror (dev-project tooling per strategy-wave6 §7).
+
+## Wave 6 — Phase 1.5 (Plan Audit) — Iteration 2 PASS
+
+- date: 2026-05-09T01:53Z
+- author: plan-auditor
+- previous_verdict: FAIL (iteration 1; W6-T05 lacked temporal/baseline oracle, contradicted plan.md:252)
+- iteration_2_verdict: **PASS** (with minor non-blocking recommendations)
+- iteration_1_findings_resolution:
+  - F1 (W6-T05 cannot satisfy AC-CIAUT-016): RESOLVED via `--diff` oracle ship in v0.2.0
+  - F2 (plan.md:252 prescribes diff input): RESOLVED — `--diff <git-rev>` mode now in scope
+  - F3 (strategy:289-296 internal contradiction): RESOLVED — §5 W6-T05 rewritten with dual-mode design statement
+  - F4 (byte-count miscitation): VERIFIED CORRECT — actual `wc -c scripts/ci-mirror/lib/go.sh` = 834 bytes
+  - F5 (OQ4 namespace collision): RESOLVED — internal section renamed Wave6-Q1..Q4
+  - F6 (commit cadence missing trailer text): RESOLVED — verbatim "🗿 MoAI <email@mo.ai.kr>" trailer present
+- iteration_2_minor_findings (non-blocking, addressed by orchestrator post-audit):
+  - N1 (strategy:218 os/exec "(optional)"): FIXED — clarified as REQUIRED for `--diff` mode
+  - N2 (tasks:250 LOC inventory drift): FIXED — updated to 3 source + 3 test + 5 fixtures
+  - N3 (strategy:496 vs tasks:137 fixture count mismatch): FIXED — strategy now reads 5 fixture directories
+  - R-1 (error wording AC vs strategy): DEFERRED to Phase 2 implementation (validator emits canonical AC-CIAUT-016 wording from acceptance.md)
+- ac_replay_verification:
+  - AC-CIAUT-016 walk-through validated by plan-auditor: dual-tree fixture (`pr783_diff/baseline/` Korean + `pr783_diff/head/` English) → temp git repo → `i18n-validator --diff <baseline-rev>` → exit 1 + canonical stderr
+- next:
+  - Phase 2 (manager-tdd delegation): begin W6-T01 (Go AST parser) — TDD RED-GREEN-REFACTOR.
+  - Sub-agent context inheritance fallback: if delegation fails, main-session direct implementation per Wave 5 §C-6 lesson.
+- audit_report_path: .moai/reports/plan-audit/SPEC-V3R3-CI-AUTONOMY-001-2026-05-09.md (iteration 1 + iteration 2 appended)
+
+
+## Wave 6 — Phase 2 (TDD Implementation) — COMPLETE
+
+- date: 2026-05-09
+- author: manager-tdd (delegated) + orchestrator (cleanup + modernizers)
+- methodology: TDD (RED-GREEN-REFACTOR collapsed to 3 atomic commits)
+- artifacts:
+  - scripts/i18n-validator/main.go (18,122 bytes — Layer 1 AST parser, magic comment, --all-files oracle, budget enforcement, CLI main)
+  - scripts/i18n-validator/lockset.go (13,114 bytes — Layer 2 cross-file resolver + Layer 3 lockset builder)
+  - scripts/i18n-validator/diff.go (7,345 bytes — Layer 4 --diff mode, git CLI shell-out, baseline lockset)
+  - scripts/i18n-validator/main_test.go (10,655 bytes — W6-T01/T03/T04/T05 --all-files / T07 budget tests)
+  - scripts/i18n-validator/lockset_test.go (6,077 bytes — W6-T02/T03 resolver + lockset tests)
+  - scripts/i18n-validator/diff_test.go (6,068 bytes — W6-T05 --diff mode + canonical AC-CIAUT-016)
+  - scripts/i18n-validator/testdata/{normal, translatable_comment, pr783_diff/baseline, pr783_diff/head}/ (4 fixtures; budget_corpus deferred to runtime synthesis)
+  - scripts/ci-mirror/lib/go.sh (extended with step 5/5 i18n-validator invocation; step counters N/4 → N/5)
+- commits:
+  - 20a435df9 test(i18n-validator): W6-T01/T02/T03/T04/T05/T07 RED — full test suite
+  - 27a3c0c2c feat(i18n-validator): W6-T01..T07 GREEN — full implementation
+  - e4f98dd51 feat(ci-mirror): W6-T06 add i18n-validator as step 5/5 in go.sh
+  - de55c9835 chore(i18n-validator): apply Go modernizers (mapsloop, any, rangeint)
+- quality_gate:
+  - go test -race -count=1 -short ./scripts/i18n-validator/... — PASS (1.781s, 0 races)
+  - go vet ./scripts/i18n-validator/... — clean
+  - golangci-lint run ./scripts/i18n-validator/... — 0 issues
+  - make ci-local — ALL 5/5 STEPS GREEN (vet, lint, test-race, cross-compile, i18n-validator)
+  - W4 SSoT auxiliary validation — PASS
+- ac_verification:
+  - AC-CIAUT-016 (PR #783 mockReleaseData replay): PASS via TestDiff_ExitsNonZeroOnPR783Mockreleasedata. Korean baseline → English head transition exits 1 with canonical stderr `"string literal at <file>:<line> is referenced by <test>:<line>, translation requires test update"` (R-1 alignment achieved at main.go:504, diff.go:154)
+  - AC-CIAUT-017 (i18n:translatable magic comment): PASS via TestMagicComment_* cases (testdata/translatable_comment/ fixture)
+  - AC-CIAUT-023 (30s budget): PASS via TestBudget_FullRepoScanWithin30Sec (full repo scan well under 30s threshold)
+- post_audit_cosmetic_findings_resolved:
+  - N1 (os/exec optional → required): FIXED in plan artifact
+  - N2 (LOC inventory): FIXED in plan artifact
+  - N3 (fixture count consistency): FIXED in plan artifact
+  - R-1 (canonical AC-CIAUT-016 wording): IMPLEMENTED in validator stderr
+- agent_session_artifacts_cleaned:
+  - i18n-validator (3.4MB stale binary at project root) — removed
+  - {}/ literal-placeholder directory — removed
+- honest_concerns:
+  - Commit cadence collapsed from prescribed 15 atomic commits to 3 (RED + GREEN + ci-mirror) due to single-agent batched execution. Strategy §10 cadence intent preserved in commit messages but not in granularity.
+  - manager-tdd subagent reported `worktreePath: {}` (empty) — agent did NOT use isolation:worktree as instructed (lessons #12 P1 violation, similar to Wave 5 §C-6). Implementation was performed in main project cwd directly. Quality gates still pass.
+  - parseHunkHeader removed (unused); if line-level diff precision needed in follow-up wave, must be re-added.
+  - --all-files intra-state mismatch detection is limited to test-file vs test-file; production const changes without test update fall through (acceptable per spec §3.7 scope).
+
+## Wave 6 — Phase 3 (Git Push + PR) — IN PROGRESS
+
+- branch: feat/SPEC-V3R3-CI-AUTONOMY-001-wave-6
+- base: origin/main (8760b89cd, Wave 5 baseline)
+- commits_total: 5 (1 chore plan + 1 RED + 1 GREEN + 1 ci-mirror + 1 modernizers)
+- pr_labels: type:feature, priority:P2, area:ci, area:workflow
+- merge_strategy: squash (per CLAUDE.local.md §18.3 feature → main)
+
+
+
+## Wave 7 — Phase 0.5 (Plan Audit Gate) — CACHE HIT
+
+- date: 2026-05-09
+- author: orchestrator (cache lookup)
+- verdict: PASS (Wave 7 audit cached at .moai/reports/plan-audit/SPEC-V3R3-CI-AUTONOMY-001-2026-05-09.md)
+- Wave 7 plan-auditor verdict (today's report): PASS, 10/10 must-pass criteria, REQ 12/12, AC 5/5
+- proceeded_to_phase: 1
+
+
+## Wave 7 — Phase 1 + Phase 2 (TDD Implementation) — COMPLETE
+
+- date: 2026-05-09
+- author: orchestrator (main-session direct implementation per audit recommendation)
+- methodology: TDD RED-GREEN per W7-T01..T06
+- artifacts:
+  - internal/bodp/relatedness.go (Pure-Go BODP library, 196 LOC)
+  - internal/bodp/audit_trail.go (WriteDecision + HasAuditTrail, 87 LOC)
+  - internal/bodp/relatedness_test.go (10 tests including 4 edge-case)
+  - internal/bodp/audit_trail_test.go (6 tests)
+  - internal/cli/worktree/new.go (extended: --base default origin/main, --from-current, audit trail call)
+  - internal/cli/worktree/new_test.go (extended: 7 W7-T03 tests)
+  - internal/cli/status.go (extended: emitOffProtocolReminder + 4-skip-condition + runStatus integration)
+  - internal/cli/status_test.go (extended: 5 W7-T05 tests)
+  - .claude/skills/moai/workflows/plan.md (Phase 3.0 BODP Gate sub-section)
+  - .claude/rules/moai/development/branch-origin-protocol.md (new HARD rule)
+  - CLAUDE.local.md §18.12 (BODP dev-project notes)
+  - .moai/branches/decisions/.gitkeep
+  - internal/template/templates/.claude/skills/moai/workflows/plan.md (mirror)
+  - internal/template/templates/.claude/rules/moai/development/branch-origin-protocol.md (mirror)
+  - internal/template/templates/.moai/branches/decisions/.gitkeep (mirror)
+- commits:
+  - f3f066500 chore(docs): §20 Vercel Build Externalization Policy (pre-Wave-7 cleanup)
+  - 4a3546d42 test(bodp): W7-T01 RED — relatedness check cases
+  - 9bfa67a5d feat(bodp): W7-T01 implement Check() + 3-signal evaluation + decision matrix
+  - b1c8519cb test(bodp): W7-T04 RED — audit trail writer cases
+  - edb14dba0 feat(bodp): W7-T04 implement WriteDecision + HasAuditTrail
+  - 858a6b6a8 test(cli/worktree): W7-T03 RED — new --base/--from-current flag cases
+  - 5b8a069b6 feat(cli/worktree): W7-T03 add --base/--from-current flags + audit trail
+  - d9bd43f12 test(cli/status): W7-T05 RED — off-protocol reminder cases
+  - 2529310f7 feat(cli/status): W7-T05 implement off-protocol branch reminder
+  - 7452c11c9 feat(skill/plan): W7-T02 extend Phase 3 with BODP gate (공통)
+  - 0b852542f docs(rules): W7-T06 add branch-origin-protocol.md rule + CLAUDE.local.md §18.12
+  - 52e1d7cfa chore(template): W7-T06 mirror branch-origin-protocol.md + audit dir to templates/
+- quality_gate:
+  - go test -race -count=1 ./internal/bodp/... ./internal/cli/... — ALL PASS (cli 12.3s, worktree 14.7s, bodp 1.4s, pr/wizard 1.4s/2.9s)
+  - go vet ./internal/bodp/... ./internal/cli/... — clean
+  - go test -cover ./internal/bodp/... — 85.9% (DoD ≥85% MET)
+  - make build — embedded.go 자동 재생성 (go:embed all:templates), 0 issue
+- ac_verification:
+  - AC-CIAUT-018 (canonical fixture replay): PASS via TestRelatedness_AllNegative_RecommendsMain (chore branch + new SPEC + clean tree → ChoiceMain @ origin/main)
+  - AC-CIAUT-019 (depends_on signal A): PASS via TestRelatedness_SignalA_RecommendsStacked (frontmatter depends_on 매칭 → ChoiceStacked)
+  - AC-CIAUT-019b (CLI default origin/main + no AskUserQuestion): PASS via TestNew_BaseFlagDefaultIsOriginMain + TestNew_NoAskUserQuestion + TestNew_FetchOriginMainWhenDefaultBase
+  - AC-CIAUT-024 (off-protocol reminder + 4 skip conditions): PASS via 5 TestStatus_* cases (incl. EnvVar + MainBranch + DirAbsent + AuditTrailExists)
+  - AC-CIAUT-025 (§18.12 + branch-origin-protocol.md mirror): PASS via grep verification + Template-First mirror
+- methodology_notes:
+  - Sub-agent 1M context inheritance error 회피: main-session 직접 구현 (audit report 권장 + Wave 4/5/6 §C-7 lesson 재확인)
+  - Wave 5/6 (manager-tdd worktreePath 빈응답 lesson #12 violation) 재발 없음 — solo --branch mode
+  - 12 atomic commits + Conventional Commits + 🗿 MoAI trailer 모두 준수
+  - DoD coverage ≥85% 후속 edge-case test 4개로 보강 (extractFrontmatter 4 sub-cases + parseDependsOn 2 error paths)
+
+
+## Wave 7 — Phase 3 (Push + PR) — COMPLETE
+
+- date: 2026-05-09
+- branch: feat/SPEC-V3R3-CI-AUTONOMY-001-wave-7
+- base: origin/main (78929d058, post-Wave-6 baseline)
+- commits_total: 12 (1 chore §20 + 6 RED/GREEN feat + 1 skill + 1 docs rule + 1 template mirror + 1 progress.md + 1 coverage refactor)
+- pr_labels: type:feature, priority:P0, area:cli, area:bodp, area:workflow
+- merge_strategy: squash (per CLAUDE.local.md §18.3 feature → main)
+- spec_closure: Wave 7 = Final Wave (7/7) of SPEC-V3R3-CI-AUTONOMY-001 — closure 진입 직전
+
+
+## SPEC Closure — 2026-05-09
+
+- date: 2026-05-09
+- status: completed
+- waves_total: 7 (Wave 1-7) + 1 follow-up fix
+- prs_merged: #785, #788, #790, #791, #792, #793, #794, #795
+- main_head_at_closure: 9ecd8c765 (PR #795 squash, BODP cwd leak fix)
+- ac_replay_window_active: 2026-05-09 → 2026-06-08 (30 days, AC-CIAUT-020 manual validation, anchor PR #794 merged 2026-05-09T04:48:01Z UTC sha 02bed9c14, NOT PR #795 follow-up fix)
+- retrospective: .moai/reports/post-merge-validation/SPEC-V3R3-CI-AUTONOMY-001.md
+- closure_session_learnings:
+  - sub-agent 1M context limit → main-session direct implementation (lesson #12 reinforcement)
+  - auto-merge race during follow-up fix work → orphan branch warning (new candidate #15)
+  - functor-mock pattern for cwd-dependent code (new candidate #16)
+- next_action: 다음 SPEC scoping (사용자 결정 예정)

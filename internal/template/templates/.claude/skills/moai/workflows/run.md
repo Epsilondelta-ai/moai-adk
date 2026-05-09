@@ -45,6 +45,63 @@ For methodology details (DDD ANALYZE-PRESERVE-IMPROVE and TDD RED-GREEN-REFACTOR
 - Resume: Re-running /moai run SPEC-XXX resumes from last successful phase checkpoint
 - --team: Enable team-based implementation (see ${CLAUDE_SKILL_DIR}/team/run.md for parallel implementation team)
 
+## Mode Dispatch (Multi-Mode Router)
+
+<!-- @MX:NOTE - Multi-Mode Router per SPEC-V3R2-WF-003 REQ-WF003-001..018; --mode {autopilot,loop,team,pipeline} dispatch with harness-based default. See spec-workflow.md#mode-dispatch-cross-reference. -->
+
+Per SPEC-V3R2-WF-003, `/moai run` participates in the `--mode` axis with 4 valid values: `autopilot`, `loop`, `team`, `pipeline`. Each value selects a distinct execution style.
+
+### Mode Values
+
+- **`autopilot` (default for harness `minimal` / `standard`)**: Single-lead orchestration via Phase 0.95 Scale-Based Mode Selection (Fix / Focused / Standard / Full Pipeline) → Phase 2A/2B per `quality.yaml development_mode`. Behaves as today's default `/moai run` invocation.
+- **`loop`**: Delegate to `Skill("moai-workflow-loop")` with the SPEC-ID and remaining args. Bypasses Phase 2A/2B and enters the Ralph engine per-iteration cycle (see `loop.md` Steps 1-9). Per REQ-WF003-004, `/moai loop SPEC-XXX` is an alias resolving to `/moai run --mode loop SPEC-XXX` with identical behavior.
+- **`team` (default for harness `thorough` AND prerequisites met)**: Routes to existing Team Mode Routing (Phase 0.95 row 5 + the Team Mode Routing section). Requires `workflow.team.enabled: true` AND `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` env var.
+- **`pipeline`**: REJECTED on `/moai run`. Pipeline mode is reserved for utility subcommands (`fix`, `coverage`, `mx`, `codemaps`, `clean`) per SPEC-V3R2-WF-004. Passing `--mode pipeline` here triggers `MODE_PIPELINE_ONLY_UTILITY` (preserved from the WF-004 baseline; REQ-WF003-016 ↔ REQ-WF004-014 byte-identical).
+
+### Mode Resolver
+
+Precedence order (REQ-WF003-018, hard-coded):
+
+1. CLI flag `--mode <value>` — highest priority. Wins regardless of config / harness.
+2. Config field `workflow.default_mode` in `.moai/config/sections/workflow.yaml` — used when CLI flag is absent.
+3. Harness auto-selection — fallback when both CLI and config are absent.
+
+Pseudocode:
+
+<!-- @MX:WARN - Mode resolver validation sensitive to new mode value additions. REQ-WF003-018 lock-in. @MX:REASON - Expanding the mode set without updating validation set breaks runtime error path. -->
+```
+mode = cli_mode_flag or config.workflow.default_mode or harness_auto_select(harness_level)
+if mode not in {autopilot, loop, team, pipeline}:
+    emit MODE_UNKNOWN listing 4 valid values; abort
+if mode == pipeline:
+    emit MODE_PIPELINE_ONLY_UTILITY pointing to {fix, coverage, mx, codemaps, clean}; abort
+if mode == team and not (workflow.team.enabled and CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS):
+    if cli_mode_flag == team:                      # explicit request
+        emit MODE_TEAM_UNAVAILABLE suggesting --mode autopilot; abort
+    else:                                          # harness auto-selected team
+        log [mode-auto-downgrade] info; mode = autopilot  # silent downgrade per REQ-WF003-012
+dispatch(mode)
+```
+
+### Harness-Based Default Selection (REQ-WF003-002, REQ-WF003-003)
+
+| Harness level | Team prerequisites | Default mode |
+|---------------|--------------------|--------------|
+| `minimal` | (any) | `autopilot` |
+| `standard` | (any) | `autopilot` |
+| `thorough` | satisfied | `team` |
+| `thorough` | not satisfied | `autopilot` (downgraded with `[mode-auto-downgrade]` info log; REQ-WF003-012) |
+
+### Sentinel Error Keys
+
+This skill emits the following sentinel error keys when mode dispatch fails. CI guards in `internal/template/agentless_audit_test.go` enforce each literal sentinel remains present in this skill body.
+
+- **`MODE_UNKNOWN`** (REQ-WF003-010, owned by SPEC-V3R2-WF-003): Emitted when `--mode <value>` is supplied but `<value>` is not in the 4-value valid set `{autopilot, loop, team, pipeline}`. The error message MUST enumerate the 4 valid values to guide the user.
+- **`MODE_TEAM_UNAVAILABLE`** (REQ-WF003-011, owned by SPEC-V3R2-WF-003): Emitted when an EXPLICIT `--mode team` request cannot be honored because either `workflow.team.enabled: false` in workflow.yaml OR the `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` env var is unset. The error message MUST suggest `--mode autopilot` as the supported fallback. Note: when `team` is auto-selected by harness (not explicit CLI), the system silently downgrades to `autopilot` with an info log instead of raising this error (REQ-WF003-012).
+- **`MODE_PIPELINE_ONLY_UTILITY`** (REQ-WF003-016 ↔ REQ-WF004-014, shared with SPEC-V3R2-WF-004): Preserved from the WF-004 baseline. Emitted when `--mode pipeline` is passed to this multi-agent subcommand. The error message MUST point the user to the utility subcommand set `{fix, coverage, mx, codemaps, clean}`.
+
+See [Subcommand Classification matrix](../../rules/moai/workflow/spec-workflow.md#subcommand-classification) for the cross-skill mode dispatch contract.
+
 ## UltraThink Auto-Activation
 
 When the run phase begins, evaluate whether to activate deep analysis mode for the strategy phase:
@@ -329,30 +386,32 @@ Progress update: Append to `.moai/specs/SPEC-{ID}/progress.md`:
 - Phase 0.6 complete: memory_guard={enabled|disabled}, available_mb={N}, strategy={full|module|changed}
 ```
 
+<!-- @MX:WARN: [AUTO] Future PRs may be tempted to revert to moai-lang-* skill references here. The current rule-path mapping (post-SPEC-V3R2-WF-005) MUST remain pointing to .claude/rules/moai/languages/<name>.md. Frontmatter `related-skills:` regressions fail TestRelatedSkillsNoLangReference (DEAD_LANG_FRONTMATTER_REFERENCE); body-prose regressions fail TestSkillBodyNoLangReference (DEAD_LANG_SKILL_REFERENCE). -->
+<!-- @MX:REASON: High-traffic section — language detection mapping is frequently referenced by agent authors who may inadvertently reintroduce moai-lang-* skill IDs. -->
 ### Phase 0.9: JIT Language Skill Detection
 
 Purpose: Detect the project's primary language and prepare the appropriate language skill reference for agent spawn prompts. Since language skills are not statically bound to agents, the orchestrator must inject them at spawn time.
 
 Steps:
 1. Check project root for language indicator files:
-   - go.mod → moai-lang-go
-   - package.json with "typescript" in devDependencies → moai-lang-typescript
-   - package.json without typescript → moai-lang-javascript
-   - pyproject.toml or requirements.txt → moai-lang-python
-   - Cargo.toml → moai-lang-rust
-   - pom.xml or build.gradle → moai-lang-java
-   - build.gradle.kts → moai-lang-kotlin
-   - *.csproj or *.sln → moai-lang-csharp
-   - Gemfile → moai-lang-ruby
-   - mix.exs → moai-lang-elixir
-   - build.sbt → moai-lang-scala
-   - Package.swift → moai-lang-swift
-   - pubspec.yaml → moai-lang-flutter
-   - DESCRIPTION (with R content) → moai-lang-r
-   - CMakeLists.txt or *.cpp → moai-lang-cpp
-2. Store the detected language skill name(s) as context for subsequent phases
-3. When spawning any expert or manager agent, include in the prompt: "Load Skill({detected-language-skill}) for language-specific patterns and conventions."
-4. If multiple languages detected (e.g., monorepo), include all relevant language skills
+   - go.mod → `.claude/rules/moai/languages/go.md` (auto-loaded via paths frontmatter)
+   - package.json with "typescript" in devDependencies → `.claude/rules/moai/languages/typescript.md`
+   - package.json without typescript → `.claude/rules/moai/languages/javascript.md`
+   - pyproject.toml or requirements.txt → `.claude/rules/moai/languages/python.md`
+   - Cargo.toml → `.claude/rules/moai/languages/rust.md`
+   - pom.xml or build.gradle → `.claude/rules/moai/languages/java.md`
+   - build.gradle.kts → `.claude/rules/moai/languages/kotlin.md`
+   - *.csproj or *.sln → `.claude/rules/moai/languages/csharp.md`
+   - Gemfile → `.claude/rules/moai/languages/ruby.md`
+   - mix.exs → `.claude/rules/moai/languages/elixir.md`
+   - build.sbt → `.claude/rules/moai/languages/scala.md`
+   - Package.swift → `.claude/rules/moai/languages/swift.md`
+   - pubspec.yaml → `.claude/rules/moai/languages/flutter.md`
+   - DESCRIPTION (with R content) → `.claude/rules/moai/languages/r.md`
+   - CMakeLists.txt or *.cpp → `.claude/rules/moai/languages/cpp.md`
+2. Store the detected language rule path(s) as context for subsequent phases
+3. Language rules are auto-loaded via paths frontmatter when project files match; no explicit Skill() invocation required for language rules.
+4. If multiple languages detected (e.g., monorepo), all relevant language rules are auto-loaded
 
 Output: detected_language_skills list passed to all subsequent agent spawn prompts.
 
@@ -976,7 +1035,7 @@ All of the following must be verified:
 ### Normal Flow
 **Prompt**: "/moai run SPEC-AUTH-001"
 **Expected Result**:
-- Phase 0.9: Detects Go project (go.mod) → loads moai-lang-go
+- Phase 0.9: Detects Go project (go.mod) → references `.claude/rules/moai/languages/go.md`
 - Phase 0.95: SPEC has 8 files, 2 domains → Standard Mode selected
 - Phase 1: manager-strategy creates execution plan with 5 tasks
 - Decision Point: User approves plan
