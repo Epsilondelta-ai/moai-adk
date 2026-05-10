@@ -223,5 +223,150 @@
 - Open follow-ups (deferred to later milestones, not blocking M4):
   - banner.go L49 godoc/comments 영문 유지는 16-language neutrality 일관성 위함 (mx-tag-protocol L113 @MX 태그만 code_comments=ko 적용)
 
+### Phase 0.5: Plan Audit Gate (M4 entry) — CACHE HIT
 
+- Source cache: `.moai/reports/plan-audit/SPEC-V3R3-CLI-TUI-001-2026-05-09.md` (Run 1 of 1, verdict=PASS)
+- audit_cache_hit: true
+- cached_audit_at: 2026-05-09T08:18:37Z (~14h ago, within 24h window)
+- plan_artifact_hash carry-forward: `39d853cd40b5cae85a0a1ad94bc89ea6371454def0c20ca6c1167691cd21e095`
+- Hash match basis: M3 implementation (`f359a0fb2`) modified `internal/cli/banner.go` + tests + `pkg/version/version.go` only — outside SPEC artifact set; spec/plan/acceptance unchanged since cache write (`git diff origin/main HEAD -- spec/plan/acceptance = 0 lines`).
+- Decision: skip Step 3 plan-auditor re-invocation, proceed directly to Phase 1 per run.md Step 2.
+- M4 branch base: `feat/SPEC-V3R3-CLI-TUI-001-m4` (forked from `origin/main` after PR #807 admin squash merge at 2026-05-09T13:13:56Z).
+
+---
+
+## Phase 1: Analysis and Planning (M4 scope) — ENTRY
+
+- Phase 1 Strategy: plan.md §5 (M4) is the analysis output. Phase 0.5 cache HIT carry forward.
+- Phase 0.95 Mode: Standard Mode (4-step batch, single domain `internal/cli/`, ~10 source files + ~16 test files)
+- Methodology: DDD ANALYZE-PRESERVE-IMPROVE (committed per plan.md §1 milestone table, M4 row "DDD")
+- Phase 1.5 Task Decomposition (4-step from plan.md §5.1, §10):
+  - M4-S4a: version DDD (internal/cli/version.go + pkg/version/version.go getters + extended test) per ScreenVersion
+  - M4-S4b: doctor DDD (5 source + 4 test extend, D8 Placeholder warn + lesson NEW Go env override) per ScreenDoctor
+  - M4-S4c: status DDD (status.go only; statusline.go deferred to M6 R-07) per ScreenStatus
+  - M4-S4d: update DDD (86KB scope=print 함수만, single wave per user approval) per ScreenUpdate
+- Phase 1.6 AC Failing Checklist for M4:
+  - AC-CLI-TUI-013 (no hex literals outside `internal/tui/`) — M4 spans 4 commands; full coverage at M7
+  - AC-CLI-TUI-016 (global hex sweep) — M4 partial (4 commands); full coverage at M7
+  - AC-CLI-TUI-003 (doctor floor >=19 항목) — D8 Placeholder warn 유지로 floor 충족
+  - AC-CLI-TUI-001 (9 tui components + 4 commands integration)
+  - AC-CLI-TUI-011 (zero hand-drawn box chars in 4 commands)
+- Phase 1.7 Scaffolding: delegated to manager-ddd (per-step ANALYZE creates characterization tests)
+- Phase 1.8 MX Context Scan: required (existing files have callers — ANALYZE step performs grep per step)
+- Worktree isolation: NOT applied (main session cwd is already SPEC worktree `cli-tui-v2`; lessons #13 base mismatch 회피)
+
+### User Decisions (Phase 1.5 entry)
+
+- M4 plan: APPROVED — 4-step sequential DDD as planned
+- D8 (glamour cache): Placeholder warn 유지 — design source `screens.jsx:ScreenDoctor` 충실 재현, AC-003 floor 충족, 후속 SPEC에서 actual check 교체
+- update.go strategy: Single wave 4d, scope=print 함수만 (~10 print site만 변경, 86KB 본문 보존)
+
+### Surfaced Assumptions (Behavior 1)
+
+1. M3에서 도입된 `goVersion()` + `MOAI_GO_VERSION_OVERRIDE` env override 패턴이 lesson NEW의 canonical reference. M4-S4b doctor.go L154 `runtime.Version()`도 동일 패턴 적용 (banner.go L36-44 mirror).
+2. `claudeVersion()` 패턴 (CLAUDE_CODE_VERSION env fallback "claude")도 doctor에서 사용하는 Claude Code 검사 항목에 동일 적용.
+3. Each step의 4-command 외부 caller (root.go, init.go 등)는 변경 금지 — public signature 보존.
+4. Golden snapshot 명명 규칙: `internal/cli/testdata/{cmd}-{theme}-{nocolor?}.golden` (M3 banner-* 동일 컨벤션).
+5. M4 전체 PR 1건 (4-step git commit 4개 + final golden snapshot commit) — Wave-split per lessons #9.
+
+### Phase 2A: DDD Implementation (M4) — PARTIAL (3 of 4 steps complete)
+
+| Step | Commit | Status | Notes |
+|------|--------|--------|-------|
+| M4-S4a version | `04bd7a6ab` | ✅ COMPLETE | 3 golden + tui.Box + 3 Pill, hex 0건 |
+| M4-S4b doctor | `f01c1dc9e` | ✅ COMPLETE | 19항목 CheckLine + D8 Placeholder + lesson NEW (goVersion 헬퍼) |
+| M4-S4c status | `395920756` | ✅ COMPLETE | Box + Section + KV + Pill, M6 영역 0 변경 |
+| M4-S4d update | (sub-split) | 🟡 IN PROGRESS | 4d-1 ✅ direct, 4d-2/4d-3 다음 — sub-table 참조 |
+
+#### M4-S4d Sub-table (orchestrator direct execution per lessons #15)
+
+| Sub-step | Region | Commit | Status | Print sites | Cascade fix |
+|---------|--------|--------|--------|-------------|-------------|
+| M4-S4d-1 | update.go L102-373 (runUpdate + binary update + reexec) | `96695e908` | ✅ DIRECT | 16 sites → 13 KV/CheckLine/Pill | coverage_improvement_test.go × 3 |
+| M4-S4d-2 | update.go L388-1188 (runTemplateSync* + runShellEnvConfig) | `78f257645` | ✅ DIRECT | ~25 top-level sites → KV/Section/CheckLine/Pill mix; sub-step micro msgs(\r sym*) 보존 | type cast fix (string(rec.Shell)) |
+| M4-S4d-3 | update.go L1955-end (runInitWizard) + update_archive.go (archive 4 sites) | `a4c76fce1` | ✅ DIRECT | 5 top-level sites → tui.Pill/Section + 4 archive sites → tui.CheckLine/Pill | label format fix (archive: <id>) |
+| M4-S4d cleanup | update.go cli* helpers hex literal → tui Theme AdaptiveColor | `06a3eb897` | ✅ DIRECT | cliPrimary terra cotta → deep teal (M3 brand 정렬). update.go + update_archive.go hex 0건 | — |
+| M4 golden snapshots | testdata/update-{light,dark,nocolor}.golden 3 files | — | ⏸️ DEFERRED | sub-step \r-prefixed updates는 golden capture 부적합. 후속 SPEC에서 cumulative 처리. | — |
+
+### M4 최종 결과 (2026-05-10)
+
+**Quality validation (Phase 2.5)**:
+- Tested: 전체 80 packages PASS (zero failures), 0 lint warnings (informational unusedparams 만 — pre-existing).
+- Readable: @MX:NOTE 7개 추가 (4d-1: runUpdate + runBinaryUpdateStep, 4d-2: runTemplateSyncWithReporter + runTemplateSyncWithProgress + runShellEnvConfig, 4d-3: runInitWizard + archiveLegacySkills). 의도와 패턴 명시.
+- Unified: M4 commits 4a-c와 동일 패턴 (Box + KV + Section + CheckLine + Pill mix). brand consistency cliPrimary deep teal로 재정렬.
+- Secured: 보안 영향 없음 — visual layer 변경만.
+- Trackable: 8 commits, 모두 conventional message + 🗿 MoAI sign-off.
+
+**Active evaluator (Phase 2.8a) 직접 self-evaluation** (1M context manager-ddd 차단으로 evaluator-active spawn 불가):
+- Functionality (40%): test 100% pass + signature 보존 + acceptance criteria 충족 → PASS.
+- Security (25%): no new security surface → PASS.
+- Craft (20%): @MX:NOTE annotations + tui Theme single source of truth → PASS.
+- Consistency (15%): cliPrimary deep teal 재정렬 + 4a/4b/4c 패턴 일치 → PASS.
+- Verdict: **PASS** (4/4 dimensions).
+
+**MX tag (Phase 2.9)**:
+- 신규 exported function 0건 (modification only) → ANCHOR/WARN 추가 필요 없음.
+- 변경 함수에 @MX:NOTE 7개 추가 (M4-S4d-1/-2/-3 의도 명시).
+- 기존 @MX:ANCHOR (runUpdate, archiveLegacySkills) 보존 + reason update 없음.
+- @MX:TODO 없음, @MX:LEGACY 없음.
+
+**Acceptance Criteria 충족**:
+- AC-CLI-TUI-013: hex literal 0건 in update.go + update_archive.go (issue #598 references는 issue number, false positive 제외) → ✅
+- AC-CLI-TUI-001: 9 tui components 중 6개 사용 (Box, KV, Section, CheckLine, Pill, StatusIcon — Form/Prompt/Help는 M5/M6 영역) → ✅ partial
+- AC-CLI-TUI-011: hand-drawn box chars 0건 (모든 border는 lipgloss 통한 tui.Box) → ✅
+- AC-CLI-TUI-016: global hex sweep partial — M4 4-command 영역 충족, 잔여 hex literals은 internal/cli/ 다른 명령 (M6 영역)에서 처리 → ⏸️ M7 cumulative
+- AC-CLI-TUI-017: emoji codepoint 제거 (🔧 in runInitWizard 헤더) → ✅
+
+**Deferred items**:
+- testdata/update-{light,dark,nocolor}.golden snapshot — sub-step \r-prefixed updates는 capture 부적합. 후속 SPEC에서 cumulative 처리.
+- D8 (glamour cache): 4b에서 Placeholder 유지 결정 그대로.
+- M5 OQ2 huh ◆/◇ theme 결정 — 다음 milestone 진입 전.
+- SPEC-V3R3-1M-PROBE-001: 1M context inheritance block defense 구현 (lesson #15 graduation).
+
+**M4-S4d-1 ANALYZE/PRESERVE/IMPROVE summary** (2026-05-10):
+- ANALYZE: tui 패키지 시그니처(Box/KV/CheckLine/Pill/StatusIcon) 확인, version.go(M4-S4a)/doctor.go(M4-S4b)/status.go(M4-S4c) IMPROVE 패턴 참조, update_test.go assertion 의존성 매핑.
+- PRESERVE: 베이스라인 테스트 PASS 확인 (`go test ./internal/cli/... -run TestUpdate` 0.479s).
+- IMPROVE: import에 `internal/tui` 추가 + `resolveTheme()` 헬퍼 활용. runUpdate(L102-255) 13 sites + runBinaryUpdateStep(L290-332) 3 sites = 총 16 sites 변환. @MX:NOTE 2개 추가. 외부 caller(root.go, init.go) 무영향, public signature 보존.
+- 검증: `go vet ./...` PASS, `go build ./...` PASS, `go test ./... -count=1` 전체 PASS, 4d-1 region (L102-373) hex literal 0건 (AC-CLI-TUI-013 부분 충족).
+- Cascade fix: coverage_improvement_test.go L3640/L3672/L5231 — substring assertion 3건 새 출력 형식에 맞게 변경 ("Update checker not available" → "Update checker" + "not available", "Binary update skipped" → "Skipped" + "--binary"). 11 update_*_test.go 본체 어느 것도 수정 불요.
+- 환경 컨텍스트: manager-ddd subagent 1M context 차단 4회 누적 → user-approved direct execution bypass. lesson #15 등록.
+
+### M4-S4d Environment Block (4-attempt incident + bypass 결정)
+
+**원인**: manager-ddd subagent spawn 시 `API Error: Extra usage is required for 1M context` **누적 4회** 발생.
+- Attempt #1-3 (이전 세션 2026-05-09): single-wave + sonnet override + sub-split (1.5KB prompt) — 모두 reject.
+- Attempt #4 (본 세션 2026-05-10): paste-ready resume의 precondition #4 (`/model standard 또는 /extra-usage 활성화 확인`)를 사용자가 자가 보고했으나 동일 reject (`tool_uses: 0`, `total_tokens: 0`, `duration_ms: 367ms`).
+
+**근본 원인** (5 Whys):
+1. parent session model = `claude-opus-4-7[1m]` (suffix `[1m]`) → 런타임이 child Agent() 호출에 1M context flag 자동 inheritance.
+2. Anthropic 계정 측 `/extra-usage` feature flag 미활성 → billing/entitlement reject (토큰 처리 전).
+3. `Agent({model: "sonnet"})` override 도 inheritance bypass 못함 (Claude Code v2.1.x runtime 가설).
+4. precondition 자가 보고는 검증 메커니즘 부재 → 약속과 실제 환경 상태가 괴리.
+5. ROOT: 1M context model 사용 시 subagent spawn 정책 불투명 + orchestrator/사용자 양쪽 검증 부재.
+
+**복구 결정** (Attempt #4): User-approved direct execution bypass (HARD §16 일회성 면제, `AskUserQuestion(2026-05-10)` 응답 기록). orchestrator가 4d-1/4d-2/4d-3 + Phase 2.5/2.8a/2.9 직접 수행.
+
+**Lesson 등록**: `lessons.md #15` — "1M context subagent inheritance block — pre-spawn probe 의무화" (5-Layer Defense + Mitigation Cascade + Anti-patterns 명시). 후속 SPEC `SPEC-V3R3-1M-PROBE-001` (deferred, plan은 별도 세션에서).
+
+**Sub-split 분할** (4-attempt 무관, 직접 실행으로 동일 분할 적용):
+
+**Sub-split 분할** (다음 세션에서 manager-ddd 표준 context로 처리):
+- **M4-S4d-1**: update.go L102-373 (runUpdate + shouldSkipBinaryUpdate + runBinaryUpdateStep + reexecNewBinary). ~18 print sites, ~80 LOC change estimated. tui.Box header + tui.KV pre-flight + tui.CheckLine binary progress + tui.Pill result.
+- **M4-S4d-2**: update.go L375-1175 (runTemplateSync* + mergeGitignoreFile + mergeUserFiles + analyzeMergeChanges + runShellEnvConfig). ~50 print sites, ~150 LOC change estimated. tui.Section + tui.CheckLine for steps + tui.Pill summary.
+- **M4-S4d-3**: update.go L1176-end (cleanMoaiManagedPaths + migrateLegacyMemoryDir + cleanup_old_backups + restoreMoaiConfig + runReconfigure) + update_archive.go 전체. ~30 print sites + 4 archive sites, ~70 LOC change estimated.
+
+**ANALYZE 결과 (M4-S4d 다음 세션 reference)**:
+- update.go: 110 print sites total (cmd.OutOrStdout / fmt.Print* / style.Render / Render*)
+- update_archive.go: 4 print sites at L254, L258, L272, L275
+- 함수 boundaries: runUpdate(L102) · shouldSkipBinaryUpdate(L264) · runBinaryUpdateStep(L290) · reexecNewBinary(L342) · runTemplateSync(L375) · runTemplateSyncWithReporter(L380) · runTemplateSyncWithProgress(L723) · mergeGitignoreFile(L811) · mergeUserFiles(L861) · analyzeMergeChanges(L1126) · runShellEnvConfig(L1133) · backupMoaiConfig(L1222) · saveTemplateDefaults(L1344) · cleanMoaiManagedPaths(L1405) · migrateLegacyMemoryDir(L1512) · cleanup_old_backups(L1555) · restoreMoaiConfig(L1619) · runReconfigure(L1922)
+
+**M4-S4d acceptance (3 sub-step 누적 후)**:
+- AC-CLI-TUI-013: hex 0건 in update.go + update_archive.go
+- AC-CLI-TUI-001: 9 tui components + update integration
+- 11 update_*_test.go 모두 PASS (cascade fix 5개 이하 권장)
+- 외부 caller 변경 0건
+- 변경 LOC < 600 (drift guard)
+- testdata/update-{light,dark,nocolor}.golden 3 files (cumulative through 4d-3)
+
+**M5 진입 전 결정 (deferred)**: D6 OQ — huh v0.8.0 라디오 prefix `◆/◇` 커스터마이징 가능 여부 (custom Theme 작성 vs wrapper 직접 그리기).
 
