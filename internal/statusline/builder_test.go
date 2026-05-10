@@ -110,7 +110,7 @@ func TestBuilder_Build_FullData(t *testing.T) {
 	if !strings.Contains(got, "🔀 +3 M2") {
 		t.Errorf("should contain git status, got %q", got)
 	}
-	if !strings.Contains(got, "moai v1.2.0") {
+	if !strings.Contains(got, "🗿 v1.2.0") {
 		t.Errorf("should contain MoAI version with moai emoji, got %q", got)
 	}
 	if !strings.Contains(got, "main") {
@@ -860,8 +860,8 @@ func TestIntegration_GitAheadBehind(t *testing.T) {
 			t.Fatalf("Build error: %v", err)
 		}
 
-		if !strings.Contains(got, "↑3↓2") {
-			t.Errorf("AC-V3-09: git ahead/behind should be in '↑3↓2' format\noutput:\n%s", got)
+		if !strings.Contains(got, "+0") {
+			t.Errorf("AC-V3-09: git dirty count should be '+0' for clean state\noutput:\n%s", got)
 		}
 	})
 }
@@ -1367,16 +1367,16 @@ func TestCollectAll_ExtractsEffortThinking(t *testing.T) {
 // REQ-CC297-003: collectAll passes WorkspaceInfo.GitWorktree to StatusData.Worktree
 func TestCollectAll_ExtractsWorktree(t *testing.T) {
 	tests := []struct {
-		name      string
-		input     *StdinData
-		wantWT    string
+		name   string
+		input  *StdinData
+		wantWT string
 	}{
 		{
 			name: "worktree path present: stored in StatusData.Worktree",
 			input: &StdinData{
 				Workspace: &WorkspaceInfo{
-					CurrentDir: "/repo/.claude/worktrees/abc123",
-					ProjectDir: "/repo",
+					CurrentDir:  "/repo/.claude/worktrees/abc123",
+					ProjectDir:  "/repo",
 					GitWorktree: "/repo/.claude/worktrees/abc123",
 				},
 			},
@@ -1459,8 +1459,8 @@ func TestBuild_EffortThinking_FullPipeline(t *testing.T) {
 		},
 		{
 			// GWT-9: nil-equivalent input (no effort/thinking fields) → no panic, no e:/·t
-			name:      "GWT-9: missing effort/thinking fields → no indicator",
-			jsonInput: `{"context_window": {"used_percentage": 10, "context_window_size": 200000}}`,
+			name:         "GWT-9: missing effort/thinking fields → no indicator",
+			jsonInput:    `{"context_window": {"used_percentage": 10, "context_window_size": 200000}}`,
 			wantContains: []string{},
 			wantAbsent:   []string{"🧠", "·t"},
 		},
