@@ -1,8 +1,10 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 	"time"
 )
@@ -50,9 +52,15 @@ func (m *MergedSettings) All() map[string]Value[any] {
 
 // MergeAll walks all tiers in priority order and produces merged settings.
 // For each (section, field) key, the first non-zero value wins.
-// Provenance is captured from the winning tier.
+// Provenance is captured from the winning tier, including SchemaVersion when
+// loadYAMLFile embedded the schemaVersionKey sentinel.
 //
-// This maps to REQ-V3R2-RT-005-005 and REQ-V3R2-RT-005-010.
+// When policy.strict_mode is true in the SrcPolicy tier, any lower tier providing
+// a non-zero value for a policy-designated key causes PolicyOverrideRejected to be returned.
+//
+// This maps to REQ-V3R2-RT-005-005, REQ-V3R2-RT-005-010, REQ-V3R2-RT-005-022, AC-01, AC-07.
+//
+// @MX:NOTE: [AUTO] SPEC-V3R2-RT-005 — deterministic 8-tier merge. Identical tier inputs MUST produce byte-identical merged output (cache-prefix discipline; problem-catalog P-C05). Map iteration order is non-deterministic; sort keys before serialization (see merge.go:dumpJSON).
 //
 // Parameters:
 //   - tiers: map of source to raw configuration values (map[string]any where key is "section.field")
@@ -67,19 +75,62 @@ func MergeAll(
 ) (*MergedSettings, error) {
 	result := NewMergedSettings()
 
-	// Collect all keys across all tiers
+	// Extract per-tier schema versions from the sentinel key.
+	// These are not config keys and must never appear in the merged output.
+	tierSchemaVersions := make(map[Source]int)
+	for source, tierData := range tiers {
+		if sv, ok := tierData[schemaVersionSentinel]; ok {
+			if svInt, ok := sv.(int); ok {
+				tierSchemaVersions[source] = svInt
+			}
+		}
+	}
+
+	// @MX:WARN: [AUTO] SPEC-V3R2-RT-005 REQ-022 — policy override enforcement.
+	// @MX:REASON: Disabling this check (e.g., commenting out the strict_mode enforcement) defeats the constitutional governance contract. Enterprise rollouts depend on PolicyOverrideRejected to enforce policy precedence.
+
+	// Determine strict_mode from the SrcPolicy tier.
+	// policy.strict_mode: true means lower tiers cannot override policy-designated keys.
+	// REQ-V3R2-RT-005-022, AC-07.
+	strictMode := false
+	if policyTier, ok := tiers[SrcPolicy]; ok {
+		if sm, ok := policyTier["policy.strict_mode"]; ok {
+			if smBool, ok := sm.(bool); ok {
+				strictMode = smBool
+			}
+		}
+	}
+
+	// Collect policy-designated keys (all non-sentinel keys present in SrcPolicy tier).
+	// Only relevant when strictMode is true.
+	policyKeys := make(map[string]bool)
+	if strictMode {
+		if policyTier, ok := tiers[SrcPolicy]; ok {
+			for key := range policyTier {
+				if key != schemaVersionSentinel {
+					policyKeys[key] = true
+				}
+			}
+		}
+	}
+
+	// Collect all keys across all tiers, excluding the sentinel.
 	allKeys := make(map[string]bool)
 	for _, tierData := range tiers {
 		for key := range tierData {
+			if key == schemaVersionSentinel {
+				continue
+			}
 			allKeys[key] = true
 		}
 	}
 
-	// For each key, walk tiers in priority order and take the first non-zero value
+	// For each key, walk tiers in priority order and take the first non-zero value.
 	for key := range allKeys {
 		var winningValue any
 		var winningSource Source
 		var winningOrigin string
+		var winningSchemaVersion int
 		var overriddenBy []string
 
 		// Walk tiers in priority order (SrcPolicy = 0 is highest)
@@ -101,6 +152,15 @@ func MergeAll(
 
 			// If we already have a winning value, this tier is being overridden
 			if winningValue != nil {
+				// strict_mode enforcement: lower tier must not override policy-designated keys.
+				// REQ-V3R2-RT-005-022: WHILE policy.strict_mode: true, override is rejected.
+				if strictMode && policyKeys[key] && winningSource == SrcPolicy {
+					return nil, &PolicyOverrideRejected{
+						Key:             key,
+						PolicySource:    origins[SrcPolicy],
+						AttemptedSource: origins[source],
+					}
+				}
 				origin := origins[source]
 				if origin != "" {
 					overriddenBy = append(overriddenBy, origin)
@@ -112,15 +172,17 @@ func MergeAll(
 			winningValue = value
 			winningSource = source
 			winningOrigin = origins[source]
+			winningSchemaVersion = tierSchemaVersions[source]
 		}
 
 		// If we found a winning value, store it with provenance
 		if winningValue != nil {
 			provenance := Provenance{
-				Source:       winningSource,
-				Origin:       winningOrigin,
-				Loaded:       loadedAt,
-				OverriddenBy: overriddenBy,
+				Source:        winningSource,
+				Origin:        winningOrigin,
+				Loaded:        loadedAt,
+				SchemaVersion: winningSchemaVersion,
+				OverriddenBy:  overriddenBy,
 			}
 
 			result.Set(key, Value[any]{
@@ -237,39 +299,70 @@ func (m *MergedSettings) Dump(format string) (string, error) {
 	}
 }
 
+// dumpJSON serializes merged settings to byte-stable JSON.
+// Keys are sorted alphabetically via sort.Strings to guarantee deterministic output.
+// Uses encoding/json.MarshalIndent with 2-space indent for readability.
+//
+// REQ-V3R2-RT-005-006, AC-02: byte-stable JSON with provenance structure.
+//
+// @MX:NOTE [AUTO] SPEC-V3R2-RT-005 M3 GREEN — sort.Strings + MarshalIndent for determinism.
 func (m *MergedSettings) dumpJSON() (string, error) {
-	// Build a map with provenance information for JSON output
-	output := make(map[string]map[string]any)
+	// Collect and sort keys for deterministic output (AC-02 byte-stability).
+	keys := make([]string, 0, len(m.values))
+	for k := range m.values {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
 
-	for key, value := range m.values {
-		output[key] = map[string]any{
-			"value":     value.V,
-			"source":    value.P.Source.String(),
-			"origin":    value.P.Origin,
-			"loaded":    value.P.Loaded,
-			"overridden": len(value.P.OverriddenBy) > 0,
+	// Build output in sorted key order using a slice of key-value pairs
+	// to preserve insertion order in the JSON output.
+	type jsonEntry struct {
+		Value     any      `json:"value"`
+		Source    string   `json:"source"`
+		Origin    string   `json:"origin"`
+		Loaded    string   `json:"loaded"`
+		Overridden bool    `json:"overridden"`
+		Default   bool     `json:"default,omitempty"`
+	}
+
+	output := make(map[string]jsonEntry, len(keys))
+	for _, key := range keys {
+		value := m.values[key]
+		output[key] = jsonEntry{
+			Value:     value.V,
+			Source:    value.P.Source.String(),
+			Origin:    value.P.Origin,
+			Loaded:    value.P.Loaded.Format("2006-01-02T15:04:05Z07:00"),
+			Overridden: len(value.P.OverriddenBy) > 0,
+			Default:   value.IsDefault(),
 		}
 	}
 
-	// Use encoding/json - but we need to import it
-	// For now, return a simple format representation
-	return formatMapAsJSON(output)
+	data, err := json.MarshalIndent(output, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("dumpJSON marshal: %w", err)
+	}
+	return string(data), nil
 }
 
+// dumpYAML serializes merged settings to YAML with source comments.
+// Keys are sorted alphabetically for deterministic output.
+// Each key is followed by a `# source: <tier>` comment as required by REQ-V3R2-RT-005-030.
+//
+// @MX:NOTE [AUTO] SPEC-V3R2-RT-005 M3 GREEN — alphabetical sort + source comments.
 func (m *MergedSettings) dumpYAML() (string, error) {
-	var sb strings.Builder
+	// Collect and sort keys for deterministic output (AC-09).
+	keys := make([]string, 0, len(m.values))
+	for k := range m.values {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
 
-	for key, value := range m.values {
+	var sb strings.Builder
+	for _, key := range keys {
+		value := m.values[key]
 		fmt.Fprintf(&sb, "%s: %v # source: %s\n", key, value.V, value.P.Source.String())
 	}
 
 	return sb.String(), nil
-}
-
-// formatMapAsJSON is a simple JSON formatter for the dump output.
-// In production, this would use encoding/json properly.
-func formatMapAsJSON(m map[string]map[string]any) (string, error) {
-	// Simplified JSON representation
-	// In a real implementation, use encoding/json
-	return fmt.Sprintf("%+v", m), nil
 }
