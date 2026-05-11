@@ -253,9 +253,9 @@ Commit message format:
 fix(scope): description
 
 Fixes #{issue_number}
-
-Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
 ```
+
+AI attribution policy: Do not add `Co-Authored-By` for AI models automatically. If the actual provider/model is known, add an `AI-Assisted-By: provider/model` footer after the issue/SPEC footers. If unknown, omit AI attribution. Never invent provider email addresses.
 
 ## Issues Phase 4: Create PR
 
