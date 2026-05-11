@@ -11,6 +11,7 @@ import { registerMoaiGlassNotifications } from "./src/pi-notify-glass.ts";
 import { updateMoaiStatus } from "./src/statusline.ts";
 import { buildSkillTriggerHints } from "./src/trigger-indexer.ts";
 import { buildAiAttributionGuidance } from "./src/ai-attribution.ts";
+import { applyCommitAttribution, captureCommitAttributionSnapshot, shouldApplyCommitAttribution, shouldObserveCommitAttribution, type CommitAttributionSnapshot } from "./src/git-attribution.ts";
 
 function isMoaiRelatedInput(text: string): boolean {
   return /(^|\s)\/moai\b/i.test(text)
@@ -76,6 +77,7 @@ export default function moaiClaudeCompat(pi: ExtensionAPI) {
     outputStyleInstruction,
   ].filter(Boolean).join("\n\n");
   let pendingPromptContext: { prompt: string; context: string } | undefined;
+  const pendingCommitAttribution = new Map<string, CommitAttributionSnapshot>();
 
   registerCommands(pi, config);
   registerMoaiGlassNotifications(pi);
@@ -178,6 +180,10 @@ export default function moaiClaudeCompat(pi: ExtensionAPI) {
 
   pi.on("tool_call", async (event, ctx) => {
     await invokeHook("pre-tool", { hook_event_name: "PreToolUse", tool_name: event.toolName, tool_input: event.input, event, cwd: ctx.cwd }, ctx);
+    if (shouldObserveCommitAttribution(event.toolName, event.input)) {
+      const snapshot = captureCommitAttributionSnapshot(event.input, ctx.cwd);
+      if (snapshot) pendingCommitAttribution.set(commitAttributionKey(ctx.cwd, event.input), snapshot);
+    }
   });
 
   pi.on("tool_result", async (event, ctx) => {
@@ -194,6 +200,16 @@ export default function moaiClaudeCompat(pi: ExtensionAPI) {
       cwd: ctx.cwd,
     };
     await invokeHook("post-tool", payload, ctx);
+    if (shouldApplyCommitAttribution(event.toolName, event.input, event.isError)) {
+      const key = commitAttributionKey(ctx.cwd, event.input);
+      const result = applyCommitAttribution(event.input, ctx.cwd, ctx.model, pendingCommitAttribution.get(key));
+      pendingCommitAttribution.delete(key);
+      if (!result.amended && result.reason && result.reason !== "already attributed" && result.reason !== "no new commit detected") {
+        await notifyMoai(ctx, `MoAI commit attribution was not applied: ${result.reason}`, "warning", {
+          source: "ai-attribution",
+        });
+      }
+    }
     if (event.isError) {
       await invokeHook("post-tool-failure", { ...payload, hook_event_name: "PostToolUseFailure" }, ctx);
     }
@@ -205,4 +221,11 @@ export default function moaiClaudeCompat(pi: ExtensionAPI) {
 
   registerCodexQuota(pi, (ctx) => updateMoaiStatus(ctx, config));
 
+}
+
+function commitAttributionKey(cwd: string, input: unknown): string {
+  const command = typeof input === "object" && input !== null && typeof (input as Record<string, unknown>).command === "string"
+    ? (input as Record<string, string>).command
+    : "";
+  return `${cwd}\u0000${command}`;
 }
