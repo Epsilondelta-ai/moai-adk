@@ -36,7 +36,8 @@ Usage patterns:
 Examples:
   moai init my-app           Creates ./my-app/ and initializes MoAI inside
   moai init .                Initializes MoAI in the current directory
-  moai init --mode tdd       Initialize with specific development mode (default: tdd)`,
+  moai init --mode tdd       Initialize with specific development mode (default: tdd)
+  moai init --pi             Initialize Pi runtime artifacts only (.moai/ and .pi/)`,
 	Args:    cobra.MaximumNArgs(1),
 	PreRunE: validateInitFlags,
 	RunE:    runInit,
@@ -57,6 +58,7 @@ func init() {
 	initCmd.Flags().Bool("non-interactive", false, "Skip interactive wizard; use flags and defaults")
 	initCmd.Flags().Bool("force", false, "Reinitialize an existing project (backs up current .moai/)")
 	initCmd.Flags().Bool("no-hooks", false, "Skip git hook installation (REQ-CIAUT-002)")
+	initCmd.Flags().Bool("pi", false, "Initialize Pi runtime artifacts only (.moai/ and .pi/); skip Claude artifacts")
 }
 
 // getStringFlag retrieves a string flag value from the command.
@@ -117,8 +119,10 @@ func validateInitFlags(cmd *cobra.Command, _ []string) error {
 // runInit executes the project initialization workflow.
 // It first checks for a binary update so the latest templates are used.
 func runInit(cmd *cobra.Command, args []string) error {
-	// Binary update step (non-fatal)
-	if !shouldSkipBinaryUpdate(cmd) {
+	piMode := getBoolFlag(cmd, "pi")
+
+	// Binary update step (non-fatal). Pi-only init avoids external update side effects.
+	if !piMode && !shouldSkipBinaryUpdate(cmd) {
 		updated, err := runBinaryUpdateStep(cmd)
 		if err != nil {
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Warning: binary update check failed: %v\n", err)
@@ -195,6 +199,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		GitLabInstanceURL: getStringFlag(cmd, "gitlab-instance-url"),
 		NonInteractive:    nonInteractive,
 		Force:             getBoolFlag(cmd, "force"),
+		PiMode:            piMode,
 	}
 
 	// Apply user-level defaults from profile preferences.
@@ -298,7 +303,12 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	// Create renderer for template processing
 	renderer := template.NewRenderer(embeddedFS)
-	deployer := template.NewDeployerWithRenderer(embeddedFS, renderer)
+	var deployer template.Deployer
+	if opts.PiMode {
+		deployer = template.NewPiOnlyDeployerWithRenderer(embeddedFS, renderer)
+	} else {
+		deployer = template.NewDeployerWithRenderer(embeddedFS, renderer)
+	}
 
 	initializer := project.NewInitializer(deployer, mgr, nil)
 	executor := project.NewPhaseExecutor(detector, methDetector, validator, initializer, nil)
@@ -353,13 +363,15 @@ func runInit(cmd *cobra.Command, args []string) error {
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  Warning: Failed to scaffold design directory: %v\n", err)
 	}
 
-	// Ensure global settings.json has required env variables
-	if err := ensureGlobalSettingsEnv(); err != nil {
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  Warning: Failed to update global settings env: %v\n", err)
-	}
+	if !opts.PiMode {
+		// Ensure global settings.json has required env variables
+		if err := ensureGlobalSettingsEnv(); err != nil {
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  Warning: Failed to update global settings env: %v\n", err)
+		}
 
-	// Install pre-push hook (REQ-CIAUT-002). Non-fatal; --no-hooks opts out.
-	installPrePushHookOptional(opts.ProjectRoot, getBoolFlag(cmd, "no-hooks"), cmd.OutOrStdout())
+		// Install pre-push hook (REQ-CIAUT-002). Non-fatal; --no-hooks opts out.
+		installPrePushHookOptional(opts.ProjectRoot, getBoolFlag(cmd, "no-hooks"), cmd.OutOrStdout())
+	}
 
 	return nil
 }

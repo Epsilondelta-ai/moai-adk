@@ -16,6 +16,32 @@ MoAI's three-phase development workflow with token budget management.
 
 <!-- @MX:ANCHOR fan_in=10 - Subcommand classification single source of truth; cross-referenced by 10 workflow skills (5 multi-agent + 5 utility). Changes here affect all workflow contracts. -->
 
+## SPEC Phase Discipline
+
+[HARD] Every MoAI SPEC follows this 4-step lifecycle. Each step has a fixed location (main checkout vs SPEC worktree), branch convention, and PR merge strategy.
+
+| Step | Location                      | Command                                                                    | Branch                                       | PR strategy | Lifecycle event              |
+|------|-------------------------------|----------------------------------------------------------------------------|----------------------------------------------|-------------|------------------------------|
+| 1a   | main checkout (default)       | `/moai plan SPEC-XXX`                                                      | `plan/SPEC-XXX`                              | squash      | plan PR merged into main     |
+| 1b   | SPEC worktree (`--worktree`)  | `/moai plan SPEC-XXX --worktree` → spec created in worktree                | `feat/SPEC-XXX`                              | squash      | plan PR merged into main     |
+| 2    | SPEC worktree                 | `moai worktree new SPEC-XXX --base origin/main` then `/moai run SPEC-XXX`  | `feat/SPEC-XXX`                              | squash      | run PR merged into main      |
+| 3    | SPEC worktree                 | `/moai sync SPEC-XXX` (same worktree as Step 2)                            | `sync/SPEC-XXX` (or `chore/SPEC-XXX-sync`)   | squash      | sync PR merged into main     |
+| 4    | host checkout                 | `moai worktree done SPEC-XXX`                                              | n/a                                          | n/a         | worktree disposed            |
+
+[HARD] Step ordering rules:
+- Step 1a (plan, default): Plan executes in main checkout. Plan artifacts are markdown only — no code conflict — and main-authored plans enable cross-SPEC reference for plan-auditor and parallel SPEC scoping.
+- Step 1b (plan, `--worktree`): When `--worktree` flag is provided, plan executes entirely inside the worktree. This enables full isolation for parallel SPEC development — each SPEC gets its own worktree from the start. Plan PR is squash-merged from the worktree branch. After merge, Step 2 reuses the SAME worktree (base alignment via `git merge origin/main` after plan PR merge).
+- Step 2 (run) MUST execute in a SPEC worktree. For Step 1a path: create fresh worktree from plan-merged main HEAD (`--base origin/main`). For Step 1b path: reuse the existing worktree with `git merge origin/main` to incorporate the merged plan. The worktree base alignment is a precondition for `Agent(isolation: "worktree")` correctness (see lessons #13).
+- Step 3 (sync) MUST reuse the SAME worktree as Step 2. Sync rotates codemap / MX / docs in the run-modified tree; spawning a fresh worktree at sync would lose run-state context.
+- Step 4 (cleanup) MUST happen ONLY after BOTH run AND sync PRs are merged. Premature `moai worktree done` between run-merge and sync-merge breaks Step 3.
+
+[HARD] Anti-patterns:
+- Stacking plan + run in the same worktree WITHOUT `--worktree` flag. The default path (1a → 2) creates a fresh worktree at run start; mixing the two paths causes base misalignment.
+- Disposing the worktree after run merge but before sync merge. Sync re-enters the tree with codemap / MX / docs writes; the host checkout cannot stand in for a disposed worktree.
+- Creating a worktree for plan (Step 1b) and then creating ANOTHER worktree for run (Step 2). The `--worktree` path reuses the same worktree across all steps.
+
+Cross-reference: see `.pi/generated/source/rules/moai/workflow/worktree-integration.md` § SPEC-to-Worktree Mapping for per-step worktree applicability and decision tree.
+
 ## Subcommand Classification (Pipeline vs Multi-Agent)
 
 Source: SPEC-V3R2-WF-004. Each MoAI subcommand is classified along the
@@ -84,6 +110,8 @@ See `spec.md` §1.2 (Non-Goals) — they are deferred to a future SPEC.
 - Research source: `.moai/design/v3-redesign/research/r1-ai-harness-papers.md` §25 (Xia et al. 2024).
 
 ## Plan Phase
+
+[HARD] Default: Execute in main checkout (Step 1a). With `--worktree` flag: Execute in SPEC worktree (Step 1b). See § SPEC Phase Discipline.
 
 Create comprehensive specification using EARS format.
 
