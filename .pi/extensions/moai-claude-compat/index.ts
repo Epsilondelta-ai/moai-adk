@@ -10,6 +10,7 @@ import { notifyMoai, type MoaiNotificationContext } from "./src/notification-ada
 import { registerMoaiGlassNotifications } from "./src/pi-notify-glass.ts";
 import { updateMoaiStatus } from "./src/statusline.ts";
 import { buildSkillTriggerHints } from "./src/trigger-indexer.ts";
+import { buildAiAttributionGuidance } from "./src/ai-attribution.ts";
 
 function isMoaiRelatedInput(text: string): boolean {
   return /(^|\s)\/moai\b/i.test(text)
@@ -138,12 +139,13 @@ export default function moaiClaudeCompat(pi: ExtensionAPI) {
     updateMoaiStatus(ctx, config);
   });
 
-  function buildPromptHints(text: string, hookStdout = ""): string {
+  function buildPromptHints(text: string, hookStdout = "", model?: unknown): string {
     const lower = text.toLowerCase();
     const hints: string[] = [];
     if (lower.includes("--deepthink")) hints.push("Deepthink requested: prefer sequential-thinking MCP when available.");
     if (isMoaiRelatedInput(text)) hints.push(buildCompactRulesInstruction(config.rules));
     if (lower.includes("spec-") || lower.includes("/moai run")) hints.push(`SPEC workflow context likely required: read .moai/specs and pi-local MoAI workflow rules at ${PI_RULES_SOURCE_PATH}.`);
+    if (/(^|\s)(git|commit|pr)(\s|$)|pull request|커밋|풀리퀘스트/i.test(text)) hints.push(buildAiAttributionGuidance(model));
     if (lower.includes("permissionmode")) hints.push("Reminder: Claude permissionMode is excluded by design in pi parity.");
     hints.push(...buildSkillTriggerHints(text));
     if (hookStdout.trim()) hints.push(`MoAI user-prompt hook output: ${hookStdout.trim()}`);
@@ -156,15 +158,15 @@ export default function moaiClaudeCompat(pi: ExtensionAPI) {
 
     const hookResult = await invokeHook("user-prompt-submit", { hook_event_name: "UserPromptSubmit", prompt: text, event, cwd: ctx.cwd }, ctx);
     const routedText = shouldAutoRouteToMoai(text, event.source) ? buildMoaiAutoRoutePrompt(text) : text;
-    pendingPromptContext = { prompt: routedText, context: buildPromptHints(text, hookResult.stdout) };
+    pendingPromptContext = { prompt: routedText, context: buildPromptHints(text, hookResult.stdout, ctx.model) };
     return routedText === text ? { action: "continue" } : { action: "transform", text: routedText };
   });
 
-  pi.on("before_agent_start", async (event) => {
+  pi.on("before_agent_start", async (event, ctx) => {
     const text = typeof event.prompt === "string" ? event.prompt : "";
     const promptContext = pendingPromptContext?.prompt === text
       ? pendingPromptContext.context
-      : buildPromptHints(text);
+      : buildPromptHints(text, "", ctx?.model);
     if (pendingPromptContext?.prompt === text) pendingPromptContext = undefined;
 
     return {

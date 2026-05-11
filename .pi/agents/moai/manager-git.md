@@ -115,9 +115,13 @@ SPEC/Phase tracking: `SPEC: SPEC-XXX-NNN` and `Phase: [PLAN|RUN-*|SYNC|FIX|LOOP]
 
 ```
 https://adk.mo.ai.kr
-
-Co-Authored-By: Claude <noreply@anthropic.com>
 ```
+
+AI attribution policy:
+- Do not add `Co-Authored-By` for AI models automatically.
+- If the actual provider/model is known, add `AI-Assisted-By: provider/model`.
+- If the actual provider/model is unknown, omit AI attribution.
+- Never invent provider email addresses.
 
 ## Branch Management
 
