@@ -40,6 +40,7 @@ type deployer struct {
 	fsys        fs.FS
 	renderer    Renderer // Optional: if set, .tmpl files are rendered with TemplateContext
 	forceUpdate bool     // If true, overwrite existing files without manifest check (used for updates)
+	pathFilter  func(string) bool
 }
 
 // NewDeployer creates a Deployer backed by the given filesystem.
@@ -53,6 +54,16 @@ func NewDeployerWithRenderer(fsys fs.FS, renderer Renderer) Deployer {
 	return &deployer{fsys: fsys, renderer: renderer, forceUpdate: false}
 }
 
+// NewPiOnlyDeployer creates a deployer that only writes .moai/ and .pi/ paths.
+func NewPiOnlyDeployer(fsys fs.FS) Deployer {
+	return &deployer{fsys: fsys, pathFilter: IsPiOnlyTemplatePath}
+}
+
+// NewPiOnlyDeployerWithRenderer creates a rendering deployer that only writes .moai/ and .pi/ paths.
+func NewPiOnlyDeployerWithRenderer(fsys fs.FS, renderer Renderer) Deployer {
+	return &deployer{fsys: fsys, renderer: renderer, pathFilter: IsPiOnlyTemplatePath}
+}
+
 // NewDeployerWithForceUpdate creates a Deployer that forces overwrite of existing files.
 // This is used for template updates where template files should replace existing versions.
 func NewDeployerWithForceUpdate(fsys fs.FS, forceUpdate bool) Deployer {
@@ -63,6 +74,12 @@ func NewDeployerWithForceUpdate(fsys fs.FS, forceUpdate bool) Deployer {
 // and forces overwrite of existing files. Used for template updates with rendering.
 func NewDeployerWithRendererAndForceUpdate(fsys fs.FS, renderer Renderer, forceUpdate bool) Deployer {
 	return &deployer{fsys: fsys, renderer: renderer, forceUpdate: forceUpdate}
+}
+
+// IsPiOnlyTemplatePath reports whether a deployed template path belongs to Pi mode.
+func IsPiOnlyTemplatePath(path string) bool {
+	clean := filepath.ToSlash(filepath.Clean(path))
+	return clean == ".moai" || clean == ".pi" || strings.HasPrefix(clean, ".moai/") || strings.HasPrefix(clean, ".pi/")
 }
 
 // @MX:NOTE: [AUTO] Checks context cancellation for per-file abort capability. Files with .tmpl suffix are rendered via Renderer and saved without the suffix.
@@ -123,6 +140,10 @@ func (d *deployer) Deploy(ctx context.Context, projectRoot string, m manifest.Ma
 			}
 			content = rawContent
 			destRelPath = path
+		}
+
+		if d.pathFilter != nil && !d.pathFilter(destRelPath) {
+			return nil
 		}
 
 		// Compute destination path
@@ -209,6 +230,9 @@ func (d *deployer) ListTemplates() []string {
 		if before, ok := strings.CutSuffix(path, ".tmpl"); ok {
 			targetPath = before
 		}
+		if d.pathFilter != nil && !d.pathFilter(targetPath) {
+			return nil
+		}
 		list = append(list, targetPath)
 		return nil
 	})
@@ -241,6 +265,9 @@ func (d *deployer) ValidateAll(ctx context.Context, tmplCtx *TemplateContext) er
 
 		// Skip directories and non-templates
 		if path == "." || entry.IsDir() || !strings.HasSuffix(path, ".tmpl") {
+			return nil
+		}
+		if d.pathFilter != nil && !d.pathFilter(strings.TrimSuffix(path, ".tmpl")) {
 			return nil
 		}
 

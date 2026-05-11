@@ -42,6 +42,7 @@ type InitOptions struct {
 	Force             bool     // If true, allow reinitializing an existing project.
 	SkipShellConfig   bool     // If true, skip shell environment configuration.
 	ModelPolicy       string   // Token consumption tier: "high", "medium", "low".
+	PiMode            bool     // If true, initialize only .moai/ and .pi/ artifacts.
 }
 
 // InitResult summarizes the outcome of project initialization.
@@ -98,6 +99,11 @@ var claudeDirs = []string{
 	"output-styles",
 }
 
+// piDirs lists the directories to create under .pi/.
+var piDirs = []string{
+	".",
+}
+
 // Init creates a new MoAI project with the given options.
 func (i *projectInitializer) Init(ctx context.Context, opts InitOptions) (*InitResult, error) {
 	opts.ProjectRoot = filepath.Clean(opts.ProjectRoot)
@@ -125,11 +131,15 @@ func (i *projectInitializer) Init(ctx context.Context, opts InitOptions) (*InitR
 		return nil, fmt.Errorf("create .moai/ structure: %w", err)
 	}
 
-	// Step 2: Create .claude/ directory structure
+	// Step 2: Create runtime-specific directory structure.
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if err := i.createClaudeDirs(opts.ProjectRoot, result); err != nil {
+	if opts.PiMode {
+		if err := i.createPiDirs(opts.ProjectRoot, result); err != nil {
+			return nil, fmt.Errorf("create .pi/ structure: %w", err)
+		}
+	} else if err := i.createClaudeDirs(opts.ProjectRoot, result); err != nil {
 		return nil, fmt.Errorf("create .claude/ structure: %w", err)
 	}
 
@@ -152,10 +162,9 @@ func (i *projectInitializer) Init(ctx context.Context, opts InitOptions) (*InitR
 		}
 	}
 
-	// Step 3b: Apply model policy to agent files (post-deployment patching).
-	// Always apply a policy; default to high when not explicitly set.
-	// "inherit" is no longer a supported model value in Claude Code.
-	{
+	// Step 3b: Apply model policy to Claude agent files (post-deployment patching).
+	// Pi-only initialization does not create Claude agent files.
+	if !opts.PiMode {
 		policy := template.ModelPolicy(opts.ModelPolicy)
 		if policy == "" {
 			policy = template.DefaultModelPolicy
@@ -170,12 +179,14 @@ func (i *projectInitializer) Init(ctx context.Context, opts InitOptions) (*InitR
 		}
 	}
 
-	// Step 4: Create CLAUDE.md
+	// Step 4: Create CLAUDE.md for Claude-mode initialization only.
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if err := i.createClaudeMD(opts, result); err != nil {
-		return nil, fmt.Errorf("create CLAUDE.md: %w", err)
+	if !opts.PiMode {
+		if err := i.createClaudeMD(opts, result); err != nil {
+			return nil, fmt.Errorf("create CLAUDE.md: %w", err)
+		}
 	}
 
 	// Step 5: Initialize manifest
@@ -192,7 +203,7 @@ func (i *projectInitializer) Init(ctx context.Context, opts InitOptions) (*InitR
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if !opts.SkipShellConfig {
+	if !opts.PiMode && !opts.SkipShellConfig {
 		if shellResult, err := i.configureShellEnv(); err != nil {
 			result.Warnings = append(result.Warnings, fmt.Sprintf("shell configuration: %s", err))
 			i.logger.Warn("shell configuration failed", "error", err)
@@ -236,6 +247,18 @@ func (i *projectInitializer) createClaudeDirs(root string, result *InitResult) e
 			return fmt.Errorf("mkdir %s: %w", dirPath, err)
 		}
 		result.CreatedDirs = append(result.CreatedDirs, filepath.Join(defs.ClaudeDir, dir))
+	}
+	return nil
+}
+
+// createPiDirs creates the .pi/ directory structure for Pi-only initialization.
+func (i *projectInitializer) createPiDirs(root string, result *InitResult) error {
+	for _, dir := range piDirs {
+		dirPath := filepath.Clean(filepath.Join(root, ".pi", dir))
+		if err := os.MkdirAll(dirPath, defs.DirPerm); err != nil {
+			return fmt.Errorf("mkdir %s: %w", dirPath, err)
+		}
+		result.CreatedDirs = append(result.CreatedDirs, filepath.Clean(filepath.Join(".pi", dir)))
 	}
 	return nil
 }
