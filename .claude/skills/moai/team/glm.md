@@ -169,7 +169,7 @@ Agent model mapping in CG mode:
 | implementation teammate (general-purpose + task-appropriate expert profile) | New pane | Z.AI | glm-5.1 / glm-4.7 |
 | testing teammate (general-purpose + expert-testing profile) | New pane | Z.AI | glm-5.1 / glm-4.7 |
 | design teammate (general-purpose + expert-frontend profile) | New pane | Z.AI | glm-5.1 / glm-4.7 |
-| research teammate (general-purpose + scout/Explore-compatible profile) | New pane | Z.AI | glm-4.7-flashx |
+| research teammate (general-purpose + codebase-researcher profile) | New pane | Z.AI | glm-4.7-flashx |
 | validation teammate (general-purpose + manager-quality profile) | New pane | Z.AI | glm-4.7-flashx |
 
 ## Error Recovery

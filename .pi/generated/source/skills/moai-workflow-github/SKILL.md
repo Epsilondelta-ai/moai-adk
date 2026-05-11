@@ -182,8 +182,8 @@ Agent(
   team_name: "github-issues-{repo-slug}",
   name: "analyst-{number}",
   mode: "plan",
-  prompt: "Adopt MoAI profile: manager-spec for issue analysis, or scout/Explore-compatible read-only exploration when codebase tracing is primary.
-    Read .pi/agents/moai/manager-spec.md or .pi/generated/source/agents/moai/manager-spec.md before analysis when available.
+  prompt: "Adopt MoAI profile: manager-spec for issue analysis, or codebase-researcher for read-only exploration when codebase tracing is primary.
+    Read .pi/agents/moai/manager-spec.md or .pi/generated/source/agents/moai/manager-spec.md before analysis when available; read .pi/agents/moai/codebase-researcher.md or .pi/generated/source/agents/moai/codebase-researcher.md before exploration.
     Analyze GitHub issue #{number}.
     Title: {title}
     Body: {body}
