@@ -16,5 +16,8 @@
   },
   "overrides": {
     "@mozilla/readability": "0.6.0"
+  },
+  "scripts": {
+    "postinstall": "node ../extensions/moai-claude-compat/patch-ask-user-question-envelope.mjs"
   }
 }
