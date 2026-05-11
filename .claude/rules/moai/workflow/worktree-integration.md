@@ -89,8 +89,8 @@ Run agent without blocking the main conversation (v2.1.46+):
 
 ```yaml
 ---
-name: team-coder
-background: true   # Returns immediately; results delivered on next turn
+name: implementation teammate
+background: true   # Returns immediately; results delivered on next turn; adopt the task-appropriate MoAI expert profile before editing
 ---
 ```
 
@@ -132,7 +132,7 @@ Is this a one-shot sub-agent task?
 
 - [HARD] Implementation teammates in team mode (role_profiles: implementer, tester, designer) MUST use `isolation: "worktree"` when spawned via Agent()
 - [HARD] Read-only teammates (role_profiles: researcher, analyst, reviewer) MUST NOT use `isolation: "worktree"` — their `mode: "plan"` already prevents writes
-- [HARD] One-shot sub-agents that write files (expert-backend, expert-frontend, manager-develop) SHOULD use `isolation: "worktree"` when making cross-file changes
+- [HARD] One-shot sub-agents that write files (expert-backend, expert-frontend, manager-ddd, manager-tdd) SHOULD use `isolation: "worktree"` when making cross-file changes
 - [HARD] GitHub workflow agents (fixer agents in /moai github issues) MUST use `isolation: "worktree"` for branch isolation
 
 ### When to Use Which
@@ -205,8 +205,8 @@ MoAI-ADK implements hook handlers for worktree lifecycle events:
 | WorktreeRemove | Agent with isolation: worktree terminates | `moai hook worktree-remove` |
 
 Hook scripts are located at:
-- `.claude/hooks/moai/handle-worktree-create.sh`
-- `.claude/hooks/moai/handle-worktree-remove.sh`
+- `.pi/generated/source/hooks/moai/handle-worktree-create.sh`
+- `.pi/generated/source/hooks/moai/handle-worktree-remove.sh`
 
 Currently the handlers log worktree creation and removal for session tracking.
 
@@ -285,21 +285,16 @@ Both share the same project structure. `src/auth/handler.go` resolves correctly 
 | Worktree not found | Removed manually | Run `moai worktree list` to verify |
 | Agent worktree conflicts | Multiple agents same file | Check file ownership in team config |
 | Stale worktree branches | Incomplete cleanup | Run `git worktree prune` |
-| Hooks not firing | Missing wrapper script | Check `.claude/hooks/moai/` directory |
+| Hooks not firing | Missing wrapper script | Check `.pi/generated/source/hooks/moai/` directory |
 | `--tmux` not working | Unsupported terminal | Use tmux or iTerm2 (not VS Code, Ghostty) |
 
 ## SPEC-to-Worktree Mapping
 
-[HARD] Per-step worktree applicability is governed by `.claude/rules/moai/workflow/spec-workflow.md` § SPEC Phase Discipline (canonical source). This table summarizes the mapping for quick reference; on conflict, spec-workflow.md wins.
-
-| Step | Phase   | Worktree?                | Location                              | Lifecycle event              |
-|------|---------|--------------------------|---------------------------------------|------------------------------|
-| 1    | Plan    | **NO** (main checkout)   | n/a — `plan/SPEC-XXX` branch on main  | plan PR merged               |
-| 2    | Run     | **YES** (MoAI worktree)  | `~/.moai/worktrees/{project}/{SPEC}/` | run PR merged                |
-| 3    | Sync    | **YES** — same as Step 2 | same path as Step 2 (do NOT recreate) | sync PR merged               |
-| 4    | Cleanup | n/a                      | host checkout                         | `moai worktree done SPEC-XXX` |
-
-[HARD] Disposal contract: `moai worktree done SPEC-XXX` MUST run only after BOTH run PR AND sync PR are merged. Premature disposal between Step 2 merge and Step 3 merge breaks Sync.
+| SPEC Phase | Worktree Type | Location |
+|------------|--------------|----------|
+| Plan | Claude Native | `.claude/worktrees/` (ephemeral) |
+| Run | MoAI | `~/.moai/worktrees/{Project}/{SPEC}/` |
+| Sync | MoAI | Same as Run phase |
 
 ## Team Protocol
 
