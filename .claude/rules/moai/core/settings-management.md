@@ -28,7 +28,7 @@ Standard MCP servers in MoAI-ADK:
 
 - context7: Library documentation lookup
 - sequential-thinking: Complex problem analysis
-- pencil: .pen file design editing. Used by expert-frontend (sub-agent mode) and team-designer (team mode).
+- pencil: .pen file design editing. Used by expert-frontend (sub-agent mode) and by design teammates that use `general-purpose` with MoAI profile adoption for `expert-frontend` (team mode).
 - claude-in-chrome: Browser automation
 - zai-mcp-server (optional): Z.AI hosted MCP for Vision OCR / WebSearch / WebReader. Registered via `moai glm tools enable [vision|websearch|webreader|all]` (SPEC-GLM-MCP-001).
 
@@ -127,12 +127,12 @@ Hooks support environment variables and must be quoted to handle spaces:
   "hooks": {
     "SessionStart": [{
       "type": "command",
-      "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-session-start.sh\"",
+      "command": "\"$CLAUDE_PROJECT_DIR/.pi/generated/source/hooks/moai/handle-session-start.sh\"",
       "timeout": 5
     }],
     "PreToolUse": [{
       "matcher": "Write|Edit|Bash",
-      "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-pre-tool.sh\"",
+      "command": "\"$CLAUDE_PROJECT_DIR/.pi/generated/source/hooks/moai/handle-pre-tool.sh\"",
       "timeout": 5
     }]
   }
@@ -159,7 +159,7 @@ If a session appears to freeze mid-conversation, check in this order (cheapest t
 
 1. **MCP authentication failures** — most common cause. Run `claude mcp list` and remove servers showing `oauth_required` / `connection_failed`. Each unauthenticated MCP can add 5-30s retry latency on tool calls.
 2. **Hook timeout** — run `claude --debug "hooks"` to see per-hook latency. If a hook exceeds its timeout, the response stalls until timeout expires. moai hook handlers (post-tool, stop, subagent-stop) typically complete in <50ms; persistent slowness usually points to LSP server hangs.
-3. **Context window pressure** — see `.claude/rules/moai/workflow/context-window-management.md`. SSE streams stall when prompts approach 75% of the window.
+3. **Context window pressure** — see `.pi/generated/source/rules/moai/workflow/context-window-management.md`. SSE streams stall when prompts approach 75% of the window.
 4. **Terminal I/O saturation** — high write ratio (>90% writes in `tmux info`) can make output appear delayed. This is rendering only, not a true freeze.
 
 Profile a hook directly:
@@ -343,4 +343,3 @@ Removing a built-in style is a breaking change and requires a major version bump
 - StatusLine uses relative paths only (no env var expansion)
 - Template sources (.tmpl files) belong in `internal/template/templates/` only
 - Local projects should contain rendered results, not template sources
-
