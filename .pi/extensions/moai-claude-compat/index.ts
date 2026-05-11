@@ -10,6 +10,8 @@ import { notifyMoai, type MoaiNotificationContext } from "./src/notification-ada
 import { registerMoaiGlassNotifications } from "./src/pi-notify-glass.ts";
 import { updateMoaiStatus } from "./src/statusline.ts";
 import { buildSkillTriggerHints } from "./src/trigger-indexer.ts";
+import { buildAiAttributionGuidance } from "./src/ai-attribution.ts";
+import { applyCommitAttribution, captureCommitAttributionSnapshot, shouldApplyCommitAttribution, shouldObserveCommitAttribution, type CommitAttributionSnapshot } from "./src/git-attribution.ts";
 
 function isMoaiRelatedInput(text: string): boolean {
   return /(^|\s)\/moai\b/i.test(text)
@@ -75,6 +77,7 @@ export default function moaiClaudeCompat(pi: ExtensionAPI) {
     outputStyleInstruction,
   ].filter(Boolean).join("\n\n");
   let pendingPromptContext: { prompt: string; context: string } | undefined;
+  const pendingCommitAttribution = new Map<string, CommitAttributionSnapshot>();
 
   registerCommands(pi, config);
   registerMoaiGlassNotifications(pi);
@@ -138,12 +141,13 @@ export default function moaiClaudeCompat(pi: ExtensionAPI) {
     updateMoaiStatus(ctx, config);
   });
 
-  function buildPromptHints(text: string, hookStdout = ""): string {
+  function buildPromptHints(text: string, hookStdout = "", model?: unknown): string {
     const lower = text.toLowerCase();
     const hints: string[] = [];
     if (lower.includes("--deepthink")) hints.push("Deepthink requested: prefer sequential-thinking MCP when available.");
     if (isMoaiRelatedInput(text)) hints.push(buildCompactRulesInstruction(config.rules));
     if (lower.includes("spec-") || lower.includes("/moai run")) hints.push(`SPEC workflow context likely required: read .moai/specs and pi-local MoAI workflow rules at ${PI_RULES_SOURCE_PATH}.`);
+    if (/(^|\s)(git|commit|pr)(\s|$)|pull request|커밋|풀리퀘스트/i.test(text)) hints.push(buildAiAttributionGuidance(model));
     if (lower.includes("permissionmode")) hints.push("Reminder: Claude permissionMode is excluded by design in pi parity.");
     hints.push(...buildSkillTriggerHints(text));
     if (hookStdout.trim()) hints.push(`MoAI user-prompt hook output: ${hookStdout.trim()}`);
@@ -156,15 +160,15 @@ export default function moaiClaudeCompat(pi: ExtensionAPI) {
 
     const hookResult = await invokeHook("user-prompt-submit", { hook_event_name: "UserPromptSubmit", prompt: text, event, cwd: ctx.cwd }, ctx);
     const routedText = shouldAutoRouteToMoai(text, event.source) ? buildMoaiAutoRoutePrompt(text) : text;
-    pendingPromptContext = { prompt: routedText, context: buildPromptHints(text, hookResult.stdout) };
+    pendingPromptContext = { prompt: routedText, context: buildPromptHints(text, hookResult.stdout, ctx.model) };
     return routedText === text ? { action: "continue" } : { action: "transform", text: routedText };
   });
 
-  pi.on("before_agent_start", async (event) => {
+  pi.on("before_agent_start", async (event, ctx) => {
     const text = typeof event.prompt === "string" ? event.prompt : "";
     const promptContext = pendingPromptContext?.prompt === text
       ? pendingPromptContext.context
-      : buildPromptHints(text);
+      : buildPromptHints(text, "", ctx?.model);
     if (pendingPromptContext?.prompt === text) pendingPromptContext = undefined;
 
     return {
@@ -176,6 +180,10 @@ export default function moaiClaudeCompat(pi: ExtensionAPI) {
 
   pi.on("tool_call", async (event, ctx) => {
     await invokeHook("pre-tool", { hook_event_name: "PreToolUse", tool_name: event.toolName, tool_input: event.input, event, cwd: ctx.cwd }, ctx);
+    if (shouldObserveCommitAttribution(event.toolName, event.input)) {
+      const snapshot = captureCommitAttributionSnapshot(event.input, ctx.cwd);
+      if (snapshot) pendingCommitAttribution.set(commitAttributionKey(ctx.cwd, event.input), snapshot);
+    }
   });
 
   pi.on("tool_result", async (event, ctx) => {
@@ -192,6 +200,16 @@ export default function moaiClaudeCompat(pi: ExtensionAPI) {
       cwd: ctx.cwd,
     };
     await invokeHook("post-tool", payload, ctx);
+    if (shouldApplyCommitAttribution(event.toolName, event.input, event.isError)) {
+      const key = commitAttributionKey(ctx.cwd, event.input);
+      const result = applyCommitAttribution(event.input, ctx.cwd, ctx.model, pendingCommitAttribution.get(key));
+      pendingCommitAttribution.delete(key);
+      if (!result.amended && result.reason && result.reason !== "already attributed" && result.reason !== "no new commit detected") {
+        await notifyMoai(ctx, `MoAI commit attribution was not applied: ${result.reason}`, "warning", {
+          source: "ai-attribution",
+        });
+      }
+    }
     if (event.isError) {
       await invokeHook("post-tool-failure", { ...payload, hook_event_name: "PostToolUseFailure" }, ctx);
     }
@@ -203,4 +221,11 @@ export default function moaiClaudeCompat(pi: ExtensionAPI) {
 
   registerCodexQuota(pi, (ctx) => updateMoaiStatus(ctx, config));
 
+}
+
+function commitAttributionKey(cwd: string, input: unknown): string {
+  const command = typeof input === "object" && input !== null && typeof (input as Record<string, unknown>).command === "string"
+    ? (input as Record<string, string>).command
+    : "";
+  return `${cwd}\u0000${command}`;
 }
