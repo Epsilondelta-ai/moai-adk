@@ -66,10 +66,10 @@ workflow:
                 description: "Code review and quality validation (context-aware analysis)"
         # Pi Agent Teams currently keep teammates team-capable via general-purpose
         # spawns. Each role must adopt the mapped MoAI profile from .pi/agents/moai
-        # before work; scout is the Explore-compatible Pi read-only fallback.
+        # or .pi/generated/source/agents/moai before work.
         moai_profile_mappings:
             plan:
-                researcher: scout
+                researcher: codebase-researcher
                 analyst: manager-spec
                 architect: manager-strategy
             run:

@@ -60,7 +60,7 @@ Spawn 3 team-capable teammates using `subagent_type: "general-purpose"` with rol
 
 | Teammate | MoAI profile mapping |
 |---|---|
-| researcher | `scout` / Explore-compatible Pi read-only fallback |
+| researcher | `codebase-researcher` |
 | analyst | `manager-spec` |
 | architect | `manager-strategy` |
 
@@ -74,7 +74,7 @@ Agent(
   model: "haiku",
   mode: "plan",
   prompt: "You are a codebase researcher on team moai-plan-{feature-slug}.
-    Adopt MoAI profile: scout / Explore-compatible read-only researcher only. Follow Pi scout-style read-only exploration; do not load any separate researcher profile.
+    Adopt MoAI profile: codebase-researcher. Read .pi/agents/moai/codebase-researcher.md or .pi/generated/source/agents/moai/codebase-researcher.md before exploration.
     Explore the codebase for {feature_description}.
     Read target code areas IN DEPTH — understand deeply how each module works, its intricacies and side effects.
     Study cross-module interactions IN GREAT DETAIL — trace data flow through the system.
