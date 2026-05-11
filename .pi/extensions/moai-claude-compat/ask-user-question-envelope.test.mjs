@@ -81,14 +81,15 @@ const text = response.content[0].text;
 
 assert.equal(
   text,
-  "User answered Claude's questions:\n" +
+  "User answered MoAI's questions:\n" +
     "  └ · Q1. 현행 하드코드 키워드(타다, 대한항공 등)는 어떻게 처리합니까? → 폐기 · LLM 일원화 (Recommended)\n" +
     "    · Q3-Q4. 브랜치 · 워크플로우는 어떻게? → 현재 브랜치 이어서 진행",
 );
-assert.match(text, /^User answered Claude's questions:/);
+assert.match(text, /^User answered MoAI's questions:/);
 assert.match(text, /\n  └ · Q1\. 현행 하드코드 키워드\(타다, 대한항공 등\)는 어떻게 처리합니까\? → 폐기 · LLM 일원화 \(Recommended\)/);
 assert.match(text, /\n    · Q3-Q4\. 브랜치 · 워크플로우는 어떻게\? → 현재 브랜치 이어서 진행$/);
 assert.doesNotMatch(text, /User has answered your questions/);
+assert.doesNotMatch(text, /Claude's questions/);
 assert.doesNotMatch(text, /"[^"]+"="[^"]+"/);
 assert.doesNotMatch(text, /You can now continue/);
 

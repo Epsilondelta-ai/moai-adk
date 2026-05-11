@@ -9,7 +9,7 @@ if (!existsSync(target)) {
 }
 
 let source = readFileSync(target, "utf8");
-const alreadyPatched = source.includes('export const ENVELOPE_PREFIX = "User answered Claude\'s questions:";')
+const alreadyPatched = source.includes('export const ENVELOPE_PREFIX = "User answered MoAI\'s questions:";')
   && source.includes('buildAnswerSegment(a, segments.length === 0)')
   && source.includes('const prefix = first ? "  └ " : "    ";');
 
@@ -18,7 +18,20 @@ if (alreadyPatched) {
   process.exit(0);
 }
 
-const interimPatched = source.includes('export const ENVELOPE_PREFIX = "User answered Claude\'s questions:";')
+const legacyClaudePatched = source.includes('export const ENVELOPE_PREFIX = "User answered Claude\'s questions:";')
+  && source.includes('buildAnswerSegment(a, segments.length === 0)')
+  && source.includes('const prefix = first ? "  └ " : "    ";');
+
+if (legacyClaudePatched) {
+  source = source
+    .replace('export const ENVELOPE_PREFIX = "User answered Claude\'s questions:";', 'export const ENVELOPE_PREFIX = "User answered MoAI\'s questions:";')
+    .replace('The Claude-style', 'The MoAI-style');
+  writeFileSync(target, source, "utf8");
+  console.log("[moai patch] AskUserQuestion response envelope wording patched");
+  process.exit(0);
+}
+
+const interimPatched = source.includes('export const ENVELOPE_PREFIX = "User answered MoAI\'s questions:";')
   && source.includes('buildAnswerSegment(a, segments.length === 0)')
   && source.includes('const prefix = first ? "└ " : "  ";');
 
@@ -29,10 +42,24 @@ if (interimPatched) {
   process.exit(0);
 }
 
+const legacyClaudeInterimPatched = source.includes('export const ENVELOPE_PREFIX = "User answered Claude\'s questions:";')
+  && source.includes('buildAnswerSegment(a, segments.length === 0)')
+  && source.includes('const prefix = first ? "└ " : "  ";');
+
+if (legacyClaudeInterimPatched) {
+  source = source
+    .replace('export const ENVELOPE_PREFIX = "User answered Claude\'s questions:";', 'export const ENVELOPE_PREFIX = "User answered MoAI\'s questions:";')
+    .replace('const prefix = first ? "└ " : "  ";', 'const prefix = first ? "  └ " : "    ";')
+    .replace('The Claude-style', 'The MoAI-style');
+  writeFileSync(target, source, "utf8");
+  console.log("[moai patch] AskUserQuestion response envelope wording and indentation patched");
+  process.exit(0);
+}
+
 const replacements = [
   [
     'export const ENVELOPE_PREFIX = "User has answered your questions:";\nexport const ENVELOPE_SUFFIX = "You can now continue with the user\'s answers in mind.";',
-    'export const ENVELOPE_PREFIX = "User answered Claude\'s questions:";\nexport const ENVELOPE_SUFFIX = "";',
+    'export const ENVELOPE_PREFIX = "User answered MoAI\'s questions:";\nexport const ENVELOPE_SUFFIX = "";',
   ],
   [
     'for (let i = 0; i < params.questions.length; i++) {\n\t\tconst a = result.answers.find((x) => x.questionIndex === i);\n\t\tif (a) segments.push(buildAnswerSegment(a));\n\t}\n\tif (segments.length === 0) {\n\t\treturn buildToolResult(DECLINE_MESSAGE, { answers: result.answers, cancelled: true });\n\t}\n\treturn buildToolResult(`${ENVELOPE_PREFIX} ${segments.join(" ")} ${ENVELOPE_SUFFIX}`, result);',
@@ -40,7 +67,7 @@ const replacements = [
   ],
   [
     ' * Format a single answer segment for the envelope. Pure of `a`. The `"Q"="A"` shape and\n * the optional `selected preview:` / `user notes:` suffixes are pinned by envelope tests.',
-    ' * Format a single answer segment for the envelope. Pure of `a`. The Claude-style\n * `· <question> → <answer>` shape and optional preview / notes suffixes are pinned by envelope tests.',
+    ' * Format a single answer segment for the envelope. Pure of `a`. The MoAI-style\n * `· <question> → <answer>` shape and optional preview / notes suffixes are pinned by envelope tests.',
   ],
   [
     'export function buildAnswerSegment(a: QuestionAnswer): string {\n\tconst parts: string[] = [`"${a.question}"="${formatAnswerScalar(a, "envelope")}"`];\n\tif (a.preview && a.preview.length > 0) parts.push(`selected preview: ${a.preview}`);\n\tif (a.notes && a.notes.length > 0) parts.push(`user notes: ${a.notes}`);\n\treturn `${parts.join(". ")}.`;\n}',
