@@ -53,7 +53,7 @@ export function toTmustierTeamsToolCall(call: NormalizedTeamCall): TmustierTeams
 
 export const TEAM_MOAI_PROFILE_MAPPINGS = {
   plan: {
-    researcher: "scout",
+    researcher: "codebase-researcher",
     analyst: "manager-spec",
     architect: "manager-strategy",
   },
@@ -82,7 +82,6 @@ const RUNTIME_FACING_SCAN_ROOTS = [
 ] as const;
 
 const MISSING_PSEUDO_AGENTS = ["team-reader", "team-validator", "team-coder", "team-tester", "team-designer"] as const;
-const COMPAT_BUILTIN_PROFILES = new Set(["scout"]);
 
 function collectMarkdownFiles(path: string, cwd: string): string[] {
   const abs = resolve(cwd, path);
@@ -108,7 +107,6 @@ function runtimeFacingDocsText(cwd: string): string {
 }
 
 function moaiProfileExists(profile: string, cwd: string): boolean {
-  if (COMPAT_BUILTIN_PROFILES.has(profile)) return true;
   return existsSync(resolve(cwd, ".pi/agents/moai", `${profile}.md`))
     || existsSync(resolve(cwd, ".pi/generated/source/agents/moai", `${profile}.md`));
 }

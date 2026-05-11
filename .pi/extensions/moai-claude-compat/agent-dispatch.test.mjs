@@ -82,6 +82,13 @@ function runtime(cwd) {
     assert.equal(dispatch.kind, "fallback");
     assert.equal(dispatch.dispatchMode, "skill");
   }
+
+  for (const args of ["--team", "--mode team", "--mode=team"]) {
+    const teamPlan = resolveWorkflowAgentDispatch("plan", args, runtime(cwd));
+    assert.equal(teamPlan.kind, "fallback");
+    assert.equal(teamPlan.dispatchMode, "skill");
+    assert.match(teamPlan.reason, /team mode requested/);
+  }
 }
 
 {

@@ -40,9 +40,10 @@ for (const pseudoAgent of removedPseudoAgents) {
 
 for (const doc of [planDoc, claudePlanDoc]) {
   assert.doesNotMatch(doc, /\.pi\/agents\/moai\/researcher\.md/);
-  assert.doesNotMatch(doc, /researcher\.md/);
-  assert.match(doc, /Adopt MoAI profile: scout \/ Explore-compatible read-only researcher only/);
-  assert.match(doc, /do not load any separate researcher profile/);
+  assert.doesNotMatch(doc, /scout \/ Explore-compatible/);
+  assert.match(doc, /Adopt MoAI profile: codebase-researcher/);
+  assert.match(doc, /\.pi\/agents\/moai\/codebase-researcher\.md/);
+  assert.match(doc, /\.pi\/generated\/source\/agents\/moai\/codebase-researcher\.md/);
 }
 
 if (/name:\s*"quality"/.test(runDoc)) {
@@ -52,7 +53,7 @@ if (/name:\s*"quality"/.test(runDoc)) {
 
 const expected = {
   plan: {
-    researcher: "scout",
+    researcher: "codebase-researcher",
     analyst: "manager-spec",
     architect: "manager-strategy",
   },
@@ -88,18 +89,19 @@ for (const roles of Object.values(expected)) {
   for (const [role, profile] of Object.entries(roles)) {
     assert.match(docText, new RegExp(role.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
     assert.match(docText, new RegExp(profile.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-    if (profile !== "scout") {
-      assert.ok(
-        existsSync(join(repoRoot, ".pi/agents/moai", `${profile}.md`))
-          || existsSync(join(repoRoot, ".pi/generated/source/agents/moai", `${profile}.md`)),
-        `missing MoAI profile file for ${profile}`,
-      );
-    }
+    assert.ok(
+      existsSync(join(repoRoot, ".pi/agents/moai", `${profile}.md`))
+        || existsSync(join(repoRoot, ".pi/generated/source/agents/moai", `${profile}.md`)),
+      `missing MoAI profile file for ${profile}`,
+    );
   }
 }
 
 const workflowYaml = readFileSync(join(repoRoot, ".moai/config/sections/workflow.yaml"), "utf8");
 assert.match(workflowYaml, /moai_profile_mappings:/);
+assert.match(workflowYaml, /researcher:\s*codebase-researcher/);
+assert.doesNotMatch(workflowYaml, /researcher:\s*scout/);
+assert.doesNotMatch(workflowYaml, /scout\s+is\s+the\s+Explore-compatible/);
 assert.match(workflowYaml, /backend-dev:\s*expert-backend/);
 assert.match(workflowYaml, /security-reviewer:\s*expert-security/);
 
