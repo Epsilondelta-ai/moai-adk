@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { getCodexQuotaFooterText } from "./codex-quota.ts";
+import { getQuotaFooterText } from "./quota.ts";
 import { STATUS_ID, WIDGET_ID } from "./constants.ts";
 import type { MoaiCompatConfig } from "./config.ts";
 
@@ -59,7 +59,7 @@ function buildMoaiFooterLines(
 ): string[] {
   const safeWidth = safeFooterWidth(width);
   const claudeLines = state.statusLines?.length ? state.statusLines : [];
-  const quota = getCodexQuotaFooterText(safeWidth);
+  const quota = getQuotaFooterText(ctx, safeWidth);
   const context = buildContextWindowText(ctx);
   if (claudeLines.length > 0) {
     return composeMoaiNativeFooterLines(claudeLines, quota, safeWidth, context);
