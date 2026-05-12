@@ -4,6 +4,7 @@ import {
 } from './src/codex-quota.ts';
 import {
   composeMoaiNativeFooterLinesForTest,
+  moaiNativeFooterColorKeyForTest,
   normalizeClaudeStatusLinesForTest,
 } from './src/statusline.ts';
 
@@ -41,6 +42,16 @@ assert(barLine.includes('(2d 16h 7m)'), '7D reset should use compact day/time fo
 assert(!lines.some((line) => line.includes('Codex')), 'footer must not use @kmiyh/pi-codex-plan-limits Codex prefix style');
 assert(!lines.some((line) => /5H:.*0%|7D:.*0%/.test(line)), 'fallback 0% quota from moai statusline should be removed');
 assert(!lines.some((line) => /Resets|reset/.test(line)), 'reset labels should stay compact');
+assert.equal(
+  moaiNativeFooterColorKeyForTest(0),
+  moaiNativeFooterColorKeyForTest(1),
+  'native footer first line and following lines should use the same color key',
+);
+assert.equal(
+  moaiNativeFooterColorKeyForTest(1),
+  moaiNativeFooterColorKeyForTest(2),
+  'native footer lower lines should use the same color key as each other',
+);
 
 const now = Date.UTC(2026, 0, 1, 0, 0, 0);
 assert.equal(formatResetDurationForTest(now + (3 * 60 + 11) * 60_000, now), '3h 11m');
