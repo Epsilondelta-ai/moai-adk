@@ -53,6 +53,50 @@ type Query struct {
 // DefaultLimit is the default value for --limit flag (REQ-SPC-004-007).
 const DefaultLimit = 100
 
+// QueryParams holds the public constructor parameters for NewQuery.
+// This allows CLI and other callers to pass wired components without
+// accessing unexported Query fields directly.
+type QueryParams struct {
+	SpecID       string
+	Kind         TagKind
+	FanInMin     int
+	Danger       string
+	FilePrefix   string
+	Since        time.Time
+	Limit        int
+	Offset       int
+	IncludeTests bool
+	ProjectRoot  string
+
+	// Optional wired components. When nil, Resolve falls back to defaults.
+	DangerMatcher  *DangerCategoryMatcher
+	SpecAssociator *SpecAssociator
+	FanInCounter   FanInCounter
+}
+
+// NewQuery constructs a Query from QueryParams, injecting wired components.
+// CLI callers should prefer NewQuery over constructing Query literals directly.
+//
+// @MX:ANCHOR: [AUTO] NewQuery — CLI 및 외부 호출자용 Query 생성자; 내부 unexported 필드를 안전하게 주입
+// @MX:REASON: fan_in >= 3 — CLI mx_query.go, 통합 테스트, 향후 codemaps 생성기 모두 이 경로로 Query를 생성
+func NewQuery(p QueryParams) Query {
+	return Query{
+		SpecID:         p.SpecID,
+		Kind:           p.Kind,
+		FanInMin:       p.FanInMin,
+		Danger:         p.Danger,
+		FilePrefix:     p.FilePrefix,
+		Since:          p.Since,
+		Limit:          p.Limit,
+		Offset:         p.Offset,
+		IncludeTests:   p.IncludeTests,
+		projectRoot:    p.ProjectRoot,
+		dangerMatcher:  p.DangerMatcher,
+		specAssociator: p.SpecAssociator,
+		fanInCounter:   p.FanInCounter,
+	}
+}
+
 // MaxLimit is the maximum value for --limit flag (REQ-SPC-004-007).
 const MaxLimit = 10000
 
@@ -271,6 +315,24 @@ func validateQuery(query Query) error {
 			Message: fmt.Sprintf("allowed values: note, warn, anchor, todo, legacy (actual: %s)", query.Kind),
 		}
 	}
+
+	// danger カテゴリ검증 (REQ-SPC-004-012, AC-SPC-004-13)
+	if query.Danger != "" {
+		matcher := query.dangerMatcher
+		if matcher == nil {
+			// dangerMatcher가 없으면 기본 카테고리로 검증
+			matcher = NewDangerCategoryMatcher(DangerCategoryConfig{})
+		}
+		if !matcher.ValidateCategory(query.Danger) {
+			known := strings.Join(matcher.KnownCategories(), ", ")
+			return &InvalidQueryError{
+				Field:   "danger",
+				Value:   query.Danger,
+				Message: fmt.Sprintf("unknown danger category; allowed: %s", known),
+			}
+		}
+	}
+
 	return nil
 }
 
