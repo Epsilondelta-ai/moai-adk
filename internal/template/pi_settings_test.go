@@ -20,7 +20,10 @@ func TestPiSettingsTemplateDefaultPackages(t *testing.T) {
 	}
 
 	var settings struct {
-		Packages   []any `json:"packages"`
+		Extensions []string `json:"extensions"`
+		Skills     []string `json:"skills"`
+		Prompts    []string `json:"prompts"`
+		Packages   []any    `json:"packages"`
 		MoAICompat struct {
 			DefaultPackages []string `json:"defaultPackages"`
 		} `json:"moaiCompat"`
@@ -39,9 +42,26 @@ func TestPiSettingsTemplateDefaultPackages(t *testing.T) {
 	}
 	for _, spec := range settings.MoAICompat.DefaultPackages {
 		name := normalizePiPackageSpecForTest(spec)
-		if !configured[name] {
-			t.Fatalf("default package %q is not active in packages", name)
+		if !isPiDefaultComponentActiveForTest(name, configured, settings.Extensions) {
+			t.Fatalf("default Pi component %q is not active in packages or local extension", name)
 		}
+	}
+
+	for _, requiredPath := range []struct {
+		name   string
+		values []string
+		want   string
+	}{
+		{name: "extensions", values: settings.Extensions, want: "./extensions/moai-claude-compat"},
+		{name: "skills", values: settings.Skills, want: "./generated/source/skills"},
+		{name: "prompts", values: settings.Prompts, want: "./prompts"},
+	} {
+		if !containsStringForTest(requiredPath.values, requiredPath.want) {
+			t.Fatalf(".pi/settings.json %s must reference %q, got %#v", requiredPath.name, requiredPath.want, requiredPath.values)
+		}
+	}
+	if !containsPackageSpecForTest(settings.Packages, "./packages/pi-provider-kimi-code") {
+		t.Fatalf(".pi/settings.json packages must include local Kimi provider package, got %#v", settings.Packages)
 	}
 
 	contextMode := findPiPackageSpecForTest(settings.Packages, "context-mode")
@@ -106,4 +126,34 @@ func normalizePiPackageSpecForTest(spec any) string {
 		return before
 	}
 	return value
+}
+
+func isPiDefaultComponentActiveForTest(name string, configured map[string]bool, extensions []string) bool {
+	if configured[name] {
+		return true
+	}
+	switch name {
+	case "moai-claude-compat", "pi-notify-glass.ts":
+		return containsStringForTest(extensions, "./extensions/moai-claude-compat")
+	default:
+		return false
+	}
+}
+
+func containsStringForTest(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
+func containsPackageSpecForTest(specs []any, want string) bool {
+	for _, spec := range specs {
+		if value, ok := spec.(string); ok && value == want {
+			return true
+		}
+	}
+	return false
 }

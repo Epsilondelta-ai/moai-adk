@@ -2,6 +2,7 @@ package template
 
 import (
 	"context"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +11,40 @@ import (
 
 	"github.com/modu-ai/moai-adk/internal/manifest"
 )
+
+func TestEmbeddedPiTemplatesIncludeRuntimeArtifacts(t *testing.T) {
+	fsys, err := EmbeddedTemplates()
+	if err != nil {
+		t.Fatalf("EmbeddedTemplates() error = %v", err)
+	}
+
+	for _, rel := range []string{
+		".pi/settings.json",
+		".pi/hooks.yaml",
+		".pi/package.json",
+		".pi/agents/moai/expert-debug.md",
+		".pi/claude-compat/tool-aliases.json",
+		".pi/extensions/moai-claude-compat/package.json",
+		".pi/generated/source/CLAUDE.md",
+		".pi/generated/source/skills/moai/SKILL.md",
+		".pi/packages/pi-provider-kimi-code/package.json",
+		".pi/prompts/moai.md",
+		".pi/state/.gitkeep",
+	} {
+		if _, err := fs.Stat(fsys, rel); err != nil {
+			t.Fatalf("expected embedded Pi runtime artifact %q: %v", rel, err)
+		}
+	}
+
+	for _, rel := range []string{
+		".pi/npm",
+		".pi/state/sessions",
+	} {
+		if _, err := fs.Stat(fsys, rel); !os.IsNotExist(err) {
+			t.Fatalf("embedded Pi templates must not include transient path %q; stat err = %v", rel, err)
+		}
+	}
+}
 
 func TestPiOnlyDeployerFiltersTemplates(t *testing.T) {
 	root, mgr := setupDeployProject(t)

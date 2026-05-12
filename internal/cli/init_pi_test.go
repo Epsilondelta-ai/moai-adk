@@ -43,9 +43,28 @@ func TestRunInit_PiModeCreatesOnlyMoAIAndPiArtifacts(t *testing.T) {
 		".moai/config/sections",
 		".moai/manifest.json",
 		".pi/settings.json",
+		".pi/hooks.yaml",
+		".pi/package.json",
+		".pi/agents/moai/expert-debug.md",
+		".pi/claude-compat/tool-aliases.json",
+		".pi/extensions/moai-claude-compat/package.json",
+		".pi/generated/source/CLAUDE.md",
+		".pi/generated/source/skills/moai/SKILL.md",
+		".pi/packages/pi-provider-kimi-code/package.json",
+		".pi/prompts/moai.md",
+		".pi/state/.gitkeep",
 	} {
 		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
 			t.Fatalf("expected Pi init artifact %q to exist: %v", rel, err)
+		}
+	}
+
+	for _, rel := range []string{
+		".pi/npm",
+		".pi/state/sessions",
+	} {
+		if _, err := os.Stat(filepath.Join(root, rel)); !os.IsNotExist(err) {
+			t.Fatalf("moai init --pi must not create transient Pi path %q; stat err = %v", rel, err)
 		}
 	}
 
