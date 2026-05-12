@@ -23,7 +23,15 @@
     "npm:pi-mcp-adapter@2.4.2",
     "npm:pi-subagents@0.24.0",
     "npm:pi-web-access@0.10.7",
-    "npm:pi-yaml-hooks@2026.5.8"
+    "npm:pi-yaml-hooks@2026.5.8",
+    {
+      "source": "npm:pi-provider-kimi-code@0.3.0",
+      "extensions": [],
+      "skills": [],
+      "prompts": [],
+      "themes": []
+    },
+    "./packages/pi-provider-kimi-code"
   ],
   "moaiCompat": {
     "autoRoute": {
