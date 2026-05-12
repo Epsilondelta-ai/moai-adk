@@ -34,9 +34,17 @@ function setMoaiNativeFooter(ctx: ExtensionContext, config: MoaiCompatConfig): v
     invalidate() {},
     render(width: number) {
       const lines = buildMoaiFooterLines(ctx, config, width, footerData);
-      return lines.map((line, index) => theme.fg(index === 0 ? "accent" : "dim", line));
+      return lines.map((line, index) => theme.fg(moaiNativeFooterColorKey(index), line));
     },
   }));
+}
+
+function moaiNativeFooterColorKey(_index: number): "accent" | "dim" {
+  return "accent";
+}
+
+export function moaiNativeFooterColorKeyForTest(index: number): "accent" | "dim" {
+  return moaiNativeFooterColorKey(index);
 }
 
 function buildMoaiFooterLines(
