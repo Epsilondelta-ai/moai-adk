@@ -19,8 +19,17 @@ function normalizePackageName(spec) {
   return value.split("@")[0];
 }
 
+function isDisabledPackage(spec) {
+  return typeof spec === "object" && spec !== null
+    && Array.isArray(spec.extensions) && spec.extensions.length === 0
+    && Array.isArray(spec.skills) && spec.skills.length === 0
+    && Array.isArray(spec.prompts) && spec.prompts.length === 0
+    && Array.isArray(spec.themes) && spec.themes.length === 0;
+}
+
 const runtimeOnly = new Set(["moai-claude-compat", "pi-notify-glass.ts"]);
-const configuredNames = new Set((settings.packages ?? []).map(normalizePackageName));
+const activePackageSpecs = (settings.packages ?? []).filter((spec) => !isDisabledPackage(spec));
+const configuredNames = new Set(activePackageSpecs.map(normalizePackageName));
 const contextMode = (settings.packages ?? []).find((spec) => normalizePackageName(spec) === "context-mode");
 assert.deepEqual(contextMode?.extensions, [], "context-mode extension must stay disabled to avoid hook overlap");
 assert.deepEqual(contextMode?.skills, ["./skills"], "context-mode skills must remain available");
@@ -34,7 +43,10 @@ for (const name of defaultNames) {
 }
 
 const dependencyNames = new Set(Object.keys(npmPackage.dependencies ?? {}));
-for (const name of configuredNames) {
+for (const spec of activePackageSpecs) {
+  const source = packageSpecSource(spec);
+  const name = normalizePackageName(spec);
+  if (source.startsWith("./") || source.startsWith("/")) continue;
   assert.ok(dependencyNames.has(name), `active package ${name} must be pinned in .pi/npm/package.json`);
 }
 
