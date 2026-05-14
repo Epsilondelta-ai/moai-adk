@@ -290,9 +290,11 @@ function hasResetTime(limit: ZaiQuotaLimit | undefined): boolean {
 
 function resolveUsedPercent(limit: ZaiQuotaLimit | undefined): number | undefined {
   if (!limit) return undefined;
-  const explicitPercent = sanitizeNumber(limit.percentage) ?? sanitizeNumber(limit.used_percent) ?? sanitizeNumber(limit.usedPercentage);
-  if (explicitPercent === undefined) return undefined;
-  return explicitPercent > 1 ? explicitPercent : explicitPercent * 100;
+  const raw = sanitizeNumber(limit.percentage) ?? sanitizeNumber(limit.used_percent) ?? sanitizeNumber(limit.usedPercentage);
+  if (raw === undefined) return undefined;
+  // Z.AI API `percentage` = remaining percentage (100 = nothing used, 0 = fully consumed)
+  const remaining = raw > 1 ? raw : raw * 100;
+  return clamp(100 - remaining, 0, 100);
 }
 
 function isGlmModel(ctx: Pick<ExtensionContext, "hasUI" | "model">): boolean {

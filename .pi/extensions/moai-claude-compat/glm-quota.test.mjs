@@ -80,13 +80,13 @@ const payload = {
 };
 const snapshot = mapZaiQuotaPayloadForTest(payload, Date.UTC(2026, 0, 1));
 assert.equal(snapshot.primary?.label, '5H:', 'TOKENS_LIMIT should map to native 5H window');
-assert.equal(snapshot.primary?.usedPercent, 37.5, 'percentage should map directly');
+assert.equal(snapshot.primary?.usedPercent, 62.5, 'percentage=37.5 remaining → 62.5% used');
 assert.equal(snapshot.primary?.resetsAtMs, reset, 'nextResetTime ms should parse');
 assert.equal(snapshot.secondary, undefined, 'single clear GLM limit should not synthesize 7D');
 
 const footer = formatGlmQuotaFooterTextForTest(snapshot) ?? '';
 assert(footer.includes('5H: 🔋'), 'GLM quota footer should use native 5H segment style');
-assert(footer.includes('38%'), 'GLM quota footer should round percentage');
+assert(footer.includes('63%'), 'GLM quota footer should round used percentage (100-37.5=62.5→63)');
 assert(!footer.includes('GLM:'), 'GLM quota footer should not add provider prefix inside native bar line');
 
 let requestedUrl = '';
@@ -113,7 +113,7 @@ const fetchedSnapshot = await fetchLiveSnapshotForTest(fetchCtx, async (url, ini
 });
 assert.equal(requestedUrl, 'https://api.z.ai/api/monitor/usage/quota/limit', 'GLM quota fetch should use official Z.AI endpoint');
 assert.equal(requestedAuthorization, 'Bearer registry-glm-token', 'model registry apiKey should win over stale Authorization header');
-assert.equal(fetchedSnapshot.primary?.usedPercent, 37.5, 'fetch should parse Z.AI payload');
+assert.equal(fetchedSnapshot.primary?.usedPercent, 62.5, 'fetch should invert Z.AI remaining percentage to used');
 
 const oldGlmApiKey = process.env.GLM_API_KEY;
 const oldZaiApiKey = process.env.ZAI_API_KEY;
@@ -148,5 +148,35 @@ else process.env.ZAI_API_KEY = oldZaiApiKey;
 if (oldAnthropicAuthToken === undefined) delete process.env.ANTHROPIC_AUTH_TOKEN;
 else process.env.ANTHROPIC_AUTH_TOKEN = oldAnthropicAuthToken;
 assert.equal(fallbackAuthorization, 'Bearer anthropic-glm-token', 'ANTHROPIC_AUTH_TOKEN fallback should support moai glm env');
+
+const littleUsed = {
+  data: {
+    level: 'pro',
+    limits: [
+      {
+        type: 'TOKENS_LIMIT',
+        percentage: 95,
+        nextResetTime: Date.now() + 5 * 3600 * 1000,
+      },
+    ],
+  },
+};
+const littleUsedSnap = mapZaiQuotaPayloadForTest(littleUsed, Date.now());
+assert.equal(littleUsedSnap.primary?.usedPercent, 5, 'percentage=95 remaining → 5% used');
+
+const almostFull = {
+  data: {
+    level: 'pro',
+    limits: [
+      {
+        type: 'TOKENS_LIMIT',
+        percentage: 3,
+        nextResetTime: Date.now() + 5 * 3600 * 1000,
+      },
+    ],
+  },
+};
+const almostFullSnap = mapZaiQuotaPayloadForTest(almostFull, Date.now());
+assert.equal(almostFullSnap.primary?.usedPercent, 97, 'percentage=3 remaining → 97% used');
 
 console.log('glm quota regression ok');
