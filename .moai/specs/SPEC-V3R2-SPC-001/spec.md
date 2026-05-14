@@ -2,9 +2,9 @@
 id: SPEC-V3R2-SPC-001
 title: "EARS + hierarchical acceptance criteria"
 version: "0.1.1"
-status: draft
+status: completed
 created: 2026-04-23
-updated: 2026-05-10
+updated: 2026-05-13
 author: Wave 4 SPEC Writer
 priority: P0 Critical
 phase: "v3.0.0 — Phase 5 — Harness + Evaluator"
@@ -196,6 +196,11 @@ Reference: R1 §9 Agent-as-a-Judge (Zhuge et al. 2024) demonstrates 55 → 365 r
   - `docs/design/major-v3-master.md:L48-56` (§1.3 FROZEN invariants — SPEC EARS format)
   - `docs/design/major-v3-master.md:L992` (§9 Phase 5 Harness + Evaluator)
   - `.claude/rules/moai/workflow/spec-workflow.md` (EARS modality + acceptance format target)
+
+
+### Out of Scope
+
+- N/A (legacy SPEC)
 
 ## 11. FROZEN-zone Amendment — Before/After Schema
 

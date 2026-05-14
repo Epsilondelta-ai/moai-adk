@@ -29,6 +29,7 @@ type Config struct {
 	Gate          GateConfig                 `yaml:"gate"`
 	Sunset        SunsetConfig               `yaml:"sunset"`
 	Research      ResearchConfig             `yaml:"research"`
+	Session       SessionConfig              `yaml:"session"` // SPEC-V3R2-RT-004 REQ-022: STALE_SECONDS
 }
 
 // GitStrategyConfig represents the git strategy configuration section.
@@ -155,7 +156,16 @@ type TeamAutoSelectionConfig struct {
 // It controls the directory where structured state data (checkpoints,
 // coverage, diagnostics) is stored.
 type StateConfig struct {
-	StateDir string `yaml:"state_dir"`
+	StateDir      string `yaml:"state_dir"`
+	RetentionDays int    `yaml:"retention_days"` // SPEC-V3R2-RT-004 REQ-031: runs/ 디렉토리 보존 일수
+}
+
+// SessionConfig holds session state management configuration.
+// SPEC-V3R2-RT-004 REQ-022: STALE_SECONDS 설정.
+type SessionConfig struct {
+	// StaleSeconds는 checkpoint가 stale로 판정되는 기준 시간 (초).
+	// 기본값: 3600 (1시간). ralph.yaml의 stale_seconds 키로 설정.
+	StaleSeconds int `yaml:"stale_seconds"`
 }
 
 // LSPQualityGates represents LSP quality gate configuration.
@@ -336,6 +346,38 @@ func ValidSectionNames() []string {
 	return result
 }
 
+// HarnessConfig는 harness.yaml 최상위 설정 구조체입니다.
+// HRN-002 run-phase minimal substrate: memory_scope 필드 검증만 포함합니다.
+// HRN-001 run-phase에서 routing/profile 확장 예정입니다.
+type HarnessConfig struct {
+	DefaultProfile string         `yaml:"default_profile"`
+	Evaluator      EvaluatorConfig `yaml:"evaluator"`
+}
+
+// EvaluatorConfig는 evaluator 하위 설정 구조체입니다.
+// @MX:NOTE: FROZEN at per_iteration per design-constitution §11.4.1 (SPEC-V3R2-HRN-002)
+// @MX:NOTE: [AUTO] HRN-003 M4: Profiles + Aggregation + MustPassDimensions 필드 추가 (SPEC-V3R2-HRN-003)
+type EvaluatorConfig struct {
+	// MemoryScope는 evaluator 메모리 범위 설정입니다.
+	// design-constitution §11.4.1에 의해 per_iteration 값으로 FROZEN됩니다.
+	// 다른 값(e.g., cumulative)은 HRN_EVAL_MEMORY_FROZEN 오류를 반환합니다.
+	MemoryScope string `yaml:"memory_scope"`
+	// Profiles는 evaluator 프로필 이름 → .md 파일 경로 맵입니다.
+	// REQ-HRN-003-005, AC-HRN-003-07.c.
+	Profiles map[string]string `yaml:"profiles,omitempty"`
+	// Aggregation은 기본 집계 방식입니다 ("min" 또는 "mean").
+	// REQ-HRN-003-007: 기본값은 "min"입니다.
+	Aggregation string `yaml:"aggregation,omitempty"`
+	// MustPassDimensions는 must-pass 차원 이름 목록입니다.
+	// REQ-HRN-003-018: 기본값은 [Functionality, Security]입니다.
+	MustPassDimensions []string `yaml:"must_pass_dimensions,omitempty"`
+}
+
+// harnessFileWrapper는 harness.yaml 파일 언마샬링용 래퍼입니다.
+type harnessFileWrapper struct {
+	Harness HarnessConfig `yaml:"harness"`
+}
+
 // YAML file wrapper types for proper unmarshaling with top-level keys.
 // Each section file wraps its content under a top-level key.
 
@@ -376,4 +418,14 @@ type statuslineFileWrapper struct {
 // researchFileWrapper handles the research.yaml section file.
 type researchFileWrapper struct {
 	Research ResearchConfig `yaml:"research"`
+}
+
+// ralphFileWrapper handles the ralph.yaml section file.
+// stale_seconds는 ralph.yaml의 ralph: 키 하위에 위치하며 Config.Session.StaleSeconds에 주입됩니다.
+// SPEC-V3R2-RT-004 REQ-022: STALE_SECONDS 설정 소스.
+type ralphFileWrapper struct {
+	Ralph struct {
+		RalphConfig  `yaml:",inline"`
+		StaleSeconds int `yaml:"stale_seconds"` // → Config.Session.StaleSeconds
+	} `yaml:"ralph"`
 }

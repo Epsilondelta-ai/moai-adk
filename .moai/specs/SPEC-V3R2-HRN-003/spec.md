@@ -1,14 +1,14 @@
 ---
 id: SPEC-V3R2-HRN-003
 title: "Hierarchical Acceptance Scoring (4-dimension × sub-criteria)"
-version: "0.1.0"
-status: draft
+version: "0.3.0"
+status: completed
 created: 2026-04-23
-updated: 2026-04-23
+updated: 2026-05-13
 author: GOOS
 priority: P1 High
 phase: "v3.0.0 — Phase 5 — Harness + Evaluator"
-module: "internal/harness/scorer.go, .claude/agents/moai/evaluator-active.md, .moai/config/evaluator-profiles/, .moai/specs/SPEC-*/acceptance.md"
+module: "internal/harness/scorer.go, internal/harness/rubric.go, .claude/agents/moai/evaluator-active.md, .moai/config/evaluator-profiles/, .moai/specs/SPEC-*/acceptance.md"
 dependencies:
   - SPEC-V3R2-CON-001
   - SPEC-V3R2-HRN-001
@@ -29,6 +29,8 @@ tags: "evaluator, scoring, hierarchical, acceptance-criteria, rubric, 4-dimensio
 | Version | Date       | Author | Description                          |
 |---------|------------|--------|--------------------------------------|
 | 0.1.0   | 2026-04-23 | GOOS   | Initial draft (Wave 4 SPEC writer, round 2) |
+| 0.2.0   | 2026-05-13 | manager-spec (HRN-003 plan author) | Plan-phase audit pass — refined REQ-005 (`.md` profile format already-on-main vs spec assumption of `.yaml`); refined REQ-006 (evaluator-active body augment, NOT introduce — body already cites §11.4.1 from HRN-002 M3 and lists 4 dimensions); added Drift Reconciliation note linking to acceptance.md §1.1; added §10 path verification (gan_loop.go does NOT exist — REQ-011 wires via SKILL.md per HRN-002 D1 precedent). |
+| 0.3.0   | 2026-05-13 | manager-docs (sync) | Sync-phase docs sync — advisory cleanup applied (lines 111/149/346-349 .yaml→.md per §10.1 reconciliation #1); status implemented → completed; CHANGELOG entry added. |
 
 ---
 
@@ -107,7 +109,7 @@ Sub-criteria flatten to single-level when the SPEC's acceptance.md uses flat Giv
   - for each sub-criterion, evaluator-active emits `{score, rubric_anchor, evidence, dimension}`,
   - aggregates sub-criterion scores per criterion (aggregation rule: min by default; mean available via profile flag),
   - aggregates criterion scores per dimension (same rule).
-- Author rubric template files `.moai/config/evaluator-profiles/{default,strict,lenient,frontend}.yaml`:
+- Consume existing rubric template files `.moai/config/evaluator-profiles/{default,strict,lenient,frontend}.md` (per §10.1 reconciliation #1; rubric template files are authored separately — this SPEC consumes the existing `.md` format):
   - each profile declares per-dimension rubric templates with 4 anchor levels,
   - strict profile has tighter 0.75 → 0.85 minimum pass bar for must-pass dimensions,
   - lenient profile softer for exploratory specs.
@@ -145,7 +147,7 @@ Sub-criteria flatten to single-level when the SPEC's acceptance.md uses flat Giv
 - Claude Code v2.1.111+ (Opus 4.7 Adaptive Thinking required for rubric-anchored judgment; agent effort: xhigh per SPEC-V3R2-ORC-003 for evaluator-active)
 - Canonical dimensions: `Functionality`, `Security`, `Craft`, `Consistency` (FROZEN enum for v3.0)
 - Rubric anchor levels: 0.25, 0.50, 0.75, 1.00 (FROZEN per design-constitution §12 Mechanism 1)
-- Evaluator profile files location: `.moai/config/evaluator-profiles/{default,strict,lenient,frontend}.yaml`
+- Evaluator profile files location: `.moai/config/evaluator-profiles/{default,strict,lenient,frontend}.md` (per §10.1 reconciliation #1; profile files are authored as Markdown, not YAML)
 - ScoreCard output format: structured JSON consumable by the GAN loop runner
 - Sprint Contract integration: `.moai/sprints/{spec-id}/contract.yaml` per HRN-002
 - Backward compat: flat acceptance trees from pre-v3r2 SPECs auto-wrap as single-level children (BC-V3R2-011 from Master §8)
@@ -185,10 +187,10 @@ The `Rubric` struct **shall** declare 4 anchor levels at scores 0.25, 0.50, 0.75
 The function `EvaluatorRunner.Score(contract *SprintContract, artifact Artifact) (*ScoreCard, error)` **shall** iterate the hierarchical acceptance tree, invoke evaluator-active per sub-criterion, collect `{Score, RubricAnchor, Evidence, Dimension}`, and aggregate per REQ-007.
 
 **REQ-HRN-003-005 (Ubiquitous) — 평가 프로필 기본 셋**
-The directory `.moai/config/evaluator-profiles/` **shall** contain at minimum 4 profiles: `default.yaml`, `strict.yaml`, `lenient.yaml`, `frontend.yaml`; each profile **shall** include per-dimension rubric templates with the 4 anchor levels.
+The directory `.moai/config/evaluator-profiles/` **shall** contain at minimum 4 profiles. Profiles ship as Markdown files (`default.md`, `strict.md`, `lenient.md`, `frontend.md`) on main as of 2026-05-13; each profile **shall** include per-dimension rubric tables with the 4 anchor scores (0.25, 0.50, 0.75, 1.00). The Go-side parser introduced by this SPEC **shall** consume the existing `.md` rubric tables; introducing a parallel `.yaml` schema is OUT of scope (see §10 Drift Reconciliation).
 
-**REQ-HRN-003-006 (Ubiquitous) — 에이전트 바디 수정**
-The file `.claude/agents/moai/evaluator-active.md` body **shall** declare the hierarchical scoring contract including: (a) 4-dimension enumeration, (b) rubric-anchored scoring requirement (Mechanism 1), (c) structured JSON output format, (d) fresh-iteration respawn per HRN-002.
+**REQ-HRN-003-006 (Ubiquitous) — 에이전트 바디 수정 (augment, NOT introduce)**
+The file `.claude/agents/moai/evaluator-active.md` body **shall** be augmented with the hierarchical scoring contract. Existing body content as of 2026-05-13 already declares the 4-dimension table (lines 47-54) and cites §11.4.1 fresh-iteration respawn (line 91-92, landed by HRN-002 M3). HRN-003 **shall** add: (a) per-sub-criterion structured JSON output schema, (b) explicit rubric-anchor citation requirement (REQ-009 enforcement contract), (c) cross-reference to `Rubric` schema in `internal/harness/rubric.go`. No new agent tool, no frontmatter change.
 
 ### 5.2 Event-Driven (이벤트 기반)
 
@@ -311,7 +313,27 @@ Core criteria:
 
 ---
 
+
+### Out of Scope
+
+- N/A (legacy SPEC)
+
 ## 10. Traceability (추적성)
+
+### 10.1 Drift Reconciliation Notes (post-HRN-002 merge, 2026-05-13)
+
+This SPEC was authored 2026-04-23 against constitution v3.3.0. Between authorship and plan delivery, SPEC-V3R2-HRN-002 (commit `0ac27ee4e`, PR #879) advanced constitution to v3.5.0 and landed the following infrastructure HRN-003 builds on:
+
+- `EvaluatorConfig.MemoryScope` field on `HarnessConfig` (`internal/config/types.go:354`)
+- `evaluator.memory_scope: per_iteration` in both `design.yaml` and `harness.yaml` (FROZEN value)
+- `internal/harness/evaluator_leak.go` + leak-detection regression test
+- evaluator-active body cross-reference to §11.4.1 (line 91-92)
+- §11.4.1 itself (constitution lines 341-349)
+- CONST-V3R2-153 zone-registry entry
+
+REQ-005 wording adapted from spec-time `.yaml` assumption to acknowledge the actual `.md` profile format already on main. REQ-006 wording adapted from "introduce" to "augment" because the body already has the cross-reference and 4-dimension table. spec.md is otherwise unchanged from v0.1.0 — these are surface clarifications only, not semantic shifts.
+
+### 10.2 REQ ↔ AC Mapping
 
 - REQ-to-AC mapping: REQ-001 → AC-01, AC-08; REQ-002 → AC-02; REQ-003 → AC-07; REQ-004 → AC-02, AC-03; REQ-005 → AC-07; REQ-006 → AC-09; REQ-007 → AC-03; REQ-008 → AC-04, AC-12; REQ-009 → AC-05; REQ-010 → AC-06; REQ-011 → AC-10; REQ-012 → AC-08; REQ-013 → AC-07 (rubric-anchor test); REQ-014 → AC-12; REQ-015 → AC-03; REQ-016 → frontend profile regression; REQ-017 → AC-02 type test; REQ-018 → AC-11; REQ-019 → AC-08.
 - Total REQ count: 19 (Ubiquitous 6, Event-Driven 5, State-Driven 3, Optional 2, Unwanted 3)
@@ -332,7 +354,11 @@ Core criteria:
   - `.moai/config/evaluator-profiles/lenient.yaml` (new or modified, REQ-005)
   - `.moai/config/evaluator-profiles/frontend.yaml` (new or modified, REQ-005, REQ-016)
   - `.claude/agents/moai/evaluator-active.md` (modified, REQ-006)
-  - `internal/harness/gan_loop.go` (modified — wires scorer, cross-ref HRN-002 REQ-009)
+  - `.moai/config/evaluator-profiles/default.md` (new or modified, REQ-005, modified — .md per §10.1 reconciliation #1)
+  - `.moai/config/evaluator-profiles/strict.md` (new or modified, REQ-005, modified — .md per §10.1 reconciliation #1)
+  - `.moai/config/evaluator-profiles/lenient.md` (new or modified, REQ-005, modified — .md per §10.1 reconciliation #1)
+  - `.moai/config/evaluator-profiles/frontend.md` (new or modified, REQ-005, REQ-016, modified — .md per §10.1 reconciliation #1)
+  - `internal/harness/gan_loop.go` (NOT created — orchestrator-level runner via SKILL.md per HRN-002 D1; see §10.1 reconciliation #3)
   - `internal/template/templates/...` (template-first mirrors)
 
 ---

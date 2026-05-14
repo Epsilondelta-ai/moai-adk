@@ -5,6 +5,123 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] — SPEC-V3R4-HARNESS-001: Self-Evolving Harness v2 Foundation
+
+### Breaking Changes
+
+- **BC-V3R4-HARNESS-001-CLI-RETIREMENT** — `moai harness <verb>` CLI subcommand 경로가 폐기되었습니다. 셸에서 `moai harness status` (또는 `apply`, `rollback`, `disable`)를 호출하면 cobra의 `unknown command "harness" for "moai"` 진단과 함께 non-zero exit code가 반환됩니다. 동일한 기능은 Claude Code 세션 내의 `/moai:harness` 슬래시 커맨드로만 사용할 수 있습니다. 슬래시 커맨드 표면은 V3R3 시절과 동일하게 유지되므로 사용자 머슬 메모리에는 영향이 없습니다.
+- 신규 회귀 가드: `internal/cli/harness_retirement_test.go` `TestHarnessRetirement`가 `rootCmd.Commands()`에 `harness` subcommand가 다시 등록되는 PR을 자동으로 차단합니다.
+
+### Breaking Changes (English)
+
+- **BC-V3R4-HARNESS-001-CLI-RETIREMENT** — The `moai harness <verb>` CLI subcommand path is retired. Invoking `moai harness status` (or `apply`, `rollback`, `disable`) from the shell returns cobra's `unknown command "harness" for "moai"` diagnostic with a non-zero exit code. The same functionality is reachable only through the `/moai:harness` slash command inside a Claude Code session. The slash command surface is identical to the V3R3 era, so user muscle memory is unaffected.
+- New regression guard: `internal/cli/harness_retirement_test.go` `TestHarnessRetirement` fails the build if any PR re-registers a `harness` subcommand on `rootCmd.Commands()`.
+
+### Added
+
+- **SPEC-V3R4-HARNESS-001 — Unified Self-Evolving Harness Foundation**: V3R4 self-evolving harness 아키텍처의 foundation SPEC. 세 개의 V3R3 SPEC을 단일 V3R4 family로 통합 (`supersedes:` frontmatter): `SPEC-V3R3-HARNESS-001` (meta-skill), `SPEC-V3R3-HARNESS-LEARNING-001` (4-tier learning ladder + 5-Layer Safety), `SPEC-V3R3-PROJECT-HARNESS-001` (16Q 인터뷰 + 통합 wiring). harness 라이프사이클은 슬래시 커맨드 + 스킬 워크플로우 + Claude Code hook 만으로 동작하며 Go 바이너리 호출이 0건입니다. 5-Layer Safety 아키텍처 (`.claude/rules/moai/design/constitution.md` §5) 와 FROZEN zone (§2)은 비트 단위로 보존됩니다 (REQ-HRN-FND-005).
+- **`/moai:harness` 슬래시 커맨드 lifecycle (V3R4 contract)**: `.claude/skills/moai/workflows/harness.md` 본문이 `status` / `apply` / `rollback` / `disable` 4개 verb를 모두 file-system 연산으로 구현합니다. Tier-4 적용 시 orchestrator-issued AskUserQuestion 4-option 패턴 (Apply (권장) / Modify / Defer / Reject) 게이트 (REQ-HRN-FND-004, REQ-HRN-FND-015). Tier-4 적용 빈도는 프로젝트당 7일 rolling window 1회 (REQ-HRN-FND-012, 하향 불가 REQ-HRN-FND-018).
+- **PostToolUse observer no-op gate (REQ-HRN-FND-009)**: `internal/cli/hook.go` `isHarnessLearningEnabled` 함수가 `.moai/config/sections/harness.yaml`의 `learning.enabled` 필드를 읽어 `false`이면 observer가 완전한 no-op으로 동작합니다. 누락된 config / 파싱 오류 시 fail-open (관측 유지). `internal/cli/hook_harness_observe_test.go` 10건의 table-driven 테스트로 검증.
+- **CI 회귀 가드 (REQ-HRN-FND-002)**: `internal/cli/harness_retirement_test.go`가 `rootCmd.Commands()`에 `harness` subcommand 재등록 시도를 차단.
+- **moai-harness-learner / moai-meta-harness V3R4 텍스트 주석**: SPEC §10 exclusion #10에 따라 두 skill body는 frontmatter / 동작 변경 없이 V3R4 contract 인용 주석만 추가.
+
+### Added (English)
+
+- **SPEC-V3R4-HARNESS-001 — Unified Self-Evolving Harness Foundation**: Foundation SPEC for the V3R4 self-evolving harness architecture. Consolidates three V3R3 SPECs into a single V3R4 family via `supersedes:` frontmatter: `SPEC-V3R3-HARNESS-001` (meta-skill), `SPEC-V3R3-HARNESS-LEARNING-001` (4-tier learning ladder + 5-Layer Safety), `SPEC-V3R3-PROJECT-HARNESS-001` (16Q interview + integration wiring). The harness lifecycle operates entirely through slash command + skill workflow + Claude Code hooks; zero Go binary invocations remain. The 5-Layer Safety architecture (`.claude/rules/moai/design/constitution.md` §5) and FROZEN zones (§2) are preserved byte-for-byte (REQ-HRN-FND-005).
+- **`/moai:harness` slash command lifecycle (V3R4 contract)**: `.claude/skills/moai/workflows/harness.md` body implements all four verbs (`status` / `apply` / `rollback` / `disable`) via file-system operations only. Tier-4 application is gated by an orchestrator-issued AskUserQuestion four-option pattern (Apply (Recommended) / Modify / Defer / Reject) per REQ-HRN-FND-004 and REQ-HRN-FND-015. Tier-4 application is rate-limited to one per project per 7-day rolling window (REQ-HRN-FND-012) with a floor that cannot be lowered by adaptive expansion (REQ-HRN-FND-018).
+- **PostToolUse observer no-op gate (REQ-HRN-FND-009)**: `internal/cli/hook.go` `isHarnessLearningEnabled` reads `learning.enabled` from `.moai/config/sections/harness.yaml`; when `false`, the observer becomes a complete no-op (no read, write, or append). Fail-open semantics: missing config or parse error preserves baseline observation. Verified by 10 table-driven cases in `internal/cli/hook_harness_observe_test.go`.
+- **CI regression guard (REQ-HRN-FND-002)**: `internal/cli/harness_retirement_test.go` fails the build if any PR re-registers a `harness` subcommand on `rootCmd.Commands()`.
+- **moai-harness-learner / moai-meta-harness V3R4 text annotations**: per SPEC §10 exclusion #10, both skill bodies receive text-only annotations reaffirming the V3R4 contract with no frontmatter or behavioral changes.
+
+### Superseded
+
+- `SPEC-V3R3-HARNESS-001` — Meta-Harness Skill core (status transition to `superseded` is performed via the follow-up `manager-git` commit per `.moai/specs/SPEC-V3R4-HARNESS-001/follow-up.md`).
+- `SPEC-V3R3-HARNESS-LEARNING-001` — 4-tier learning ladder + 5-Layer Safety + `moai harness` CLI verbs (CLI verb path retired; 4-tier ladder and 5-Layer Safety preserved unchanged).
+- `SPEC-V3R3-PROJECT-HARNESS-001` — `/moai project` Phase 5+ socratic interview + 5-Layer integration wiring (runtime behavior preserved; V3R4 SPEC formalizes the contract those layers operate under).
+
+### Downstream (not in scope of this SPEC)
+
+이 foundation SPEC은 자체적으로 self-evolution 메커니즘을 도입하지 않습니다. 다음 7개 downstream SPEC은 이 foundation을 점진적으로 확장합니다 (모두 `.moai/specs/SPEC-V3R4-HARNESS-001/spec.md` §1.3 Non-Goals 에 명시):
+
+- `SPEC-V3R4-HARNESS-002` — Multi-event observer (Stop / SubagentStop / UserPromptSubmit 통합) **[IMPLEMENTED]**
+- `SPEC-V3R4-HARNESS-003` — Embedding-cluster pattern detection (frequency-count classifier 대체)
+- `SPEC-V3R4-HARNESS-004` — Reflexion 자체-비판 loop (3-iteration cap)
+- `SPEC-V3R4-HARNESS-005` — Constitution principle-based scoring
+- `SPEC-V3R4-HARNESS-006` — Multi-objective effectiveness measurement + auto-rollback-on-regression
+- `SPEC-V3R4-HARNESS-007` — Voyager 스킬 라이브러리 자동 organization (embedding-indexed retrieval)
+- `SPEC-V3R4-HARNESS-008` — Cross-project lesson federation (privacy-sensitive, opt-in only)
+
+## [Unreleased] — SPEC-V3R4-HARNESS-002: Multi-Event Observer Expansion
+
+### Added
+
+- **SPEC-V3R4-HARNESS-002 — Multi-Event Observer Expansion (Stop / SubagentStop / UserPromptSubmit)**: V3R4 self-evolving harness의 관찰 표면을 PostToolUse-only baseline에서 4-event 매트릭스(PostToolUse + Stop + SubagentStop + UserPromptSubmit)로 확장합니다. 3개 신규 cobra subcommand (`moai hook harness-observe-{stop, subagent-stop, user-prompt-submit}`) + `EventType` enum 확장 (`session_stop` / `subagent_stop` / `user_prompt`) + `.moai/harness/usage-log.jsonl` schema 확장(additive optional fields, `omitempty`). PII 보안 기본값: Strategy A (SHA-256 hash + length + language heuristic for UserPromptSubmit). `learning.enabled` gate 통합(모든 4개 event hook 공유) → 일괄 no-op 가능. 5-Layer Safety (`.claude/rules/moai/design/constitution.md` §5)와 4-tier ladder (REQ-HRN-FND-011) 보존. 3 wrapper script templates (shell .sh.tmpl) + settings.json.tmpl additive wiring (Strategy WIRE-A). Evaluator iter 1/2 defect fix 포함 (PromptPreview byte boundary + prompt_hash [:16] truncation + prompt_full→prompt_content 필드명 정정). 13/13 AC PASS, coverage 87.9%, MX P1/P2 violations 0. 5-wave delivery (A/A.5/B/C) + Phase 2.75 lint + Phase 2.8a evaluator 3 iterations. PR #914 (#909 plan +  #910/#911 run baseline으로부터). downstream SPEC-V3R4-HARNESS-003 (embedding-cluster classifier) 진입 자격 충족.
+
+### Added (English)
+
+- **SPEC-V3R4-HARNESS-002 — Multi-Event Observer Expansion**: Extends the V3R4 self-evolving harness observation surface from a PostToolUse-only baseline to a 4-event matrix (PostToolUse + Stop + SubagentStop + UserPromptSubmit). Introduces 3 new cobra subcommands (`moai hook harness-observe-{stop, subagent-stop, user-prompt-submit}`) + `EventType` enum extension (`session_stop` / `subagent_stop` / `user_prompt`) + `.moai/harness/usage-log.jsonl` schema expansion (additive optional fields tagged with `omitempty`). PII security default: Strategy A (SHA-256 hash + length + language heuristic for UserPromptSubmit). Unified `learning.enabled` gate across all 4 event hooks enables bulk no-op capability. Preserves 5-Layer Safety (`.claude/rules/moai/design/constitution.md` §5) and 4-tier ladder (REQ-HRN-FND-011). 3 wrapper script templates (shell .sh.tmpl) + settings.json.tmpl additive registration (Strategy WIRE-A). Includes evaluator iter 1/2 defect fixes (PromptPreview byte boundary + prompt_hash [:16] truncation + prompt_full→prompt_content field naming). 13/13 AC PASS, coverage 87.9%, MX P1/P2 violations 0. 5-wave delivery (A/A.5/B/C) + Phase 2.75 lint + Phase 2.8a evaluator 3 iterations. PR #914 (plan #909 + run #910/#911 baseline). Unblocks downstream SPEC-V3R4-HARNESS-003 (embedding-cluster classifier).
+
+## [Unreleased] — SPEC-V3R2-HRN-003: Hierarchical Acceptance Scoring
+
+### Added
+
+- **SPEC-V3R2-HRN-003 — 계층 평가 채점 (Hierarchical Acceptance Scoring)**: evaluator-active의 평면 ScoreCard를 4-dimension × hierarchical sub-criterion 구조로 확장 (#885 / #887 / #889). 4 dimensions (Functionality / Security / Craft / Consistency) FROZEN, 4 rubric anchor levels {0.25, 0.50, 0.75, 1.00} FROZEN, must-pass firewall (Security 필수), 4 evaluator profiles (.md 포맷) loader, evaluator-active 본문 augment (3 augmentation), zone-registry CONST-V3R2-154/155 추가 등록. R1 §9 Agent-as-a-Judge + pattern-library E-1/E-3 ADOPT. (87 commits across 3 PRs, +1933 LOC, coverage 89.5%, MX 10 tags)
+
+### Added (English)
+
+- **SPEC-V3R2-HRN-003 — Hierarchical Acceptance Scoring**: Extended evaluator-active's flat ScoreCard to 4-dimension × hierarchical sub-criterion structure (#885 / #887 / #889). 4 canonical dimensions (Functionality / Security / Craft / Consistency) FROZEN, 4 rubric anchor levels {0.25, 0.50, 0.75, 1.00} FROZEN, must-pass firewall (Security mandatory), 4 evaluator profiles (.md format) loader, evaluator-active body augmentation (3 augmentations), zone-registry CONST-V3R2-154/155 additions. R1 §9 Agent-as-a-Judge + pattern-library E-1/E-3 ADOPTED. (87 commits across 3 PRs, +1933 LOC, coverage 89.5%, MX 10 tags)
+
+## [Unreleased] — SPEC-V3R2-SPC-004: @MX Query Engine — Fan-in + SPEC Association + 16-Language Sweep
+
+### Added
+
+- **SPEC-V3R2-SPC-004**: `internal/mx` 패키지에 `Resolver.Resolve(Query)` API 구현. LSP `find-references` 통합(powernap)을 통해 `LSPFanInCounter`가 정확한 호출자 수를 계산하고, LSP 미사용 시 `TextualFanInCounter`로 graceful fallback.
+- **SPEC-V3R2-SPC-004**: `mx.yaml` `danger_categories:` + `test_paths:` 사용자 설정 wire-up. `LoadDangerConfig(projectRoot)` → `DangerCategoryMatcher` → CLI `--danger` 플래그와 연결.
+- **SPEC-V3R2-SPC-004**: `.moai/specs/*/spec.md` `module:` frontmatter 로더(`LoadSpecModules`) + 경로 기반 `SpecAssociator`. SPEC ID → 모듈 경로 맵으로 `@MX` 태그를 해당 SPEC에 자동 연결.
+- **SPEC-V3R2-SPC-004**: `Resolver.ResolveAnchorCallsites()` additive API. 위치 정보(파일+라인+컬럼+method)를 포함한 `[]Callsite` 반환. LSP 경로와 textual fallback 모두 지원.
+
+### English
+
+- **SPEC-V3R2-SPC-004**: Implemented `Resolver.Resolve(Query)` API in `internal/mx` package. `LSPFanInCounter` computes precise caller counts via LSP `find-references` (powernap integration), falling back to `TextualFanInCounter` when LSP is unavailable.
+- **SPEC-V3R2-SPC-004**: Wired `mx.yaml` `danger_categories:` + `test_paths:` user configuration. `LoadDangerConfig(projectRoot)` → `DangerCategoryMatcher` → CLI `--danger` flag.
+- **SPEC-V3R2-SPC-004**: `.moai/specs/*/spec.md` `module:` frontmatter loader (`LoadSpecModules`) + path-based `SpecAssociator`. Automatically associates `@MX` tags with their governing SPEC via module path prefix matching.
+- **SPEC-V3R2-SPC-004**: Additive `Resolver.ResolveAnchorCallsites()` API returning `[]Callsite` with file/line/column/method. Supports both LSP and textual fallback paths.
+
+## [Unreleased] — SPEC-V3R2-RT-004: Typed Session State + Phase Checkpoint
+
+### Added
+
+- **SPEC-V3R2-RT-004**: 타입이 보장된 세션 상태 관리 시스템 구현. `PhaseState` + `Checkpoint` 인터페이스로 plan/run/sync phase별 상태를 `.moai/state/`에 원자적으로 저장. validator/v10 스키마 검증, cross-platform advisory lock(Unix flock + Windows LockFileEx), blocker 파일 스캔, staleness 검사(`stale_seconds` 설정), in-flight transition 감지, team-mode 체크포인트 병합(bubble-mode). `moai state dump/show-blocker` CLI 서브커맨드, cache-prefix 불변 조건(`HydrateForPrompt`), `retention_days` 기반 artifact 정리, AskUserQuestion 감사 lint. 7 MX 태그(ANCHOR 3, NOTE 2, WARN 2) 적용. AC-01~15 충족.
+
+### English
+
+- **SPEC-V3R2-RT-004**: Typed session state management system. `PhaseState` + `Checkpoint` interface atomically persists plan/run/sync phase state to `.moai/state/`. Features: validator/v10 schema checks, cross-platform advisory locks (Unix flock + Windows LockFileEx), blocker file scanning, staleness TTL (`stale_seconds` config), in-flight transition detection, team-mode checkpoint merge with bubble-mode. Added `moai state dump/show-blocker` CLI subcommands, cache-prefix invariant (`HydrateForPrompt`), `retention_days`-based artifact cleanup, and AskUserQuestion audit lint. 7 MX tags (ANCHOR 3, NOTE 2, WARN 2). AC-01~15 met.
+
+## [Unreleased] — SPEC-V3R4-CATALOG-002: Wave 2 Distribution — Slim init via catalog tier filter
+
+### Changed (BREAKING CHANGE)
+
+- **`moai init` 기본 동작 변경**: catalog manifest 의 `tier == core` 자산만 배포 (20 core skills + 20 core agents + non-catalog 템플릿). Optional packs 9 종 (backend / frontend / mobile / auth / deployment / design / devops / testing / chrome-extension — 합계 17 skills + 7 agents) 및 builder-harness agent 1 개는 기본 배포에서 제외 → 약 38% (25/65 entries) 슬림. 두 가지 opt-out 경로: `moai init --all` flag 또는 `MOAI_DISTRIBUTE_ALL=1` 환경변수 (case-insensitive `"true"` 도 허용). `moai update` 동작은 영향 없음 (full FS 유지). Optional pack 인터랙티브 설치는 SPEC-V3R4-CATALOG-003 (`moai pack add`) 에서 제공 예정. 기존 프로젝트의 update drift sync 는 SPEC-V3R4-CATALOG-004. Builder-harness 자동 부트스트랩은 SPEC-V3R4-CATALOG-005.
+
+### Added
+
+- **SlimFS wrapper** (`internal/template/slim_fs.go`, +235 LOC): `fs.FS` 레벨 tier 필터. `SlimFS(rawFS fs.FS, cat *Catalog) (fs.FS, error)` API. `deployer.go` / `update.go` 미수정 (D7 lock 보존, REQ-005/006). 65 entries 중 25 non-core 자산이 `fs.ErrNotExist` 반환. `testing/fstest` 호환 (REQ-001/002/003/010/011/014/015). Coverage 91.1%.
+- **encapsulated slim deployer constructor** (`internal/template/embed_catalog.go`, +59 LOC): `LoadEmbeddedCatalog()` + `NewSlimDeployerWithRenderer(cat, renderer)` 두 export. `embeddedRaw` unexported 유지 (DEFECT-5 encapsulation invariant — `git grep 'EmbeddedRaw[A-Za-z]*' internal/cli/` zero matches).
+- **builder-harness 친절 에러 가드** (`internal/template/slim_guard.go`, +36 LOC): `AssertBuilderHarnessAvailable(projectFS) error` — slim mode 에서 builder-harness 부재 시 `CATALOG_SLIM_HARNESS_MISSING` sentinel + `MOAI_DISTRIBUTE_ALL=1` + `moai init --all` + `SPEC-V3R4-CATALOG-005` 4 substring 안내 (REQ-021). Coverage 100%.
+- **audit suite** (`internal/template/catalog_slim_audit_test.go`, +242 LOC): 6 sub-tests — `TestSlimFS_HidesNonCoreEntries` (REQ-014 `CATALOG_SLIM_LEAK`, 25 non-core 검증), `TestSlimFS_PreservesCoreEntries` + EC4 nested (REQ-015 `CATALOG_SLIM_CORE_MISSING`, 40 core + `.claude/skills/moai/workflows/plan.md` nested), `TestSlimFS_PreservesNonCatalogFiles` (REQ-016 `CATALOG_SLIM_OVER_FILTER`, 5 non-catalog paths), `TestSlimFS_WalkDirNoLeak` (REQ-017 `CATALOG_SLIM_WALK_LEAK`, 523 paths visited zero leaks), `TestSlimFS_ReadOnlyInvariant` (REQ-003, reflective struct check + 32-goroutine × 50 iteration race-clean, `CATALOG_SLIM_NOT_READONLY`). 모든 sentinel `t.Errorf` 사용 (CATALOG-001 eval-1 EC3 lesson 흡수).
+- **`--all` flag + `shouldDistributeAll(cmd)` helper** (`internal/cli/init.go`, +42/-3): 좁은 env 매칭 (`"1"` exact OR case-insensitive `"true"`). EC2 idempotent (env+flag 동시 set 시 한번만 bypass).
+- **slim mode 진입 안내**: `cmd.OutOrStdout()` 로 4 substring 1-line 출력 (REQ-021 notice — `"slim mode"` + `"--all"` + `"MOAI_DISTRIBUTE_ALL=1"` + `"SPEC-V3R4-CATALOG-005"`).
+
+plan-auditor PASS 0.91 (≥ 0.88 stretch). 8 new files (slim_fs.go/_test, embed_catalog.go/_test, slim_guard.go/_test, catalog_slim_audit_test.go, init_slim_branch_test.go) + 1 modified (init.go +42/-3). DEFECT-5 encapsulation gate enforced. Fixes part of #859.
+
+### English
+
+- **BREAKING CHANGE — `moai init` default behavior**: deploys only `tier == core` catalog entries by default (20 core skills + 20 core agents + non-catalog templates). The 9 optional packs (backend / frontend / mobile / auth / deployment / design / devops / testing / chrome-extension — 17 skills + 7 agents total) and the builder-harness agent are no longer deployed by default — approximately 38% (25 / 65 entries) slim. Two opt-out paths: `moai init --all` flag OR `MOAI_DISTRIBUTE_ALL=1` environment variable (also accepts case-insensitive `"true"`). `moai update` behavior is unchanged (always full FS). Interactive optional-pack installation arrives in SPEC-V3R4-CATALOG-003 (`moai pack add`). Update drift sync for existing projects lands in SPEC-V3R4-CATALOG-004. Builder-harness auto-bootstrap lands in SPEC-V3R4-CATALOG-005.
+
+- New `internal/template/slim_fs.go` SlimFS wrapper applies the tier filter at the `fs.FS` layer; `deployer.go` and `update.go` remain untouched (D7 lock). New `internal/template/embed_catalog.go` provides the encapsulated `LoadEmbeddedCatalog()` + `NewSlimDeployerWithRenderer()` entry points while keeping `embeddedRaw` unexported (DEFECT-5 invariant). New `internal/template/slim_guard.go` surfaces a friendly four-substring error when the builder-harness agent is absent. New `internal/template/catalog_slim_audit_test.go` adds 6 audit sub-tests (`CATALOG_SLIM_LEAK` / `CATALOG_SLIM_CORE_MISSING` + EC4 nested / `CATALOG_SLIM_OVER_FILTER` / `CATALOG_SLIM_WALK_LEAK` / `CATALOG_SLIM_NOT_READONLY` reflective + 32-goroutine race-clean) against the real production catalog. All sentinels use `t.Errorf` per the CATALOG-001 EC3 lesson.
+
+- plan-auditor PASS 0.91 (≥ 0.88 stretch target). 8 new files + 1 modified. `git grep 'EmbeddedRaw[A-Za-z]*' internal/cli/` returns zero matches. Fixes part of #859.
+
 ## [Unreleased] — Dev Tooling: release-update workflow harness
 
 ### Added

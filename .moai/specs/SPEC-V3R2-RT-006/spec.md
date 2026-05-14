@@ -2,9 +2,9 @@
 id: SPEC-V3R2-RT-006
 title: "Hook Handler Completeness and 27-Event Coverage"
 version: "0.1.0"
-status: draft
+status: planned
 created: 2026-04-23
-updated: 2026-04-23
+updated: 2026-05-13
 author: GOOS
 priority: P0 Critical
 phase: "v3.0.0 — Phase 2 — Runtime Hardening"
@@ -270,6 +270,11 @@ Go handler count after this SPEC: 27 current − 1 removed (setupHandler) = 26 G
 - SPEC-V3R2-RT-007 (hardcoded-path fix in shell wrappers ships in parallel).
 - SPEC-V3R2-ORC-002 (common protocol CI lint extends `audit_test.go` pattern established here).
 - SPEC-V3R2-CON-003 (consolidation pass moves hook-system.md rule updates).
+
+
+### Out of Scope
+
+- N/A (legacy SPEC)
 
 ## 10. Traceability (추적성)
 

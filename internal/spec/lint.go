@@ -119,6 +119,9 @@ func NewLinter(opts LinterOptions) *Linter {
 		&DependencyExistsRule{},
 		&OutOfScopeRule{},
 		&BreakingChangeIDRule{},
+		&StatusValueEnumRule{},
+		&StatusCaseNormalizationRule{},
+		&StatusGitConsistencyRule{},
 		// cross-SPEC rules
 		&DependencyCycleRule{},
 		&DuplicateSPECIDRule{},
@@ -503,7 +506,7 @@ type FrontmatterSchemaRule struct{}
 func (r *FrontmatterSchemaRule) Code() string { return "FrontmatterInvalid" }
 
 // specIDPattern is a regular expression to validate SPEC ID format
-var specIDPattern = regexp.MustCompile(`^SPEC-[A-Z][A-Z0-9]+-[A-Z]{2,5}-\d{3}$`)
+var specIDPattern = regexp.MustCompile(`^SPEC(-[A-Z][A-Z0-9]*)+-\d{3}$`)
 
 var semverPattern = regexp.MustCompile(`^\d+\.\d+\.\d+`)
 
@@ -693,6 +696,67 @@ func (r *BreakingChangeIDRule) Check(doc *SPECDoc, _ []*SPECDoc) []Finding {
 	return findings
 }
 
+// StatusValueEnumRule checks if status value is in the canonical 8-value enum
+// Implements REQ-STATUS-LIFECYCLE-001-03.1
+type StatusValueEnumRule struct{}
+
+func (r *StatusValueEnumRule) Code() string { return "StatusValueInvalid" }
+
+func (r *StatusValueEnumRule) Check(doc *SPECDoc, _ []*SPECDoc) []Finding {
+	fm := doc.Frontmatter
+	var findings []Finding
+
+	if fm.Status == "" {
+		// Empty status is handled by FrontmatterSchemaRule
+		return nil
+	}
+
+	if !IsValidStatus(fm.Status) {
+		findings = append(findings, Finding{
+			File:     doc.Path,
+			Line:     1,
+			Severity: SeverityError,
+			Code:     "StatusValueInvalid",
+			Message:  fmt.Sprintf("status %q is not in the canonical 8-value enum %v", fm.Status, ValidStatuses),
+		})
+	}
+
+	return findings
+}
+
+// StatusCaseNormalizationRule checks if status value contains uppercase letters
+// Implements REQ-STATUS-LIFECYCLE-001-03.2
+type StatusCaseNormalizationRule struct{}
+
+func (r *StatusCaseNormalizationRule) Code() string { return "StatusCaseInvalid" }
+
+func (r *StatusCaseNormalizationRule) Check(doc *SPECDoc, _ []*SPECDoc) []Finding {
+	fm := doc.Frontmatter
+	var findings []Finding
+
+	if fm.Status == "" {
+		// Empty status is handled by FrontmatterSchemaRule
+		return nil
+	}
+
+	// Check if status contains uppercase
+	if fm.Status != strings.ToLower(fm.Status) {
+		lowerStatus := strings.ToLower(fm.Status)
+		// Only report error if the lowercased version is valid
+		if IsValidStatus(lowerStatus) {
+			findings = append(findings, Finding{
+				File:     doc.Path,
+				Line:     1,
+				Severity: SeverityError,
+				Code:     "StatusCaseInvalid",
+				Message:  fmt.Sprintf("status %q contains uppercase; use lowercase %q instead", fm.Status, lowerStatus),
+			})
+		}
+	}
+
+	return findings
+}
+
 // ZoneRegistryRule checks if CONST-V3R2-NNN references in related_rule field exist in zone registry
 // Implements REQ-SPC-003-010
 type ZoneRegistryRule struct {
@@ -811,3 +875,41 @@ func (r *DuplicateSPECIDRule) CheckAll(docs []*SPECDoc) []Finding {
 	}
 	return findings
 }
+
+// StatusGitConsistencyRule checks if SPEC frontmatter status agrees with git log
+// Implements Wave 3: W3-T4
+// Default severity: warning (promoted to error under --strict)
+type StatusGitConsistencyRule struct{}
+
+func (r *StatusGitConsistencyRule) Code() string { return "StatusGitConsistency" }
+
+func (r *StatusGitConsistencyRule) Check(doc *SPECDoc, _ []*SPECDoc) []Finding {
+	fm := doc.Frontmatter
+	var findings []Finding
+
+	if fm.ID == "" || fm.Status == "" {
+		// Skip if ID or status is missing (handled by other rules)
+		return nil
+	}
+
+	// Get git-implied status
+	gitStatus, err := getGitImpliedStatus(fm.ID)
+	if err != nil {
+		// If git history is unavailable, skip this check
+		return nil
+	}
+
+	// Check for drift
+	if fm.Status != gitStatus {
+		findings = append(findings, Finding{
+			File:     doc.Path,
+			Line:     1,
+			Severity: SeverityWarning, // Default: warning
+			Code:     "StatusGitConsistency",
+			Message:  fmt.Sprintf("SPEC %s frontmatter status '%s' disagrees with git-implied status '%s'", fm.ID, fm.Status, gitStatus),
+		})
+	}
+
+	return findings
+}
+

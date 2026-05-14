@@ -1,3 +1,18 @@
+---
+id: SPEC-EVO-001
+status: draft
+title: "Skill Evolution Preservation Infrastructure"
+version: "1.0.0"
+created: 2026-04-15
+updated: 2026-05-13
+author: GOOS
+priority: "P2 Medium"
+phase: "v2.x - Legacy"
+module: "legacy"
+lifecycle: completed
+tags: "legacy"
+---
+
 # SPEC-EVO-001: Skill Evolution Preservation Infrastructure
 
 ## Meta
@@ -167,6 +182,11 @@ The `.moai/evolution/` directory SHALL be git-tracked by default.
 ## Dependencies
 
 - None (this is the foundation SPEC)
+
+
+### Out of Scope
+
+- N/A (legacy SPEC)
 
 ## Non-Goals
 

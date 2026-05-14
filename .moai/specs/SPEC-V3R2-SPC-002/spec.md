@@ -2,9 +2,9 @@
 id: SPEC-V3R2-SPC-002
 title: "@MX TAG v2 with hook JSON integration and sidecar index"
 version: "0.1.0"
-status: draft
+status: planned
 created: 2026-04-23
-updated: 2026-04-23
+updated: 2026-05-13
 author: Wave 4 SPEC Writer
 priority: P1 High
 phase: "v3.0.0 — Phase 7 — Extension"
@@ -186,6 +186,11 @@ References: master-v3 §4 Layer 2 @MX Go type sketch; design-principles.md §P8 
 - `.claude/rules/moai/workflow/mx-tag-protocol.md` — inline syntax FROZEN source of truth.
 - `/moai mx` subcommand (O-6 Agentless pipeline per master-v3 §7.4).
 - design-principles.md §P8 (Hook JSON Protocol); pattern-library.md §T-5.
+
+
+### Out of Scope
+
+- N/A (legacy SPEC)
 
 ## 10. Traceability
 

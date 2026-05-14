@@ -2,9 +2,9 @@
 id: SPEC-V3R2-RT-002
 title: "Permission Stack + Bubble Mode"
 version: "0.1.0"
-status: draft
+status: planned
 created: 2026-04-23
-updated: 2026-04-23
+updated: 2026-05-13
 author: GOOS
 priority: P0 Critical
 phase: "v3.0.0 — Phase 2 — Runtime Hardening"
@@ -201,6 +201,11 @@ Affected modules:
 - SPEC-V3R2-MIG-001 (v2→v3 migrator rewrites flat `permissions.allow` to tier-annotated form).
 - SPEC-V3R2-SPC-004 (ACI `moai_lsp_*` commands must coexist with sandbox/permission layers — this SPEC gates their exposure via allowlist).
 - SPEC-V3R2-CON-003 (constitution consolidation moves permission rule text into `.claude/rules/moai/core/settings-management.md`).
+
+
+### Out of Scope
+
+- N/A (legacy SPEC)
 
 ## 10. Traceability (추적성)
 

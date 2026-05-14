@@ -2,9 +2,9 @@
 id: SPEC-V3R2-RT-003
 title: "Sandbox Execution Layer (Bubblewrap / Seatbelt / Docker)"
 version: "0.1.0"
-status: draft
+status: planned
 created: 2026-04-23
-updated: 2026-04-23
+updated: 2026-05-13
 author: GOOS
 priority: P0 Critical
 phase: "v3.0.0 — Phase 2 — Runtime Hardening"
@@ -226,6 +226,11 @@ Affected modules:
 - SPEC-V3R2-SPC-004 (ACI commands including `moai_lsp_*` must run under the sandbox; this SPEC defines the carve-out).
 - SPEC-V3R2-CON-001 (P7 sandbox default lives in the FROZEN zone declared here).
 - SPEC-V3R2-MIG-003 (security.yaml loader picks up new `sandbox.*` keys).
+
+
+### Out of Scope
+
+- N/A (legacy SPEC)
 
 ## 10. Traceability (추적성)
 

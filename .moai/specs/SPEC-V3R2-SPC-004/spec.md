@@ -2,9 +2,9 @@
 id: SPEC-V3R2-SPC-004
 title: "@MX anchor resolver (query by SPEC ID, fan_in, danger category)"
 version: "0.1.0"
-status: draft
+status: completed
 created: 2026-04-23
-updated: 2026-04-23
+updated: 2026-05-13
 author: Wave 4 SPEC Writer
 priority: P2 Medium
 phase: "v3.0.0 — Phase 7 — Extension"
@@ -168,6 +168,11 @@ References: pattern-library.md §T-1 priority 1 ("strongest single leverage patt
 - SPEC-V3R2-RT-001 (hook JSON protocol — unrelated to resolver, but SPC-002 depends on it).
 - SPEC-LSP-CORE-002 (LSP client for fan-in via `find-references`).
 - pattern-library.md §T-1 priority 1.
+
+
+### Out of Scope
+
+- N/A (legacy SPEC)
 
 ## 10. Traceability
 

@@ -58,6 +58,9 @@ func (l *Loader) Load(configDir string) (*Config, error) {
 	// Load LLM section
 	l.loadLLMSection(sectionsDir, cfg)
 
+	// Load ralph section (RalphConfig + Session.StaleSeconds)
+	l.loadRalphSection(sectionsDir, cfg)
+
 	// Load state section
 	l.loadStateSection(sectionsDir, cfg)
 
@@ -181,6 +184,28 @@ func (l *Loader) loadStatuslineSection(dir string, cfg *Config) {
 	}
 }
 
+// loadRalphSection loads the ralph configuration section from ralph.yaml.
+// ralph.yaml의 ralph.stale_seconds 키를 Config.Session.StaleSeconds에 주입합니다.
+// SPEC-V3R2-RT-004 REQ-022: STALE_SECONDS 기본값 3600, ralph.yaml에서 오버라이드 가능.
+func (l *Loader) loadRalphSection(dir string, cfg *Config) {
+	wrapper := &ralphFileWrapper{}
+	// ralph.yaml 기본값 초기화 (inline 필드)
+	wrapper.Ralph.RalphConfig = cfg.Ralph
+	loaded, err := loadYAMLFile(dir, "ralph.yaml", wrapper)
+	if err != nil {
+		slog.Warn("failed to load ralph config, using defaults", "error", err)
+		return
+	}
+	if loaded {
+		cfg.Ralph = wrapper.Ralph.RalphConfig
+		// stale_seconds가 0이 아닌 경우에만 오버라이드 (0은 명시적 설정 없음으로 간주)
+		if wrapper.Ralph.StaleSeconds > 0 {
+			cfg.Session.StaleSeconds = wrapper.Ralph.StaleSeconds
+		}
+		l.loadedSections["ralph"] = true
+	}
+}
+
 // loadResearchSection loads the research configuration section from research.yaml.
 func (l *Loader) loadResearchSection(dir string, cfg *Config) {
 	wrapper := &researchFileWrapper{Research: cfg.Research}
@@ -193,6 +218,47 @@ func (l *Loader) loadResearchSection(dir string, cfg *Config) {
 		cfg.Research = wrapper.Research
 		l.loadedSections["research"] = true
 	}
+}
+
+// LoadHarnessConfig는 주어진 경로의 harness.yaml 파일을 읽어 HarnessConfig를 반환합니다.
+// evaluator.memory_scope가 per_iteration이 아니거나 비어 있는 경우
+// ErrEvalMemoryFrozen 또는 ErrInvalidConfig 오류를 반환합니다.
+// HRN-002 run-phase minimal substrate — HRN-001 run-phase에서 routing/profile 확장 예정.
+func LoadHarnessConfig(path string) (*HarnessConfig, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("LoadHarnessConfig: %w", ErrConfigNotFound)
+		}
+		return nil, fmt.Errorf("LoadHarnessConfig read %s: %w", path, err)
+	}
+
+	var wrapper harnessFileWrapper
+	if err := yaml.Unmarshal(data, &wrapper); err != nil {
+		return nil, fmt.Errorf("LoadHarnessConfig parse %s: %w", path, ErrInvalidYAML)
+	}
+
+	cfg := &wrapper.Harness
+
+	// evaluator.memory_scope는 per_iteration으로 FROZEN됩니다
+	// design-constitution §11.4.1 (SPEC-V3R2-HRN-002) 참조
+	if cfg.Evaluator.MemoryScope == "" {
+		return nil, &ValidationError{
+			Field:   "evaluator.memory_scope",
+			Message: "required field missing; must be 'per_iteration'",
+			Wrapped: ErrEvalMemoryFrozen,
+		}
+	}
+	if cfg.Evaluator.MemoryScope != "per_iteration" {
+		return nil, &ValidationError{
+			Field:   "evaluator.memory_scope",
+			Message: "value is FROZEN at 'per_iteration' per design-constitution §11.4.1",
+			Value:   cfg.Evaluator.MemoryScope,
+			Wrapped: ErrEvalMemoryFrozen,
+		}
+	}
+
+	return cfg, nil
 }
 
 // loadYAMLFile reads a YAML file from the given directory and unmarshals it
