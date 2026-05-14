@@ -46,7 +46,7 @@ The MoAI orchestrator MUST proactively recognize the model-specific boundary and
 
 [HARD] Resume message format: include all of the following so the next session is self-sufficient:
 ```
-ultrathink. Wave <N> 이어서 진행. SPEC-<ID>부터 <approach 요약>.
+ultrathink. Sprint <N> 이어서 진행. SPEC-<ID>부터 <approach 요약>.
 applied lessons: <memory file names>.
 progress.md 경로: .moai/specs/SPEC-<ID>/progress.md
 다음 단계: <one-line command>.
@@ -70,16 +70,16 @@ When uncertain, prefer to under-estimate remaining capacity. A premature `/clear
 
 This rule applies to all MoAI workflows:
 - `/moai plan`, `/moai run`, `/moai sync` — long phases that accumulate context
-- Multi-SPEC waves (Wave 1 / Wave 2 multi-SPEC delegation) — most likely to hit the model-specific threshold
+- Multi-SPEC sprints (Sprint 1 / Sprint 2 multi-SPEC delegation) — most likely to hit the model-specific threshold
 - Iterative loops (`/moai loop`, GAN loop) — context accumulates linearly per iteration
 
 ## Cross-references
 
-- `.pi/generated/source/rules/moai/workflow/session-handoff.md` — paste-ready resume message canonical format and auto-memory integration. Trigger #1 of session-handoff.md consumes the model-specific threshold table from this file (1M = 75%, 200K = 90%). The two rules share the same threshold table; `/clear` recommendation and paste-ready emission both fire at the same boundary.
+- `.claude/rules/moai/workflow/session-handoff.md` — paste-ready resume message canonical format and auto-memory integration. Trigger #1 of session-handoff.md consumes the model-specific threshold table from this file (1M = 75%, 200K = 90%). The two rules share the same threshold table; `/clear` recommendation and paste-ready emission both fire at the same boundary.
 - `feedback_large_spec_wave_split.md` (auto-memory) — wave-split mitigation for SPECs with 30+ tasks
-- `.pi/generated/source/skills/moai/references/file-reading-optimization.md` — token budget per file read
+- `.claude/skills/moai/references/file-reading-optimization.md` — token budget per file read
 - `output-styles/moai/moai.md` §6 (Persistence & Context Awareness) — orchestrator persistence pattern
-- .pi/generated/source/CLAUDE.md §11 (Error Handling) — token-limit recovery flow
+- CLAUDE.md §11 (Error Handling) — token-limit recovery flow
 
 ---
 

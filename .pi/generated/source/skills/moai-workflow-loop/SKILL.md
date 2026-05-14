@@ -145,14 +145,14 @@ Skills:
 - moai-foundation-quality: TRUST 5 validation
 - moai-tool-ast-grep: Security scanning patterns
 - moai-workflow-testing: DDD integration
-- `.pi/generated/source/rules/moai/languages/python.md`: Python-specific patterns (auto-loaded via paths frontmatter)
-- `.pi/generated/source/rules/moai/languages/typescript.md`: TypeScript patterns (auto-loaded via paths frontmatter)
+- `.claude/rules/moai/languages/python.md`: Python-specific patterns (auto-loaded via paths frontmatter)
+- `.claude/rules/moai/languages/typescript.md`: TypeScript patterns (auto-loaded via paths frontmatter)
 
 Agents:
 
-- manager-ddd: DDD implementation
+- manager-develop: DDD implementation
 - manager-quality: Quality validation
-- expert-debug: Complex debugging
+- manager-quality: Complex debugging
 
 Commands:
 
@@ -179,9 +179,9 @@ Configuration is stored at .moai/config/sections/ralph.yaml.
 
 Loop state is stored at .moai/cache/.moai_loop_state.json.
 
-The LSP hook is located at .pi/generated/source/hooks/moai/post_tool__lsp_diagnostic.
+The LSP hook is located at .claude/hooks/moai/post_tool__lsp_diagnostic.
 
-The loop hook is located at .pi/generated/source/hooks/moai/stop__loop_controller.
+The loop hook is located at .claude/hooks/moai/stop__loop_controller.
 
 ### Supported Languages
 

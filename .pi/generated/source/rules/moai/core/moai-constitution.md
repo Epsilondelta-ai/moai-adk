@@ -16,10 +16,10 @@ Rules:
 - [HARD] AskUserQuestion is used ONLY by MoAI orchestrator; subagents must never prompt users
 - [HARD] AskUserQuestion is a deferred tool — invoke `ToolSearch(query: "select:AskUserQuestion")` immediately before each AskUserQuestion call
 - Collect all user preferences before delegating to subagents
-- When context is insufficient, conduct a Socratic interview via AskUserQuestion rounds (see .pi/generated/source/CLAUDE.md Section 7 Rule 5 + Section 8)
+- When context is insufficient, conduct a Socratic interview via AskUserQuestion rounds (see CLAUDE.md Section 7 Rule 5 + Section 8)
 - First option in every AskUserQuestion MUST be the recommended choice, marked "(권장)" or "(Recommended)"
 - Every option MUST include a detailed description explaining implications
-- Canonical reference: `.pi/generated/source/rules/moai/core/askuser-protocol.md`
+- Canonical reference: `.claude/rules/moai/core/askuser-protocol.md`
 
 ## Response Language
 
@@ -72,7 +72,7 @@ Rules:
 - Do NOT include absolute paths to the main project directory in agent prompts
 - Do NOT include `cd /absolute/path &&` in Bash commands within agent prompts
 - The agent's CWD is automatically set to the worktree root by Claude Code
-- See .pi/generated/source/rules/moai/workflow/worktree-integration.md for complete rules
+- See .claude/rules/moai/workflow/worktree-integration.md for complete rules
 
 ## Quality Gates
 
@@ -190,7 +190,7 @@ ASSUMPTIONS I'M MAKING:
 → Correct me now or I'll proceed with these.
 ```
 
-Cross-reference: .pi/generated/source/CLAUDE.md Section 7 Rule 5 (Context-First Discovery) for discovery triggers.
+Cross-reference: CLAUDE.md Section 7 Rule 5 (Context-First Discovery) for discovery triggers.
 
 Anti-pattern: Silently picking one interpretation of ambiguous requirements and running with it.
 
@@ -249,7 +249,7 @@ Do NOT:
 - Delete code that seems unused without explicit approval
 - Add features not in the spec because they "seem useful"
 
-Cross-reference: .pi/generated/source/CLAUDE.md Section 7 Rule 2 (Multi-File Decomposition).
+Cross-reference: CLAUDE.md Section 7 Rule 2 (Multi-File Decomposition).
 
 Anti-pattern: "While I was in this file I noticed..." — stay focused.
 
@@ -265,7 +265,7 @@ Evidence requirements:
 - File created: verify with Read
 - Behavior correct: show the runtime evidence
 
-Cross-reference: .pi/generated/source/CLAUDE.md Section 7 Rule 3 (Post-Implementation Review).
+Cross-reference: CLAUDE.md Section 7 Rule 3 (Post-Implementation Review).
 
 Anti-pattern: Claiming "tests pass" without running them; assuming code compiles without building.
 

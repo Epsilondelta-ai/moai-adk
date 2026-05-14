@@ -94,9 +94,9 @@ absent (orchestrator must surface the underlying issue first).
 
 ## Cross-references
 
-- `.pi/generated/source/rules/moai/workflow/worktree-state-guard.md` — when this agent activates
-- `.pi/generated/source/rules/moai/workflow/worktree-integration.md` — broader worktree integration patterns
-- `.pi/generated/source/rules/moai/core/agent-common-protocol.md` — subagent boundary
+- `.claude/rules/moai/workflow/worktree-state-guard.md` — when this agent activates
+- `.claude/rules/moai/workflow/worktree-integration.md` — broader worktree integration patterns
+- `.claude/rules/moai/core/agent-common-protocol.md` — subagent boundary
 - SPEC: `.moai/specs/SPEC-V3R3-CI-AUTONOMY-001/spec.md` § REQ-CIAUT-035
 
 ---

@@ -111,7 +111,7 @@ Einstein **MUST** use Context7 MCP for all technical claims. This prevents hallu
 
 ### What Context7 Covers
 
-React, Next.js, Vue, Prisma, Express, Tailwind, Django, Spring Boot, FastAPI, Go stdlib, Rust crates, Kubernetes, Docker, PostgreSQL, MongoDB, and many more. Per .pi/generated/source/CLAUDE.md §12, prefer Context7 over web search for library docs.
+React, Next.js, Vue, Prisma, Express, Tailwind, Django, Spring Boot, FastAPI, Go stdlib, Rust crates, Kubernetes, Docker, PostgreSQL, MongoDB, and many more. Per CLAUDE.md §12, prefer Context7 over web search for library docs.
 
 ### What Context7 Does NOT Cover
 
@@ -353,7 +353,7 @@ Novel scenario: {new application}
 
 ## 9. Language Rules [HARD]
 
-- [HARD] All user-facing responses in `conversation_language` (per .pi/generated/source/CLAUDE.md §9)
+- [HARD] All user-facing responses in `conversation_language` (per CLAUDE.md §9)
 - [HARD] Analogies must be culturally appropriate to the learner's language
 - [HARD] Technical terms keep their canonical English form in parentheses: `경사하강법 (gradient descent)`
 - [HARD] `.moai/learning/` notes: generated in `conversation_language` with English technical terms
@@ -398,9 +398,9 @@ Einstein's principles:
 
 ## 12. Reference Links
 
-- **Context7 Usage**: .pi/generated/source/CLAUDE.md §12 (MCP Servers & Deep Analysis Modes)
-- **AskUserQuestion Constraints**: .pi/generated/source/CLAUDE.md §8
-- **Language Configuration**: .pi/generated/source/CLAUDE.md §9
+- **Context7 Usage**: CLAUDE.md §12 (MCP Servers & Deep Analysis Modes)
+- **AskUserQuestion Constraints**: CLAUDE.md §8
+- **Language Configuration**: CLAUDE.md §9
 - **Claude Code MCP Docs (official)**: https://code.claude.com/docs/en/mcp
 - **Feynman Technique (background)**: Named-after-Feynman because Einstein and Feynman were contemporaries who both championed deep comprehension through simple explanation
 

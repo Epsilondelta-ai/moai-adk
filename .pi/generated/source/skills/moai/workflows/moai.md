@@ -31,7 +31,7 @@ Purpose: Full autonomous workflow. User provides a goal, MoAI autonomously execu
 
 Flow: Explore -> Plan -> Run -> Sync -> Done
 
-For phase overview, token budgets, and phase transitions, see: .pi/generated/source/rules/moai/workflow/spec-workflow.md
+For phase overview, token budgets, and phase transitions, see: .claude/rules/moai/workflow/spec-workflow.md
 
 ## Supported Flags
 
@@ -74,10 +74,10 @@ constitution:
 *DDD adapts for greenfield (ANALYZE requirements -> PRESERVE with spec tests -> IMPROVE)
 
 **Agent Selection**:
-- **TDD cycle**: `manager-tdd` subagent (RED-GREEN-REFACTOR)
-- **DDD cycle**: `manager-ddd` subagent (ANALYZE-PRESERVE-IMPROVE)
+- **TDD cycle**: `manager-develop` subagent (RED-GREEN-REFACTOR)
+- **DDD cycle**: `manager-develop` subagent (ANALYZE-PRESERVE-IMPROVE)
 
-For methodology details, see: .pi/generated/source/rules/moai/workflow/spec-workflow.md (Run Phase section)
+For methodology details, see: .claude/rules/moai/workflow/spec-workflow.md (Run Phase section)
 
 ## Phase 0: Parallel Exploration
 
@@ -144,14 +144,14 @@ This iterative refinement catches architectural misunderstandings before impleme
 
 [HARD] Methodology selection based on `.moai/config/sections/quality.yaml`:
 
-- **development_mode: tdd** (default): Use `manager-tdd` (RED-GREEN-REFACTOR)
-- **development_mode: ddd**: Use `manager-ddd` (ANALYZE-PRESERVE-IMPROVE)
+- **development_mode: tdd** (default): Use `manager-develop` (RED-GREEN-REFACTOR)
+- **development_mode: ddd**: Use `manager-develop` (ANALYZE-PRESERVE-IMPROVE)
 
 Expert agent selection (for domain-specific work):
 - Backend logic: expert-backend subagent
 - Frontend components: expert-frontend subagent
-- Test creation: expert-testing subagent
-- Bug fixing: expert-debug subagent
+- Test creation: manager-develop subagent
+- Bug fixing: manager-quality subagent
 - Refactoring: expert-refactoring subagent
 - Security fixes: expert-security subagent
 
@@ -236,7 +236,7 @@ Mode selection:
 13. **Phase 2 (Run)**: Route based on Gate result (execution_mode parameter)
    - worktree: Already running in isolated tmux+worktree session (Gate handled transition)
    - team: Read ${CLAUDE_SKILL_DIR}/team/run.md and follow team orchestration
-   - sub-agent: manager-tdd or manager-ddd (per quality.yaml development_mode)
+   - sub-agent: manager-develop (cycle_type=ddd or tdd, per quality.yaml development_mode)
    - Harness level determines phase skipping and evaluator involvement
 14. **Phase 3 (Sync)**: Always manager-docs sub-agent (sync phase never uses team mode)
 15. Terminate with completion marker

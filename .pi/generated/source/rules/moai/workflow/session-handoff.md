@@ -19,8 +19,8 @@ This rule establishes:
 
 | # | Trigger | Detection |
 |---|---------|-----------|
-| 1 | Context usage crosses model-specific threshold (cumulative input+output) | **1M context model (Opus 4.7): 75%** (~750,000 tokens). **200K context model (Sonnet/Opus standard, Haiku): 90%** (~180,000 tokens). Heuristic per `.pi/generated/source/rules/moai/workflow/context-window-management.md` §Detection Heuristics. |
-| 2 | SPEC phase completion (plan/run/sync) within a multi-SPEC workflow | Phase boundary in `.pi/generated/source/rules/moai/workflow/spec-workflow.md` §Completion Markers (after plan/run/sync phase finishes within a multi-SPEC SPEC ID series) |
+| 1 | Context usage crosses model-specific threshold (cumulative input+output) | **1M context model (Opus 4.7): 75%** (~750,000 tokens). **200K context model (Sonnet/Opus standard, Haiku): 90%** (~180,000 tokens). Heuristic per `.claude/rules/moai/workflow/context-window-management.md` §Detection Heuristics. |
+| 2 | SPEC phase completion (plan/run/sync) within a multi-SPEC workflow | Phase boundary in `.claude/rules/moai/workflow/spec-workflow.md` §Completion Markers (after plan/run/sync phase finishes within a multi-SPEC SPEC ID series) |
 | 3 | User explicitly requests session end ("세션 종료", "이번 세션 마무리", "next session") | Intent detection in user message |
 | 4 | PR creation success when more SPECs remain in the current wave | After `gh pr create` success + memory indicates >0 pending SPECs |
 | 5 | Long-running multi-milestone task reaches a stable checkpoint | After milestone Mn complete + Mn+1 not yet started |
@@ -50,7 +50,7 @@ N) <verifiable precondition N>
 ### Field-by-Field Specification
 
 **Block 1 (Line 1)**: `ultrathink. <SPEC-ID> <phase> 진입.`
-- `ultrathink.` — keyword that triggers Adaptive Thinking max effort on Opus 4.7+ (.pi/generated/source/CLAUDE.md §12). Required: max effort is the safe default for handoff continuation since the next session lacks accumulated reasoning context.
+- `ultrathink.` — keyword that triggers Adaptive Thinking max effort on Opus 4.7+ (CLAUDE.md §12). Required: max effort is the safe default for handoff continuation since the next session lacks accumulated reasoning context.
 - `<SPEC-ID>` — target SPEC identifier (e.g., `SPEC-V3R2-WF-004`) or workflow target (`다음 SPEC plan 작성`).
 - `<phase>` — `plan` | `run` | `sync` | `loop`. Korean OK (`plan phase`, `run 진입`).
 
@@ -103,7 +103,7 @@ This format is paste-ready: the next session reads each line and executes verifi
 1. Save the message to a memory project entry. Filename pattern: `project_<wave>_<spec>_<status>.md` (e.g., `project_wave6_wf002_complete.md`).
 2. Include the resume message verbatim in that file under a `## 다음 세션 시작점 (paste-ready resume message)` heading.
 3. Update `MEMORY.md` index with a one-line entry pointing to the new memory file.
-4. Mark superseded entries (if any) with `[SUPERSEDED by <new-file>]` prefix per Lessons Protocol in `.pi/generated/source/rules/moai/core/moai-constitution.md` §Lessons Protocol.
+4. Mark superseded entries (if any) with `[SUPERSEDED by <new-file>]` prefix per Lessons Protocol in `.claude/rules/moai/core/moai-constitution.md` §Lessons Protocol.
 
 This ensures the message survives `/clear` and is discoverable by the next session at the start of its context.
 
@@ -225,10 +225,10 @@ applied lessons: project_ciaut_wave2_complete, lessons #12 #13 #14, lessons #9 w
 
 ## Cross-references
 
-- `.pi/generated/source/rules/moai/workflow/context-window-management.md` — model-specific context-window threshold (1M = 75%, 200K = 90%) for `/clear` recommendations and Trigger #1 of this rule. The two policies share the same threshold table.
+- `.claude/rules/moai/workflow/context-window-management.md` — model-specific context-window threshold (1M = 75%, 200K = 90%) for `/clear` recommendations and Trigger #1 of this rule. The two policies share the same threshold table.
 - `.claude/output-styles/moai/moai.md` §6 (Persistence & Context Awareness) — orchestrator persistence pattern
-- `.pi/generated/source/rules/moai/core/moai-constitution.md` §Lessons Protocol — auto-memory write rules and `[SUPERSEDED by ...]` convention
-- .pi/generated/source/CLAUDE.md §11 (Error Handling) — token-limit recovery flow
+- `.claude/rules/moai/core/moai-constitution.md` §Lessons Protocol — auto-memory write rules and `[SUPERSEDED by ...]` convention
+- CLAUDE.md §11 (Error Handling) — token-limit recovery flow
 - `feedback_large_spec_wave_split.md` (auto-memory) — wave-split rationale that often precedes a session handoff
 - lessons #14 (auto-memory) — `--worktree` paste-ready Block 0 강제 rationale + single-session/multi-session decision
 - lessons #12, #13 (auto-memory) — worktree isolation discipline + --team base mismatch context

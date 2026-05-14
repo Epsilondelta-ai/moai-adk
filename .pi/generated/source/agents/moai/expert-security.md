@@ -53,7 +53,7 @@ OUT OF SCOPE:
 - Server-side security fixes: Delegate to expert-backend
 - Client-side security fixes (XSS, CSP): Delegate to expert-frontend
 - AST-grep pattern-based fixes: Delegate to expert-refactoring
-- Security test cases: Delegate to expert-testing
+- Security test cases: Delegate to manager-develop (cycle_type=tdd)
 - Infrastructure hardening: Delegate to expert-devops
 
 ## Security Review Process
@@ -94,7 +94,7 @@ OUT OF SCOPE:
 
 ### Phase 3: Verification
 
-- Coordinate security test cases with expert-testing
+- Coordinate security test cases with manager-develop (cycle_type=tdd)
 - Re-run AST-grep security scan after fixes
 - Confirm all vulnerabilities resolved, no regressions introduced
 
@@ -105,7 +105,7 @@ OUT OF SCOPE:
 
 ## Security Testing Tools
 
-1. AST-Grep: `sg scan --config .pi/generated/source/skills/moai-tool-ast-grep/rules/sgconfig.yml`
+1. AST-Grep: `sg scan --config .claude/skills/moai-tool-ast-grep/rules/sgconfig.yml`
 2. Dependency scan: pip-audit (Python), npm audit (Node.js)
 3. Static analysis: bandit (Python), eslint-plugin-security (JS)
 4. Container security: trivy filesystem scan

@@ -43,7 +43,7 @@ settings = batch_manager.get_config()
 ### Supported Modules
 
 - Batch Questions: Batch processing configuration
-- Documentation: Documentation generation settings
+- Documentation: Documentation generation settings 
 - Language Config: Internationalization and localization
 - Template Optimizer: Template processing optimization
 - Project Initializer: Project setup and initialization

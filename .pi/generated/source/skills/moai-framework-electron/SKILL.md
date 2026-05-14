@@ -225,9 +225,9 @@ Performance Optimization:
 
 ## Works Well With
 
-- `.pi/generated/source/rules/moai/languages/typescript.md` - TypeScript patterns for type-safe Electron development (auto-loaded via paths frontmatter)
+- `.claude/rules/moai/languages/typescript.md` - TypeScript patterns for type-safe Electron development (auto-loaded via paths frontmatter)
 - moai-domain-frontend - React, Vue, or Svelte renderer development
-- `.pi/generated/source/rules/moai/languages/javascript.md` - Node.js patterns for main process (auto-loaded via paths frontmatter)
+- `.claude/rules/moai/languages/javascript.md` - Node.js patterns for main process (auto-loaded via paths frontmatter)
 - moai-domain-backend - Backend API integration
 - moai-workflow-testing - Testing strategies for desktop apps
 
@@ -276,7 +276,7 @@ For latest documentation, use Context7 to query:
 
 Version: 2.0.0
 Last Updated: 2026-01-10
-Changes: Restructured to comply with .pi/generated/source/CLAUDE.md Documentation Standards - removed all code examples, converted to narrative text format
+Changes: Restructured to comply with CLAUDE.md Documentation Standards - removed all code examples, converted to narrative text format
 
 <!-- moai:evolvable-start id="rationalizations" -->
 ## Common Rationalizations

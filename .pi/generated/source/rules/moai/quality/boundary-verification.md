@@ -3,7 +3,7 @@ description: "Boundary verification methodology for detecting integration defect
 paths: "**/*_test.go,**/*test*.py,**/*test*.ts,**/*test*.rs,**/test/**,**/tests/**"
 ---
 
-<!-- Source: revfactory/harness — Apache License 2.0 — see .pi/generated/source/rules/moai/NOTICE.md -->
+<!-- Source: revfactory/harness — Apache License 2.0 — see .claude/rules/moai/NOTICE.md -->
 
 # Boundary Verification
 
@@ -23,7 +23,7 @@ Systematic methodology for detecting defects at component boundaries. These defe
 
 **Symptom**: API returns correct data structure, frontend hook receives it, but runtime fails because the shape doesn't match type expectation.
 
-**Example**:
+**Example**: 
 - Backend API returns: `{ projects: [{ id, name }] }`
 - Frontend hook expects generic type parameter: `SlideProject[]`
 - TypeScript compilation passes (generic casting hides mismatch)

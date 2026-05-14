@@ -103,7 +103,7 @@ Consider Alternatives When:
 ---
 
 
-- `.pi/generated/source/rules/moai/languages/java.md` - Java interoperability and Spring Boot patterns
+- `.claude/rules/moai/languages/java.md` - Java interoperability and Spring Boot patterns
 - `moai-domain-backend` - REST API, GraphQL, microservices architecture
 - `moai-domain-database` - JPA, Exposed, R2DBC patterns
 - `moai-foundation-quality` + `moai-ref-testing-pyramid` - JUnit 5, MockK, TestContainers integration
@@ -130,3 +130,4 @@ For comprehensive reference materials:
 - [examples.md](examples.md) - Production-ready code examples, Ktor, Compose, Android patterns
 
 ---
+

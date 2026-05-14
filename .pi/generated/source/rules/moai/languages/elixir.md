@@ -92,7 +92,7 @@ See:
 - `moai-domain-backend` - REST API and microservices architecture
 - `moai-domain-database` - SQL patterns and query optimization
 - `moai-workflow-testing` - DDD and testing strategies
-- delegate to `expert-debug` agent for AI-powered debugging
+- delegate to `manager-quality` agent for AI-powered debugging
 - `moai-platform-deploy` - Deployment and infrastructure
 
 ---
@@ -116,3 +116,4 @@ LiveView Not Loading:
 - Ensure Phoenix.LiveView is listed in mix.exs dependencies
 
 ---
+

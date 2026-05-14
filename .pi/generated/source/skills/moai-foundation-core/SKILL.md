@@ -29,11 +29,10 @@ triggers:
   keywords: ["trust-5", "spec-first", "ddd", "delegation", "agent", "token", "progressive disclosure", "modular", "workflow", "orchestration", "quality gate", "spec", "ears format", "context window", "token budget", "token limit", "session state", "/clear", "context management", "multi-agent handoff", "session persistence", "context", "session", "budget", "optimization", "handoff", "state", "memory", "multi-agent"]
   agents:
     - "manager-spec"
-    - "manager-ddd"
+    - "manager-develop"
     - "manager-strategy"
     - "manager-quality"
-    - "builder-agent"
-    - "builder-skill"
+    - "builder-harness"
     - "manager-docs"
     - "manager-project"
   phases:
@@ -206,7 +205,7 @@ Detailed Reference: modules/progressive-disclosure.md
 
 Purpose: Scalable file structure enabling unlimited content.
 
-Standard Structure: Create .pi/generated/source/skills/skill-name/ directory containing SKILL.md as core file under 500 lines, modules directory for extended content with unlimited size including patterns.md, examples.md for working samples, reference.md for external links, scripts directory for utilities (optional), templates directory (optional).
+Standard Structure: Create .claude/skills/skill-name/ directory containing SKILL.md as core file under 500 lines, modules directory for extended content with unlimited size including patterns.md, examples.md for working samples, reference.md for external links, scripts directory for utilities (optional), templates directory (optional).
 
 File Principles: SKILL.md stays under 500 lines with progressive disclosure and cross-references. modules directory is topic-focused with no limits and self-contained content. examples.md is copy-paste ready with comments. reference.md contains API docs and resources.
 
@@ -238,7 +237,7 @@ Detailed Reference: examples.md for working code samples
 
 Agents: agent-factory for creating agents with foundation principles, skill-factory for generating skills with modular architecture, core-quality for automated TRUST 5 validation, workflow-spec for EARS format specification, workflow-ddd for ANALYZE-PRESERVE-IMPROVE execution, workflow-docs for documentation with progressive disclosure.
 
-Skills: moai-cc-claude-md for .pi/generated/source/CLAUDE.md with foundation patterns, moai-cc-configuration for config with TRUST 5, moai-cc-memory for token optimization, moai-context7-integration for MCP integration.
+Skills: moai-cc-claude-md for CLAUDE.md with foundation patterns, moai-cc-configuration for config with TRUST 5, moai-cc-memory for token optimization, moai-context7-integration for MCP integration.
 
 Tools: AskUserQuestion for direct user interaction and clarification needs.
 

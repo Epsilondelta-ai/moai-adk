@@ -11,9 +11,9 @@ Rules for managing persistent context across sessions.
 Claude Code supports multiple memory levels (highest priority first):
 
 1. Managed Policy: Organization-level rules (read-only)
-2. Project Instructions: .pi/generated/source/CLAUDE.md (checked into repo)
-3. Project Rules: .pi/generated/source/rules/**/*.md (auto-discovered, conditional via paths)
-4. User Instructions: ~/.pi/agent/CLAUDE.md (personal global)
+2. Project Instructions: CLAUDE.md (checked into repo)
+3. Project Rules: .claude/rules/**/*.md (auto-discovered, conditional via paths)
+4. User Instructions: ~/.claude/CLAUDE.md (personal global)
 5. Local Instructions: CLAUDE.local.md (personal project, not committed)
 6. Auto Memory: ~/.claude/projects/{hash}/memory/ (AI-managed)
 
@@ -97,7 +97,7 @@ The following content MUST NOT be stored in memory files:
 | Code patterns / conventions | Architecture diagrams, file path conventions already in the codebase |
 | Git history | `git log` output, who changed what |
 | Debug recipes | Step-by-step fix instructions already captured in the fix commit |
-| .pi/generated/source/CLAUDE.md mirrors | Anything already documented in .pi/generated/source/CLAUDE.md or `.pi/generated/source/rules/` |
+| CLAUDE.md mirrors | Anything already documented in CLAUDE.md or `.claude/rules/` |
 | Ephemeral state | In-progress task lists, current session context |
 
 Use the `MOAI_MEMORY_AUDIT=0` environment variable to temporarily disable taxonomy enforcement during bulk memory migrations.

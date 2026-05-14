@@ -38,7 +38,7 @@ sh scripts/ci-watch/run.sh <PR_NUMBER> <BRANCH>
 |------|---------|---------------------|
 | 0 | All required checks passed | Call `EmitReadyToMergeReport`, present via AskUserQuestion |
 | 1 | Fatal error (gh auth, PR not found, SSoT missing) | Surface error to user; suggest remediation |
-| 2 | Required check(s) failed | Parse JSON from stdout; invoke Wave 3 expert-debug |
+| 2 | Required check(s) failed | Parse JSON from stdout; invoke Wave 3 manager-quality |
 | 3 | 30-minute hard timeout | Emit blocker; return control to user; suggest manual investigation |
 
 ## 30-Second Polling Cadence
@@ -96,4 +96,4 @@ AskUserQuestion with these options:
 3. Investigate advisory failures
 
 The "(권장)" label MUST be on the first option per AskUserQuestion protocol.
-See `.pi/generated/source/rules/moai/core/askuser-protocol.md`.
+See `.claude/rules/moai/core/askuser-protocol.md`.

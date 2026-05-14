@@ -123,7 +123,7 @@ For TypeScript documentation, use microsoft/TypeScript with decorators satisfies
 - moai-library-shadcn for component library integration
 - moai-workflow-testing for testing strategies and patterns
 - moai-foundation-quality for code quality standards
-- delegate to `expert-debug` agent for AI-powered debugging
+- delegate to `manager-quality` agent for AI-powered debugging
 
 ---
 
@@ -142,3 +142,4 @@ Type Safety Patterns:
 Create assertNever function taking never type parameter that throws error for unexpected values, used in exhaustive switch statements. Create type guard function isUser that checks if value is object with id property and returns type predicate.
 
 ---
+

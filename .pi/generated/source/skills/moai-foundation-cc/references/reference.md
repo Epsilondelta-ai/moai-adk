@@ -66,9 +66,9 @@ Permission Levels:
 ### Memory Configuration
 
 Memory File Locations:
-- Enterprise: `/etc/claude/.pi/generated/source/CLAUDE.md`
-- User: `~/.pi/agent/CLAUDE.md`
-- Project: `./.pi/generated/source/CLAUDE.md` or `.pi/generated/source/CLAUDE.md`
+- Enterprise: `/etc/claude/CLAUDE.md`
+- User: `~/.claude/CLAUDE.md`
+- Project: `./CLAUDE.md` or `.claude/CLAUDE.md`
 
 Memory Import Syntax:
 ```markdown
@@ -139,7 +139,7 @@ MCP Tool Invocation:
 Symptoms: Skill not recognized, missing context
 
 Solutions:
-1. Verify file location (`~/.pi/generated/source/skills/` or `.pi/generated/source/skills/`)
+1. Verify file location (`~/.claude/skills/` or `.claude/skills/`)
 2. Check SKILL.md frontmatter syntax (valid YAML)
 3. Confirm name follows kebab-case, max 64 chars
 4. Verify file size under 500 lines
@@ -166,7 +166,7 @@ Solutions:
 
 ### Memory File Issues
 
-Symptoms: .pi/generated/source/CLAUDE.md content not applied
+Symptoms: CLAUDE.md content not applied
 
 Solutions:
 1. Verify file location in correct hierarchy

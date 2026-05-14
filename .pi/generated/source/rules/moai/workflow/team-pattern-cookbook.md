@@ -1,9 +1,9 @@
 ---
 description: "Five team execution patterns with role profiles and communication protocols"
-paths: ".moai/config/sections/workflow.yaml,.pi/generated/source/rules/moai/workflow/worktree-integration.md"
+paths: ".moai/config/sections/workflow.yaml,.claude/rules/moai/workflow/worktree-integration.md"
 ---
 
-<!-- Source: revfactory/harness — Apache License 2.0 — see .pi/generated/source/rules/moai/NOTICE.md -->
+<!-- Source: revfactory/harness — Apache License 2.0 — see .claude/rules/moai/NOTICE.md -->
 
 # Team Pattern Cookbook
 

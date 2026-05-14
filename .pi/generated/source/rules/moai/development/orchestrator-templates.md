@@ -1,9 +1,9 @@
 ---
 description: "Three orchestrator templates for task coordination in MoAI-ADK workflows"
-paths: ".pi/generated/source/rules/moai/core/moai-constitution.md,.pi/generated/source/CLAUDE.md"
+paths: ".claude/rules/moai/core/moai-constitution.md,CLAUDE.md"
 ---
 
-<!-- Source: revfactory/harness — Apache License 2.0 — see .pi/generated/source/rules/moai/NOTICE.md -->
+<!-- Source: revfactory/harness — Apache License 2.0 — see .claude/rules/moai/NOTICE.md -->
 
 # Orchestrator Templates
 

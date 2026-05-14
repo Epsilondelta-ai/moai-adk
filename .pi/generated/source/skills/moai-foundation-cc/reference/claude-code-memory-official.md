@@ -32,15 +32,15 @@ Enterprise Policy → Project Memory → User Memory
 Memory File Locations:
 
 - Enterprise: `/etc/claude/policies/` (system-wide)
-- Project: `./.pi/generated/source/CLAUDE.md` (project-specific)
-- User: `~/.pi/agent/CLAUDE.md` (personal preferences)
+- Project: `./CLAUDE.md` (project-specific)
+- User: `~/.claude/CLAUDE.md` (personal preferences)
 - Local: `.claude/memory/` (project metadata)
 
 File Types and Purpose:
 
 ```
 Project Root/
- .pi/generated/source/CLAUDE.md # Main project memory (highest priority in project)
+ CLAUDE.md # Main project memory (highest priority in project)
  .claude/memory/ # Structured project metadata
  execution-rules.md # Execution constraints and rules
  agents.md # Agent catalog and capabilities
@@ -58,7 +58,7 @@ Project Root/
 Direct Import Pattern:
 
 ```markdown
-# In .pi/generated/source/CLAUDE.md files
+# In CLAUDE.md files
 
 @path/to/import.md # Import external memory file
 @.claude/memory/agents.md # Import agent reference
@@ -207,7 +207,7 @@ Project Bootstrap:
 # Creates:
 # - .moai/config/config.yaml
 # - .moai/state/ directory
-# - .pi/generated/source/CLAUDE.md template
+# - CLAUDE.md template
 # - Memory structure files
 ```
 
@@ -223,7 +223,7 @@ mkdir -p .moai/cache
 touch .claude/memory/agents.md
 touch .claude/memory/commands.md
 touch .claude/memory/execution-rules.md
-touch .pi/generated/source/CLAUDE.md
+touch CLAUDE.md
 ```
 
 ### Memory Synchronization
@@ -400,7 +400,7 @@ Production Environment:
 
 ### User Preference Memory
 
-Personal Memory Structure (`~/.pi/agent/CLAUDE.md`):
+Personal Memory Structure (`~/.claude/CLAUDE.md`):
 
 ```markdown
 # Personal Claude Code Preferences
@@ -454,7 +454,7 @@ Memory Version Control:
 
 ```bash
 # Track memory changes in Git
-git add .claude/memory/ .pi/generated/source/CLAUDE.md
+git add .claude/memory/ CLAUDE.md
 git commit -m "docs: Update project memory and agent catalog"
 
 # Tag memory versions

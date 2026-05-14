@@ -28,19 +28,19 @@ class ContextAwareRefactorer(AIRefactorer):
 
     async def analyze_project_context(self, codebase_path: str):
         """Analyze project-specific context and conventions."""
-
+        
         # Detect naming conventions
         await self._detect_naming_conventions(codebase_path)
-
+        
         # Identify API boundaries
         await self._identify_api_boundaries(codebase_path)
-
+        
         # Analyze architectural patterns
         await self._analyze_architecture_patterns(codebase_path)
 
     async def _detect_naming_conventions(self, codebase_path: str):
         """Detect project-specific naming conventions."""
-
+        
         naming_patterns = {
             'variable_names': [],
             'function_names': [],
@@ -90,7 +90,7 @@ class ContextAwareRefactorer(AIRefactorer):
 
         # Analyze variable naming
         snake_case_vars = sum(1 for name in patterns['variable_names'] if '_' in name)
-        camel_case_vars = sum(1 for name in patterns['variable_names']
+        camel_case_vars = sum(1 for name in patterns['variable_names'] 
                              if name[0].islower() and any(c.isupper() for c in name[1:]))
 
         if snake_case_vars > camel_case_vars:
@@ -100,7 +100,7 @@ class ContextAwareRefactorer(AIRefactorer):
 
         # Analyze function naming
         snake_case_funcs = sum(1 for name in patterns['function_names'] if '_' in name)
-        camel_case_funcs = sum(1 for name in patterns['function_names']
+        camel_case_funcs = sum(1 for name in patterns['function_names'] 
                               if name[0].islower() and any(c.isupper() for c in name[1:]))
 
         if snake_case_funcs > camel_case_funcs:
@@ -118,22 +118,22 @@ Identify public vs internal APIs for safer refactoring:
 ```python
 async def _identify_api_boundaries(self, codebase_path: str):
     """Identify which modules are public APIs vs internal."""
-
+    
     python_files = self._find_python_files(codebase_path)
-
+    
     for file_path in python_files:
         # Check if file is in public API location
         if 'api' in file_path.split('/') or 'public' in file_path.split('/'):
             self.api_boundaries.add(file_path)
-
+        
         # Check for __all__ exports (indicates public API)
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
-
+            
             if '__all__' in content:
                 self.api_boundaries.add(file_path)
-
+                
         except Exception as e:
             print(f"Error checking {file_path}: {e}")
 ```
@@ -202,7 +202,7 @@ async def get_framework_patterns(self, framework: str) -> Dict[str, Any]:
         return {}
 
     config = framework_patterns[framework]
-
+    
     try:
         patterns = await self.context7.get_library_docs(
             context7_library_id=config['library_id'],
@@ -226,7 +226,7 @@ Complete AI-assisted refactoring pipeline:
 
 ```python
 async def intelligent_refactoring_pipeline(
-    self,
+    self, 
     codebase_path: str,
     framework: str = None,
     max_risk_level: str = 'medium'
@@ -235,37 +235,37 @@ async def intelligent_refactoring_pipeline(
 
     # Step 1: Analyze project context
     await self.analyze_project_context(codebase_path)
-
+    
     # Step 2: Analyze technical debt
     debt_items = await self.technical_debt_analyzer.analyze(codebase_path)
-
+    
     # Step 3: Get Context7 patterns
     context7_patterns = await self.get_context7_refactoring_patterns()
-
+    
     if framework:
         framework_patterns = await self.get_framework_patterns(framework)
         context7_patterns['framework'] = framework_patterns
-
+    
     # Step 4: Identify opportunities with AI
     opportunities = await self._identify_refactor_opportunities(
-        codebase_path,
-        debt_items,
+        codebase_path, 
+        debt_items, 
         context7_patterns
     )
-
+    
     # Step 5: Filter by risk and conventions
     filtered_opportunities = self._filter_by_conventions_and_risk(
         opportunities,
         max_risk_level
     )
-
+    
     # Step 6: Create safe execution plan
     refactor_plan = self._create_safe_refactor_plan(
         filtered_opportunities,
         debt_items,
         context7_patterns
     )
-
+    
     return refactor_plan
 
 def _filter_by_conventions_and_risk(
@@ -276,7 +276,7 @@ def _filter_by_conventions_and_risk(
     """Filter opportunities by project conventions and risk tolerance."""
 
     filtered = []
-
+    
     risk_order = {'low': 1, 'medium': 2, 'high': 3}
     max_risk_value = risk_order.get(max_risk_level, 2)
 
@@ -284,11 +284,11 @@ def _filter_by_conventions_and_risk(
         # Filter by risk level
         if risk_order.get(opp.risk_level, 3) > max_risk_value:
             continue
-
+        
         # Filter by API boundaries (don't refactor public APIs lightly)
         if opp.file_path in self.api_boundaries and opp.risk_level != 'low':
             continue
-
+        
         filtered.append(opp)
 
     return filtered
@@ -337,7 +337,7 @@ async def pre_refactoring_checklist(self, codebase_path: str) -> Dict[str, bool]
 
 async def _run_tests(self, codebase_path: str) -> Dict[str, int]:
     """Run test suite and return results."""
-
+    
     try:
         import subprocess
         result = subprocess.run(
@@ -347,7 +347,7 @@ async def _run_tests(self, codebase_path: str) -> Dict[str, int]:
             text=True,
             timeout=300
         )
-
+        
         # Parse output
         output = result.stdout
         if 'passed' in output:
@@ -363,7 +363,7 @@ async def _run_tests(self, codebase_path: str) -> Dict[str, int]:
 
 async def _calculate_coverage(self, codebase_path: str) -> float:
     """Calculate test coverage percentage."""
-
+    
     try:
         import subprocess
         result = subprocess.run(
@@ -373,7 +373,7 @@ async def _calculate_coverage(self, codebase_path: str) -> float:
             text=True,
             timeout=300
         )
-
+        
         output = result.stdout
         if 'TOTAL' in output:
             for line in output.split('\n'):
@@ -408,7 +408,7 @@ async def execute_refactoring_plan(
 
     # Pre-refactoring checks
     checks = await self.pre_refactoring_checklist(codebase_path)
-
+    
     if not all(checks.values()):
         print("Pre-refactoring checks failed:")
         for check, passed in checks.items():
@@ -419,9 +419,9 @@ async def execute_refactoring_plan(
     # Execute in order
     for i, opp_index in enumerate(refactor_plan.execution_order):
         opportunity = refactor_plan.opportunities[opp_index]
-
+        
         print(f"\n[{i+1}/{len(refactor_plan.execution_order)}] {opportunity.description}")
-
+        
         try:
             # Create git commit before operation
             await self._create_git_commit(
@@ -438,10 +438,10 @@ async def execute_refactoring_plan(
             if success:
                 # Run tests to verify
                 test_results = await self._run_tests(codebase_path)
-
+                
                 if test_results['passed'] == test_results['total']:
                     results['successful'].append(opportunity)
-
+                    
                     # Commit after successful refactoring
                     await self._create_git_commit(
                         codebase_path,
@@ -471,15 +471,15 @@ async def _execute_single_refactoring(
     try:
         if opportunity.type == RefactorType.EXTRACT_METHOD:
             return await self._execute_extract_method(opportunity, codebase_path)
-
+        
         elif opportunity.type == RefactorType.REORGANIZE_IMPORTS:
             return await self._execute_reorganize_imports(opportunity, codebase_path)
-
+        
         elif opportunity.type == RefactorType.RENAME:
             return await self._execute_rename(opportunity, codebase_path)
-
+        
         # Add other refactoring types...
-
+        
         else:
             print(f"Unsupported refactoring type: {opportunity.type}")
             return False
@@ -490,7 +490,7 @@ async def _execute_single_refactoring(
 
 async def _create_git_commit(self, codebase_path: str, message: str):
     """Create git commit with message."""
-
+    
     try:
         import subprocess
         subprocess.run(
@@ -508,7 +508,7 @@ async def _create_git_commit(self, codebase_path: str, message: str):
 
 async def _revert_git_commit(self, codebase_path: str):
     """Revert the most recent git commit."""
-
+    
     try:
         import subprocess
         subprocess.run(
@@ -546,7 +546,7 @@ async def post_refactoring_analysis(
 
     # Re-analyze technical debt
     new_debt_items = await self.technical_debt_analyzer.analyze(codebase_path)
-
+    
     # Calculate debt reduction
     original_debt_count = 100  # Would need to track original count
     new_debt_count = len(new_debt_items)

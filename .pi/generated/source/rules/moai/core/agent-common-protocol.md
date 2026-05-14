@@ -19,7 +19,7 @@ Rules for subagents:
 Rationale:
 - Subagents run in isolated, stateless contexts and CANNOT interact with users directly
 - Attempting to prompt inside a subagent produces a dead channel — no response arrives
-- This rule preserves the orchestrator's single-point-of-contact with the user (see .pi/generated/source/CLAUDE.md Section 8)
+- This rule preserves the orchestrator's single-point-of-contact with the user (see CLAUDE.md Section 8)
 
 ### Orchestrator Obligations
 
@@ -30,7 +30,7 @@ The MoAI orchestrator MUST follow these obligations when using AskUserQuestion:
 - Collect all user preferences before delegating to subagents via Agent()
 - On receiving a blocker report from a subagent: run an AskUserQuestion round, inject the user's responses into a fresh subagent prompt, and re-delegate
 
-Canonical reference: see `.pi/generated/source/rules/moai/core/askuser-protocol.md` for full preload sequence, Socratic interview structure, and anti-pattern catalog.
+Canonical reference: see `.claude/rules/moai/core/askuser-protocol.md` for full preload sequence, Socratic interview structure, and anti-pattern catalog.
 
 ### Blocker Report Format
 
@@ -91,9 +91,9 @@ When Context7 MCP is unavailable:
 4. Deliver established best practice patterns based on industry experience
 5. Continue work — architecture/analysis quality must not depend on MCP availability
 
-## .pi/generated/source/CLAUDE.md Reference
+## CLAUDE.md Reference
 
-Agents follow MoAI's core execution directives defined in .pi/generated/source/CLAUDE.md. Since .pi/generated/source/CLAUDE.md is automatically loaded as project instructions, agents do not need to restate its rules. Key applicable principles:
+Agents follow MoAI's core execution directives defined in CLAUDE.md. Since CLAUDE.md is automatically loaded as project instructions, agents do not need to restate its rules. Key applicable principles:
 
 - SPEC-based workflow (Plan-Run-Sync)
 - TRUST 5 quality framework

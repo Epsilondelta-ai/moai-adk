@@ -17,7 +17,7 @@ metadata:
   tags: "workflow, ddd, testing, debugging, performance, quality, review, pr-review"
   author: "MoAI-ADK Team"
   context: "fork"
-  agent: "manager-ddd"
+  agent: "manager-develop"
 
 # MoAI Extension: Progressive Disclosure
 progressive_disclosure:
@@ -29,7 +29,7 @@ progressive_disclosure:
 triggers:
   keywords: ["DDD", "domain-driven development", "characterization tests", "behavior preservation", "debugging", "performance optimization", "code review", "PR review", "quality assurance", "testing", "CI/CD", "TRUST 5"]
   phases: ["run", "sync"]
-  agents: ["manager-ddd", "expert-testing", "expert-debug", "expert-performance", "manager-quality"]
+  agents: ["manager-develop", "manager-quality", "expert-performance"]
 ---
 
 # Development Workflow Specialist
@@ -163,8 +163,8 @@ Code Review Process:
 PR Code Review Process:
 
 - Step 1: Eligibility Check using Haiku agent to filter PRs, skipping closed, draft, already reviewed, and trivial changes
-- Step 2: Gather Context by finding .pi/generated/source/CLAUDE.md files in modified directories and summarizing PR changes
-- Step 3: Parallel Review Agents using five Sonnet agents for independent analysis covering .pi/generated/source/CLAUDE.md compliance, obvious bugs, git blame context, previous comments, and code comment compliance
+- Step 2: Gather Context by finding CLAUDE.md files in modified directories and summarizing PR changes
+- Step 3: Parallel Review Agents using five Sonnet agents for independent analysis covering CLAUDE.md compliance, obvious bugs, git blame context, previous comments, and code comment compliance
 - Step 4: Confidence Scoring from 0 to 100 for each detected issue where 0 indicates false positive, 25 indicates somewhat confident, 50 indicates moderately confident, 75 indicates highly confident, and 100 indicates absolutely certain
 - Step 5: Filter and Report by removing issues below 80 confidence threshold and posting via gh CLI
 
@@ -222,15 +222,15 @@ The PR Code Review process uses a multi-agent architecture following the officia
 
 Eligibility Check Agent using Haiku: The Haiku agent performs lightweight filtering to avoid unnecessary reviews. It checks the PR state and metadata to determine if review is warranted. Skip conditions include closed PRs, draft PRs, PRs already reviewed by bot, trivial changes like typo fixes, and automated dependency updates.
 
-Context Gathering: Before launching review agents, the system gathers relevant context by finding .pi/generated/source/CLAUDE.md files in directories containing modified code to understand project-specific coding standards. It also generates a concise summary of PR changes including files modified, lines added or removed, and overall impact assessment.
+Context Gathering: Before launching review agents, the system gathers relevant context by finding CLAUDE.md files in directories containing modified code to understand project-specific coding standards. It also generates a concise summary of PR changes including files modified, lines added or removed, and overall impact assessment.
 
-Parallel Review Agents using five Sonnet instances: Five Sonnet agents run in parallel, each focusing on a specific review dimension. Agent 1 audits .pi/generated/source/CLAUDE.md compliance checking for violations of documented coding standards and conventions. Agent 2 scans for obvious bugs including logic errors, null reference risks, and resource leaks. Agent 3 provides git blame and history context to identify recent changes and potential patterns. Agent 4 checks previous PR comments for recurring issues and unresolved feedback. Agent 5 validates code comment compliance ensuring comments are accurate and helpful.
+Parallel Review Agents using five Sonnet instances: Five Sonnet agents run in parallel, each focusing on a specific review dimension. Agent 1 audits CLAUDE.md compliance checking for violations of documented coding standards and conventions. Agent 2 scans for obvious bugs including logic errors, null reference risks, and resource leaks. Agent 3 provides git blame and history context to identify recent changes and potential patterns. Agent 4 checks previous PR comments for recurring issues and unresolved feedback. Agent 5 validates code comment compliance ensuring comments are accurate and helpful.
 
 Confidence Scoring System: Each detected issue receives a confidence score from 0 to 100. A score of 0 indicates a false positive with no confidence. A score of 25 means somewhat confident but might be real. A score of 50 indicates moderately confident that the issue is real but minor. A score of 75 means highly confident that the issue is very likely real. A score of 100 indicates absolutely certain that the issue is definitely real.
 
 Filter and Report Stage: Issues below the 80 confidence threshold are filtered out to reduce noise. Remaining issues are formatted and posted to the PR using the GitHub CLI. The output format follows a standardized markdown structure with issue count, numbered list of issues with descriptions, and direct links to code with specific commit SHA and line range.
 
-Example PR Review Output: The review output begins with a Code review header, followed by the count of found issues. Each issue is numbered and includes a description of the problem with reference to the relevant .pi/generated/source/CLAUDE.md rule, followed by a link to the specific file, line range, and commit SHA in the pull request.
+Example PR Review Output: The review output begins with a Code review header, followed by the count of found issues. Each issue is numbered and includes a description of the problem with reference to the relevant CLAUDE.md rule, followed by a link to the specific file, line range, and commit SHA in the pull request.
 
 ---
 
