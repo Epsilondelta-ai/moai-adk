@@ -267,7 +267,7 @@ available. Path B1 does NOT ship a static Figma skill — it is generated dynami
 When the user selects Path B1, invoke `moai-meta-harness` to generate:
 
 ```
-.pi/generated/source/skills/my-harness-figma-extractor/SKILL.md
+.claude/skills/my-harness-figma-extractor/SKILL.md
 ```
 
 The generated skill is project-scoped and user-owned (`my-harness-*` prefix). It will never
@@ -303,7 +303,7 @@ available. Path B2 is implemented via dynamically generated `my-harness-pencil-m
 When the user selects Path B2, invoke `moai-meta-harness` to generate:
 
 ```
-.pi/generated/source/skills/my-harness-pencil-mcp/SKILL.md
+.claude/skills/my-harness-pencil-mcp/SKILL.md
 ```
 
 ### Generation Contract

@@ -1,7 +1,7 @@
 ---
 description: CI watch loop protocol — HARD invocation contract for moai-workflow-ci-watch skill. Auto-loaded on /moai sync and moai pr watch invocations.
 paths:
-  - ".pi/generated/source/skills/moai-workflow-ci-watch/SKILL.md"
+  - ".claude/skills/moai-workflow-ci-watch/SKILL.md"
   - "scripts/ci-watch/run.sh"
 ---
 
@@ -77,7 +77,7 @@ a remediation message. Run `moai github init` to restore the SSoT.
 |------|---------|-------------------|
 | 0 | All required checks passed | Present ready-to-merge AskUserQuestion |
 | 1 | Fatal error | Surface error + remediation to user |
-| 2 | Required check(s) failed | Parse JSON handoff → Wave 3 expert-debug |
+| 2 | Required check(s) failed | Parse JSON handoff → Wave 3 manager-quality |
 | 3 | 30-min timeout | Emit blocker → return control to user |
 
 ---
@@ -92,7 +92,7 @@ The orchestrator presents the emitted markdown report via AskUserQuestion:
 - Option 2: Hold
 - Option 3: Investigate
 
-The `(권장)` label MUST be on the first option per `.pi/generated/source/rules/moai/core/askuser-protocol.md`.
+The `(권장)` label MUST be on the first option per `.claude/rules/moai/core/askuser-protocol.md`.
 
 ---
 
@@ -111,7 +111,7 @@ On exit 2, stdout contains JSON (see `modules/trigger-handoff.md` in the skill):
 ```
 
 [HARD] Only required failures appear in `failedChecks`. Auxiliary failures are
-counted in `auxiliaryFailCount` but MUST NOT be passed to expert-debug as
+counted in `auxiliaryFailCount` but MUST NOT be passed to manager-quality as
 blocking failures.
 
 ---

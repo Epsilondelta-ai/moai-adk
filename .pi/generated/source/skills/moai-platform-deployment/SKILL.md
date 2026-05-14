@@ -395,8 +395,8 @@ For detailed platform-specific patterns, configuration options, and advanced use
 
 - moai-domain-backend for backend architecture patterns
 - moai-domain-frontend for frontend integration
-- `.pi/generated/source/rules/moai/languages/typescript.md` for TypeScript best practices (auto-loaded via paths frontmatter)
-- `.pi/generated/source/rules/moai/languages/python.md` for Python deployment on Railway (auto-loaded via paths frontmatter)
+- `.claude/rules/moai/languages/typescript.md` for TypeScript best practices (auto-loaded via paths frontmatter)
+- `.claude/rules/moai/languages/python.md` for Python deployment on Railway (auto-loaded via paths frontmatter)
 - moai-platform-auth for authentication integration
 - moai-platform-database for database patterns
 

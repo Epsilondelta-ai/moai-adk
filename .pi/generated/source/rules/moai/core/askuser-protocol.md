@@ -7,7 +7,7 @@ globs:
 
 > Source: SPEC-ASKUSER-ENFORCE-001 v1.0.0 (2026-04-25)
 > This file is the **single source of truth** for AskUserQuestion interaction rules.
-> Cross-referenced by: .pi/generated/source/CLAUDE.md §8, moai-constitution.md §MoAI Orchestrator, agent-common-protocol.md §User Interaction Boundary, output-styles/moai/moai.md §3/§10.
+> Cross-referenced by: CLAUDE.md §8, moai-constitution.md §MoAI Orchestrator, agent-common-protocol.md §User Interaction Boundary, output-styles/moai/moai.md §3/§10.
 
 ---
 
@@ -18,7 +18,7 @@ globs:
 Applies to all orchestrator turns involving:
 - Clarification questions when user intent is ambiguous (Stage 1 Clarify)
 - Preference and decision questions ("Which approach?", "Continue or abort?")
-- Socratic interview rounds during Context-First Discovery (.pi/generated/source/CLAUDE.md §7 Rule 5)
+- Socratic interview rounds during Context-First Discovery (CLAUDE.md §7 Rule 5)
 - Branch and workflow selection
 - Conflict resolution (merge strategy, rollback confirmation, etc.)
 
@@ -134,7 +134,7 @@ The MoAI orchestrator (main session) MUST:
 - Collect all necessary user preferences **before** delegating to subagents
 - On receiving a blocker report from a subagent: run an `AskUserQuestion` round with the user, inject the user's responses into a fresh subagent prompt, and re-delegate
 
-See `.pi/generated/source/rules/moai/core/askuser-protocol.md` (this file) for the complete preload sequence.
+See `.claude/rules/moai/core/askuser-protocol.md` (this file) for the complete preload sequence.
 
 ### Subagent Prohibitions
 
@@ -173,7 +173,7 @@ Step 4: Re-delegate to subagent
 
 ## Ambiguity Triggers and Exceptions
 
-This section is the **single source of truth** for Stage 1 Clarify trigger conditions. Both `.pi/generated/source/CLAUDE.md §7 Rule 5` and `.pi/generated/source/CLAUDE.md §8 Ambiguity Triggers` cross-reference this definition.
+This section is the **single source of truth** for Stage 1 Clarify trigger conditions. Both `CLAUDE.md §7 Rule 5` and `CLAUDE.md §8 Ambiguity Triggers` cross-reference this definition.
 
 ### The Four Triggers (any one activates Stage 1)
 

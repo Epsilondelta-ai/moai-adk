@@ -11,7 +11,7 @@ MoAI's three-phase development workflow with token budget management.
 | Phase | Command | Agent | Token Budget | Purpose |
 |-------|---------|-------|--------------|---------|
 | Plan | /moai plan | manager-spec | 30K | Create SPEC document |
-| Run | /moai run | manager-ddd/tdd (per quality.yaml) | 180K | DDD/TDD implementation |
+| Run | /moai run | manager-develop (per quality.yaml development_mode) | 180K | DDD/TDD implementation |
 | Sync | /moai sync | manager-docs | 40K | Documentation sync |
 
 <!-- @MX:ANCHOR fan_in=10 - Subcommand classification single source of truth; cross-referenced by 10 workflow skills (5 multi-agent + 5 utility). Changes here affect all workflow contracts. -->
@@ -20,27 +20,25 @@ MoAI's three-phase development workflow with token budget management.
 
 [HARD] Every MoAI SPEC follows this 4-step lifecycle. Each step has a fixed location (main checkout vs SPEC worktree), branch convention, and PR merge strategy.
 
-| Step | Location                      | Command                                                                    | Branch                                       | PR strategy | Lifecycle event              |
-|------|-------------------------------|----------------------------------------------------------------------------|----------------------------------------------|-------------|------------------------------|
-| 1a   | main checkout (default)       | `/moai plan SPEC-XXX`                                                      | `plan/SPEC-XXX`                              | squash      | plan PR merged into main     |
-| 1b   | SPEC worktree (`--worktree`)  | `/moai plan SPEC-XXX --worktree` → spec created in worktree                | `feat/SPEC-XXX`                              | squash      | plan PR merged into main     |
-| 2    | SPEC worktree                 | `moai worktree new SPEC-XXX --base origin/main` then `/moai run SPEC-XXX`  | `feat/SPEC-XXX`                              | squash      | run PR merged into main      |
-| 3    | SPEC worktree                 | `/moai sync SPEC-XXX` (same worktree as Step 2)                            | `sync/SPEC-XXX` (or `chore/SPEC-XXX-sync`)   | squash      | sync PR merged into main     |
-| 4    | host checkout                 | `moai worktree done SPEC-XXX`                                              | n/a                                          | n/a         | worktree disposed            |
+| Step | Location        | Command                                                                 | Branch                                       | PR strategy | Lifecycle event              |
+|------|-----------------|-------------------------------------------------------------------------|----------------------------------------------|-------------|------------------------------|
+| 1    | main checkout   | `/moai plan SPEC-XXX`                                                   | `plan/SPEC-XXX`                              | squash      | plan PR merged into main     |
+| 2    | SPEC worktree   | `moai worktree new SPEC-XXX --base origin/main` then `/moai run SPEC-XXX` | `feat/SPEC-XXX`                              | squash      | run PR merged into main      |
+| 3    | SPEC worktree   | `/moai sync SPEC-XXX` (same worktree as Step 2)                         | `sync/SPEC-XXX` (or `chore/SPEC-XXX-sync`)   | squash      | sync PR merged into main     |
+| 4    | host checkout   | `moai worktree done SPEC-XXX`                                           | n/a                                          | n/a         | worktree disposed            |
 
 [HARD] Step ordering rules:
-- Step 1a (plan, default): Plan executes in main checkout. Plan artifacts are markdown only — no code conflict — and main-authored plans enable cross-SPEC reference for plan-auditor and parallel SPEC scoping.
-- Step 1b (plan, `--worktree`): When `--worktree` flag is provided, plan executes entirely inside the worktree. This enables full isolation for parallel SPEC development — each SPEC gets its own worktree from the start. Plan PR is squash-merged from the worktree branch. After merge, Step 2 reuses the SAME worktree (base alignment via `git merge origin/main` after plan PR merge).
-- Step 2 (run) MUST execute in a SPEC worktree. For Step 1a path: create fresh worktree from plan-merged main HEAD (`--base origin/main`). For Step 1b path: reuse the existing worktree with `git merge origin/main` to incorporate the merged plan. The worktree base alignment is a precondition for `Agent(isolation: "worktree")` correctness (see lessons #13).
+- Step 1 (plan) MUST execute in main checkout. NO worktree at this step. Plan artifacts are markdown only — no code conflict — and main-authored plans enable cross-SPEC reference for plan-auditor and parallel SPEC scoping.
+- Step 2 (run) MUST create a fresh worktree from the plan-merged main HEAD (`--base origin/main`). The worktree base alignment is a precondition for `Agent(isolation: "worktree")` correctness (see lessons #13).
 - Step 3 (sync) MUST reuse the SAME worktree as Step 2. Sync rotates codemap / MX / docs in the run-modified tree; spawning a fresh worktree at sync would lose run-state context.
 - Step 4 (cleanup) MUST happen ONLY after BOTH run AND sync PRs are merged. Premature `moai worktree done` between run-merge and sync-merge breaks Step 3.
 
 [HARD] Anti-patterns:
-- Stacking plan + run in the same worktree WITHOUT `--worktree` flag. The default path (1a → 2) creates a fresh worktree at run start; mixing the two paths causes base misalignment.
+- Creating a worktree for plan (Step 1). Plan-in-worktree forces a base rebase after plan PR merge and prevents parallel SPEC plan visibility.
+- Stacking plan + run in the same worktree. Once the plan PR merges, the worktree base becomes stale; subsequent run work either rebases (extra cost) or proceeds against a stale tree (correctness risk).
 - Disposing the worktree after run merge but before sync merge. Sync re-enters the tree with codemap / MX / docs writes; the host checkout cannot stand in for a disposed worktree.
-- Creating a worktree for plan (Step 1b) and then creating ANOTHER worktree for run (Step 2). The `--worktree` path reuses the same worktree across all steps.
 
-Cross-reference: see `.pi/generated/source/rules/moai/workflow/worktree-integration.md` § SPEC-to-Worktree Mapping for per-step worktree applicability and decision tree.
+Cross-reference: see `.claude/rules/moai/workflow/worktree-integration.md` § SPEC-to-Worktree Mapping for per-step worktree applicability and decision tree.
 
 ## Subcommand Classification (Pipeline vs Multi-Agent)
 
@@ -50,16 +48,16 @@ how the `--mode` flag is interpreted, and which CI guards apply.
 
 | Subcommand   | Class          | 3-phase contract (localize → repair → validate)                | `--mode` honored? | Default mode | Valid `--mode` values | Sentinel on invalid mode | Reference                                                    |
 |--------------|----------------|-----------------------------------------------------------------|-------------------|--------------|-----------------------|--------------------------|--------------------------------------------------------------|
-| `/moai fix`      | Pipeline (Agentless) | Parallel Scan + Classify + MX context → Auto-Fix → Verify        | No (info log)     | n/a (pipeline-fixed) | n/a (any ignored)        | `MODE_FLAG_IGNORED_FOR_UTILITY` (info log only) | `.pi/generated/source/skills/moai/workflows/fix.md`                       |
-| `/moai coverage` | Pipeline (Agentless) | Measure + Gap Analysis → Test Generation → Verify                 | No (info log)     | n/a (pipeline-fixed) | n/a (any ignored)        | `MODE_FLAG_IGNORED_FOR_UTILITY` (info log only) | `.pi/generated/source/skills/moai/workflows/coverage.md`                  |
-| `/moai mx`       | Pipeline (Agentless) | Pass 1 + Pass 2 → Pass 3 → Post-edit scan                         | No (info log)     | n/a (pipeline-fixed) | n/a (any ignored)        | `MODE_FLAG_IGNORED_FOR_UTILITY` (info log only) | `.pi/generated/source/skills/moai/workflows/mx.md`                        |
-| `/moai codemaps` | Pipeline (Agentless) | Explore → Analyze + Generate → Verify                             | No (info log)     | n/a (pipeline-fixed) | n/a (any ignored)        | `MODE_FLAG_IGNORED_FOR_UTILITY` (info log only) | `.pi/generated/source/skills/moai/workflows/codemaps.md`                  |
-| `/moai clean`    | Pipeline (Agentless) | Static Analysis + Usage Graph → Safe Removal → Test Verification  | No (info log)     | n/a (pipeline-fixed) | n/a (any ignored)        | `MODE_FLAG_IGNORED_FOR_UTILITY` (info log only) | `.pi/generated/source/skills/moai/workflows/clean.md`                     |
-| `/moai plan`     | Multi-Agent    | n/a — open-ended (mode-NA per REQ-WF003-005)                      | Yes (rejects `pipeline`) | `autopilot` | (none — `--mode` ignored) | `MODE_PIPELINE_ONLY_UTILITY` (only on `pipeline`) | `.pi/generated/source/skills/moai/workflows/plan.md`               |
-| `/moai run`      | Multi-Agent    | n/a — open-ended (`autopilot` / `loop` / `team` per WF-003)        | Yes (rejects `pipeline`) | `autopilot` (harness `minimal`/`standard`); `team` (harness `thorough` + prereqs) | `autopilot`, `loop`, `team` | `MODE_UNKNOWN`, `MODE_TEAM_UNAVAILABLE`, `MODE_PIPELINE_ONLY_UTILITY` | `.pi/generated/source/skills/moai/workflows/run.md`                |
-| `/moai sync`     | Multi-Agent    | n/a — open-ended (mode-NA per REQ-WF003-005)                      | Yes (rejects `pipeline`) | `autopilot` | (none — `--mode` ignored) | `MODE_PIPELINE_ONLY_UTILITY` (only on `pipeline`) | `.pi/generated/source/skills/moai/workflows/sync.md`               |
-| `/moai design`   | Multi-Agent    | n/a — open-ended (`autopilot` / `import` / `team` per WF-003)      | Yes (rejects `pipeline`) | `autopilot` (harness `minimal`/`standard`); `team` (harness `thorough` + prereqs) | `autopilot`, `import`, `team` | `MODE_UNKNOWN`, `MODE_PIPELINE_ONLY_UTILITY` | `.pi/generated/source/skills/moai/workflows/design.md`             |
-| `/moai loop`     | Multi-Agent (alias for `/moai run --mode loop`) | n/a — delegates to `/moai run` mode dispatch | Yes (alias semantics) | (inherits from `run --mode loop`) | (alias only — `--mode` resolves via `run`) | (delegates to `run` sentinels) | `.pi/generated/source/skills/moai/workflows/loop.md`               |
+| `/moai fix`      | Pipeline (Agentless) | Parallel Scan + Classify + MX context → Auto-Fix → Verify        | No (info log)     | n/a (pipeline-fixed) | n/a (any ignored)        | `MODE_FLAG_IGNORED_FOR_UTILITY` (info log only) | `.claude/skills/moai/workflows/fix.md`                       |
+| `/moai coverage` | Pipeline (Agentless) | Measure + Gap Analysis → Test Generation → Verify                 | No (info log)     | n/a (pipeline-fixed) | n/a (any ignored)        | `MODE_FLAG_IGNORED_FOR_UTILITY` (info log only) | `.claude/skills/moai/workflows/coverage.md`                  |
+| `/moai mx`       | Pipeline (Agentless) | Pass 1 + Pass 2 → Pass 3 → Post-edit scan                         | No (info log)     | n/a (pipeline-fixed) | n/a (any ignored)        | `MODE_FLAG_IGNORED_FOR_UTILITY` (info log only) | `.claude/skills/moai/workflows/mx.md`                        |
+| `/moai codemaps` | Pipeline (Agentless) | Explore → Analyze + Generate → Verify                             | No (info log)     | n/a (pipeline-fixed) | n/a (any ignored)        | `MODE_FLAG_IGNORED_FOR_UTILITY` (info log only) | `.claude/skills/moai/workflows/codemaps.md`                  |
+| `/moai clean`    | Pipeline (Agentless) | Static Analysis + Usage Graph → Safe Removal → Test Verification  | No (info log)     | n/a (pipeline-fixed) | n/a (any ignored)        | `MODE_FLAG_IGNORED_FOR_UTILITY` (info log only) | `.claude/skills/moai/workflows/clean.md`                     |
+| `/moai plan`     | Multi-Agent    | n/a — open-ended (mode-NA per REQ-WF003-005)                      | Yes (rejects `pipeline`) | `autopilot` | (none — `--mode` ignored) | `MODE_PIPELINE_ONLY_UTILITY` (only on `pipeline`) | `.claude/skills/moai/workflows/plan.md`               |
+| `/moai run`      | Multi-Agent    | n/a — open-ended (`autopilot` / `loop` / `team` per WF-003)        | Yes (rejects `pipeline`) | `autopilot` (harness `minimal`/`standard`); `team` (harness `thorough` + prereqs) | `autopilot`, `loop`, `team` | `MODE_UNKNOWN`, `MODE_TEAM_UNAVAILABLE`, `MODE_PIPELINE_ONLY_UTILITY` | `.claude/skills/moai/workflows/run.md`                |
+| `/moai sync`     | Multi-Agent    | n/a — open-ended (mode-NA per REQ-WF003-005)                      | Yes (rejects `pipeline`) | `autopilot` | (none — `--mode` ignored) | `MODE_PIPELINE_ONLY_UTILITY` (only on `pipeline`) | `.claude/skills/moai/workflows/sync.md`               |
+| `/moai design`   | Multi-Agent    | n/a — open-ended (`autopilot` / `import` / `team` per WF-003)      | Yes (rejects `pipeline`) | `autopilot` (harness `minimal`/`standard`); `team` (harness `thorough` + prereqs) | `autopilot`, `import`, `team` | `MODE_UNKNOWN`, `MODE_PIPELINE_ONLY_UTILITY` | `.claude/skills/moai/workflows/design.md`             |
+| `/moai loop`     | Multi-Agent (alias for `/moai run --mode loop`) | n/a — delegates to `/moai run` mode dispatch | Yes (alias semantics) | (inherits from `run --mode loop`) | (alias only — `--mode` resolves via `run`) | (delegates to `run` sentinels) | `.claude/skills/moai/workflows/loop.md`               |
 
 ### Mode Dispatch Cross-Reference
 
@@ -86,7 +84,7 @@ Sentinel error keys:
 - `MODE_PIPELINE_ONLY_UTILITY` (REQ-WF003-016 ↔ REQ-WF004-014, shared): `--mode pipeline` on a multi-agent subcommand.
 - `MODE_FLAG_IGNORED_FOR_UTILITY` (REQ-WF004-011, owned by WF-004): `--mode <any>` on a utility subcommand (info log only).
 
-See `.pi/generated/source/skills/moai/workflows/run.md` § Mode Dispatch and `.pi/generated/source/skills/moai/workflows/design.md` § Mode Dispatch for the per-skill dispatch rules.
+See `.claude/skills/moai/workflows/run.md` § Mode Dispatch and `.claude/skills/moai/workflows/design.md` § Mode Dispatch for the per-skill dispatch rules.
 
 ### Pipeline Class — Contract
 
@@ -111,7 +109,7 @@ See `spec.md` §1.2 (Non-Goals) — they are deferred to a future SPEC.
 
 ## Plan Phase
 
-[HARD] Default: Execute in main checkout (Step 1a). With `--worktree` flag: Execute in SPEC worktree (Step 1b). See § SPEC Phase Discipline.
+[HARD] Execute in main checkout. NO worktree at this step. See § SPEC Phase Discipline (Step 1).
 
 Create comprehensive specification using EARS format.
 
@@ -135,6 +133,8 @@ Output:
 
 ## Run Phase
 
+[HARD] Execute in a fresh SPEC worktree created at run start: `moai worktree new SPEC-XXX --base origin/main`. See § SPEC Phase Discipline (Step 2).
+
 Implement specification using configured development methodology.
 
 Token Strategy:
@@ -146,7 +146,7 @@ Development Methodology (configured in quality.yaml development_mode):
 
 ### DDD Mode — ANALYZE-PRESERVE-IMPROVE
 
-Best for existing projects with < 10% test coverage. Uses manager-ddd agent.
+Best for existing projects with < 10% test coverage. Uses manager-develop agent with cycle_type=ddd.
 
 **ANALYZE**: Read existing code, map domain boundaries, identify side effects and implicit contracts.
 **PRESERVE**: Write characterization tests capturing current behavior. Create behavior snapshots for regression detection.
@@ -154,7 +154,7 @@ Best for existing projects with < 10% test coverage. Uses manager-ddd agent.
 
 ### TDD Mode — RED-GREEN-REFACTOR (default)
 
-Best for all development work, new projects, and brownfield with 10%+ coverage. Uses manager-tdd agent.
+Best for all development work, new projects, and brownfield with 10%+ coverage. Uses manager-develop agent with cycle_type=tdd.
 
 **RED**: Write a failing test describing desired behavior. Verify it fails. One test at a time.
 **GREEN**: Write simplest implementation that passes. No premature optimization.
@@ -210,7 +210,7 @@ Triggers:
 - Agent explicitly reports inability to meet a SPEC requirement
 
 Communication path:
-- Implementation agent (manager-ddd/tdd) detects trigger condition
+- Implementation agent (manager-develop) detects trigger condition
 - Agent returns structured stagnation report to MoAI (agents cannot call AskUserQuestion)
 - MoAI presents gap analysis to user via AskUserQuestion with options:
   - Continue with current approach (minor adjustments needed)
@@ -226,6 +226,8 @@ Detection method:
 Integration: Referenced by run.md Phase 2.7 and loop.md iteration checks
 
 ## Sync Phase
+
+[HARD] Continue in the SAME SPEC worktree as run. Do NOT create a new worktree. See § SPEC Phase Discipline (Step 3).
 
 Generate documentation and prepare for deployment.
 
@@ -261,9 +263,9 @@ Progressive Disclosure:
 ## Phase Transitions
 
 Plan to Run:
-- Trigger: SPEC document approved (annotation cycle completed, user confirmed "Proceed")
-- Pre-condition: plan.md records `plan_complete_at` + `plan_status: audit-ready` in progress.md
-- Action: Execute /clear, then /moai run SPEC-XXX
+- Trigger: Plan PR merged into main (squash) AND SPEC document approved (annotation cycle completed, user confirmed "Proceed")
+- Pre-condition: plan.md records `plan_complete_at` + `plan_status: audit-ready` in progress.md; plan PR is in MERGED state
+- Action: Execute /clear, then `moai worktree new SPEC-XXX --base origin/main`, then `/moai run SPEC-XXX` inside the worktree
 - Gate: `/moai run` Phase 0.5 (Plan Audit Gate) executes automatically before any implementation.
   See "Phase 0.5: Plan Audit Gate" section below for details.
 
@@ -301,8 +303,14 @@ not blocking. After grace window expires, FAIL verdicts block Phase 1 unconditio
 Grace window start: `.moai/state/audit-gate-merge-at.txt` (ISO-8601 timestamp).
 
 Run to Sync:
-- Trigger: Implementation complete, tests passing
-- Action: Execute /moai sync SPEC-XXX
+- Trigger: Run PR merged into main, tests passing
+- Action: Execute `/moai sync SPEC-XXX` in the SAME worktree as run (do NOT create a new worktree)
+
+Sync to Cleanup:
+- Trigger: Sync PR merged into main
+- Pre-condition: BOTH run PR AND sync PR are in MERGED state (verify via `gh pr view <PR>`)
+- Action: `moai worktree done SPEC-XXX` (executed from host checkout, not from inside the worktree)
+- See § SPEC Phase Discipline (Step 4)
 
 ## Agent Teams Variant
 
@@ -313,10 +321,10 @@ When team mode is enabled (workflow.team.enabled and AGENT_TEAMS env), phases ca
 | Phase | Sub-agent Mode | Team Mode | Condition |
 |-------|---------------|-----------|-----------|
 | Plan | manager-spec (single) | Dynamic teammates: researcher + analyst + architect (parallel, general-purpose) | Complexity >= threshold |
-| Run | manager-ddd/tdd (sequential) | Dynamic teammates: backend-dev + frontend-dev + tester (parallel, general-purpose) | Domains >= 3 or files >= 10 |
+| Run | manager-develop (sequential) | Dynamic teammates: backend-dev + frontend-dev + tester (parallel, general-purpose) | Domains >= 3 or files >= 10 |
 | Sync | manager-docs (single) | manager-docs (always sub-agent) | N/A |
 
-All teammates are spawned dynamically via `Agent(subagent_type: "general-purpose")` with runtime overrides from `workflow.yaml` role profiles. No static team agent definitions are used. See `.pi/generated/source/skills/moai/team/run.md` for complete orchestration.
+All teammates are spawned dynamically via `Agent(subagent_type: "general-purpose")` with runtime overrides from `workflow.yaml` role profiles. No static team agent definitions are used. See `.claude/skills/moai/team/run.md` for complete orchestration.
 
 ### Team Mode Plan Phase
 - TeamCreate for parallel research team
@@ -365,14 +373,14 @@ When to prefer sub-agent mode:
 
 Detailed team orchestration steps are defined in dedicated workflow files:
 
-- Plan phase: .pi/generated/source/skills/moai/team/plan.md
-- Run phase: .pi/generated/source/skills/moai/team/run.md
-- Fix phase: .pi/generated/source/skills/moai/team/debug.md
-- Review: .pi/generated/source/skills/moai/team/review.md
+- Plan phase: .claude/skills/moai/team/plan.md
+- Run phase: .claude/skills/moai/team/run.md
+- Fix phase: .claude/skills/moai/team/debug.md
+- Review: .claude/skills/moai/team/review.md
 
 ### Known Limitations
 
-For complete limitations list, see .pi/generated/source/CLAUDE.md Section 15.
+For complete limitations list, see CLAUDE.md Section 15.
 
 ### Prerequisites
 
@@ -380,7 +388,7 @@ Both conditions must be met:
 - `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` in settings.json env
 - `workflow.team.enabled: true` in `.moai/config/sections/workflow.yaml`
 
-See .pi/generated/source/CLAUDE.md Section 15 for details.
+See @CLAUDE.md Section 15 for details.
 
 ### Mode Selection
 - --team flag: Force team mode

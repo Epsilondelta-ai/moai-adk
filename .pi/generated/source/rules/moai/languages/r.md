@@ -127,10 +127,10 @@ See:
 ---
 
 
-- `.pi/generated/source/rules/moai/languages/python.md` for Python and R interoperability with reticulate
+- `.claude/rules/moai/languages/python.md` for Python and R interoperability with reticulate
 - moai-domain-database for SQL patterns and database optimization
 - moai-workflow-testing for DDD and testing strategies
-- delegate to `expert-debug` agent for AI-powered debugging
+- delegate to `manager-quality` agent for AI-powered debugging
 - moai-foundation-quality for TRUST 5 quality principles
 
 ---
@@ -161,3 +161,4 @@ ggplot2 Font Issues:
 Load showtext library. Call font_add_google with font name and family. Call showtext_auto to enable for all graphics devices.
 
 ---
+

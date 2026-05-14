@@ -19,7 +19,7 @@ Multishot prompting examples demonstrating practical Claude Code patterns coveri
 
 **Output**:
 ```yaml
-# File: .pi/generated/source/skills/python-testing/SKILL.md
+# File: .claude/skills/python-testing/SKILL.md
 ---
 name: python-testing
 description: Python testing best practices with pytest, coverage, and TDD patterns for modern applications
@@ -172,7 +172,7 @@ async def test_async_api_call():
 
 ## Works Well With
 
-- `.pi/generated/source/rules/moai/languages/python.md` - Python 3.13+ patterns (auto-loaded via paths frontmatter)
+- `.claude/rules/moai/languages/python.md` - Python 3.13+ patterns (auto-loaded via paths frontmatter)
 - moai-domain-backend - Backend testing strategies
 - moai-workflow-ddd - DDD workflow integration
 ```
@@ -489,7 +489,7 @@ curl -X POST -H 'Content-type: application/json' \
 Organize memory for efficient context loading:
 
 ```markdown
-# File: .pi/generated/source/CLAUDE.md (Project-level memory)
+# File: .claude/CLAUDE.md (Project-level memory)
 
 ## Project Overview
 - Name: MyApp
@@ -666,7 +666,7 @@ Load configuration from @config.yaml or $PROJECT_ROOT/config.yaml
 plan_result = Agent(
     subagent_type="spec-builder",
     prompt="Create SPEC for: User profile management with avatar upload",
-    context={"project": ".pi/generated/source/CLAUDE.md"}
+    context={"project": "@CLAUDE.md"}
 )
 
 # Step 2: Clear context (after plan)

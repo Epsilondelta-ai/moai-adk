@@ -578,13 +578,13 @@ User Experience Problems:
 1. Automated Checks:
 ```bash
 # YAML syntax validation
-yamllint .pi/generated/source/skills/skill-name/SKILL.md
+yamllint .claude/skills/skill-name/SKILL.md
 
 # Link checking
-markdown-link-check .pi/generated/source/skills/skill-name/
+markdown-link-check .claude/skills/skill-name/
 
 # Line count verification
-wc -l .pi/generated/source/skills/skill-name/SKILL.md
+wc -l .claude/skills/skill-name/SKILL.md
 ```
 
 2. Manual Review:

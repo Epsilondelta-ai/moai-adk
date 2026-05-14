@@ -115,11 +115,11 @@ The team spawn wrapper enforces these checks before creating a teammate:
 
 ## Cross-References
 
-- Worktree isolation details: `.pi/generated/source/rules/moai/workflow/worktree-integration.md`
-- Team communication protocol (discovery, shutdown, idle): `.pi/generated/source/rules/moai/workflow/worktree-integration.md` §Team Protocol
+- Worktree isolation details: `.claude/rules/moai/workflow/worktree-integration.md`
+- Team communication protocol (discovery, shutdown, idle): `.claude/rules/moai/workflow/worktree-integration.md` §Team Protocol
 - Agent lint rules (LR-05, LR-09, LR-10): `internal/cli/agent_lint.go`
 - Role profile source of truth: `.moai/config/sections/workflow.yaml` `role_profiles`
-- Team pattern cookbook: `.pi/generated/source/rules/moai/workflow/team-pattern-cookbook.md`
+- Team pattern cookbook: `.claude/rules/moai/workflow/team-pattern-cookbook.md`
 
 ---
 

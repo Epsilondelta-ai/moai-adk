@@ -1,9 +1,9 @@
 ---
 description: "Skill writing guidelines covering description craft, body structure, and schema"
-paths: ".pi/generated/source/skills/**/SKILL.md"
+paths: ".claude/skills/**/SKILL.md"
 ---
 
-<!-- Source: revfactory/harness — Apache License 2.0 — see .pi/generated/source/rules/moai/NOTICE.md -->
+<!-- Source: revfactory/harness — Apache License 2.0 — see .claude/rules/moai/NOTICE.md -->
 
 # Skill Writing Craft
 
@@ -56,7 +56,7 @@ Use the `paths` field to control when your skill is auto-loaded by Claude Code:
 ```yaml
 ---
 description: "Skill description"
-paths: ".pi/generated/source/skills/**/*.md,**/hooks/**/*.ts"
+paths: ".claude/skills/**/*.md,**/hooks/**/*.ts"
 ---
 ```
 
@@ -175,7 +175,7 @@ One-line summary: what this skill provides
 When body exceeds 500 lines, split into modules:
 
 ```
-.pi/generated/source/skills/my-skill/
+.claude/skills/my-skill/
 ├── SKILL.md (Quick Reference + Implementation, ≤500 lines)
 ├── modules/
 │   ├── advanced-patterns.md

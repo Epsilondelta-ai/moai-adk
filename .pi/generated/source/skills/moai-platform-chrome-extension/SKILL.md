@@ -275,8 +275,8 @@ Open chrome://extensions to view all installed extensions and their status. Enab
 
 ## Works Well With
 
-- `.pi/generated/source/rules/moai/languages/typescript.md` for TypeScript patterns in extension development (auto-loaded via paths frontmatter)
-- `.pi/generated/source/rules/moai/languages/javascript.md` for JavaScript patterns and ES module usage (auto-loaded via paths frontmatter)
+- `.claude/rules/moai/languages/typescript.md` for TypeScript patterns in extension development (auto-loaded via paths frontmatter)
+- `.claude/rules/moai/languages/javascript.md` for JavaScript patterns and ES module usage (auto-loaded via paths frontmatter)
 - moai-domain-frontend for React or framework-based popup and side panel UI
 - moai-domain-backend for server-side API integration
 - moai-workflow-testing for extension testing strategies

@@ -22,7 +22,7 @@ progressive_disclosure:
 # MoAI Extension: Triggers
 triggers:
   keywords: ["loop", "iterate", "repeat", "until done", "keep fixing", "all errors"]
-  agents: ["expert-debug", "expert-backend", "expert-frontend", "expert-testing"]
+  agents: ["manager-quality", "expert-backend", "expert-frontend", "manager-develop"]
   phases: ["loop"]
 ---
 
@@ -111,16 +111,16 @@ Step 5.5 - Pre-Fix MX Context Scan:
 - @MX:TODO items: Match against current issues for resolution tracking
 - Output: MX context map included in Step 6 fix agent prompts
 - Skip if no @MX tags found in target files
-- See .pi/generated/source/rules/moai/workflow/mx-tag-protocol.md for tag type definitions
+- See .claude/rules/moai/workflow/mx-tag-protocol.md for tag type definitions
 
 Step 6 - Fix Execution:
 - [HARD] Before each fix: TaskUpdate to change item to in_progress
 - [HARD] Agent delegation mandate: ALL fix tasks MUST be delegated to specialized agents. NEVER execute fixes directly.
 
 Agent selection by issue type:
-- Type errors, logic bugs: expert-debug subagent
+- Type errors, logic bugs: manager-quality subagent
 - Import/module issues: expert-backend or expert-frontend subagent
-- Test failures: expert-testing subagent
+- Test failures: manager-develop subagent
 - Security issues: expert-security subagent
 - Performance issues: expert-performance subagent
 
@@ -141,7 +141,7 @@ Step 7.5 - MX Tag Check:
   - Unresolved issues: Keep @MX:TODO
 - Remove resolved @MX:TODO tags for fixed issues
 - Generate MX_TAG_REPORT with tags added/removed/updated
-- See .pi/generated/source/rules/moai/workflow/mx-tag-protocol.md for tag rules
+- See .claude/rules/moai/workflow/mx-tag-protocol.md for tag rules
 
 Step 8 - Snapshot Save:
 - Save iteration snapshot to $CLAUDE_PROJECT_DIR/.moai/cache/loop-snapshots/
@@ -242,10 +242,10 @@ Send any message to interrupt the loop. State is automatically saved via session
 
 ## Safe Development Protocol
 
-All fixes within the loop follow .pi/generated/source/CLAUDE.md Section 7 Safe Development Protocol:
+All fixes within the loop follow CLAUDE.md Section 7 Safe Development Protocol:
 - Reproduction-first: Write failing tests before fixing bugs
 - Post-fix review: List potential side effects after each fix cycle
-- Maximum 3 retries per individual operation (per .pi/generated/source/CLAUDE.md constitution)
+- Maximum 3 retries per individual operation (per CLAUDE.md constitution)
 
 ## Execution Summary
 

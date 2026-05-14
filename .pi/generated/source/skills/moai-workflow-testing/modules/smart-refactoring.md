@@ -75,7 +75,7 @@ from smart_refactoring import AIRefactorer
 async def main():
     # Initialize refactoring system
     refactorer = AIRefactorer(context7_client=None)
-
+    
     # Analyze and create refactoring plan
     refactor_plan = await refactorer.refactor_with_intelligence(
         codebase_path="/project/src",
@@ -85,7 +85,7 @@ async def main():
             'focus_on': ['complexity', 'duplication']
         }
     )
-
+    
     print(f"Found {len(refactor_plan.opportunities)} opportunities")
     print(f"Estimated time: {refactor_plan.estimated_time}")
     print(f"Risk assessment: {refactor_plan.risk_assessment}")
@@ -181,17 +181,17 @@ Step 3 - Execute Safe Refactoring:
 # Execute refactoring plan in optimal order
 for i, opp_index in enumerate(refactor_plan.execution_order):
     opportunity = refactor_plan.opportunities[opp_index]
-
+    
     print(f"\nStep {i+1}: {opportunity.description}")
     print(f"Type: {opportunity.type.value}")
     print(f"Risk: {opportunity.risk_level}")
-
+    
     # Create git commit before each operation
     # git commit -m "Before refactoring: {opportunity.description}"
-
+    
     # Execute refactoring using Rope
     # (Implementation depends on refactoring type)
-
+    
     # Run tests to verify
     # if tests_pass:
     #     git commit -m "After refactoring: {opportunity.description}"

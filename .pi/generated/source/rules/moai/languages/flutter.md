@@ -91,8 +91,8 @@ Navigation and Storage:
 - `/isar/isar` - NoSQL database
 
 
-- `.pi/generated/source/rules/moai/languages/swift.md` - iOS native integration for platform channels
-- `.pi/generated/source/rules/moai/languages/kotlin.md` - Android native integration for platform channels
+- `.claude/rules/moai/languages/swift.md` - iOS native integration for platform channels
+- `.claude/rules/moai/languages/kotlin.md` - Android native integration for platform channels
 - `moai-domain-backend` - API integration and backend communication
 - `moai-foundation-quality` + `moai-ref-owasp-checklist` - Mobile security best practices
-- delegate to `expert-debug` agent for AI-powered debugging
+- delegate to `manager-quality` agent for AI-powered debugging

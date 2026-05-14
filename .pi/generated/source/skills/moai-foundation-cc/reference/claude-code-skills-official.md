@@ -14,8 +14,8 @@ Key Characteristic: Skills are model-invoked, meaning Claude autonomously decide
 
 Three categories of Skills exist:
 
-1. Personal Skills: Located at `~/.pi/generated/source/skills/skill-name/`, available across all projects
-2. Project Skills: Located at `.pi/generated/source/skills/skill-name/`, shared via git with team members
+1. Personal Skills: Located at `~/.claude/skills/skill-name/`, available across all projects
+2. Project Skills: Located at `.claude/skills/skill-name/`, shared via git with team members
 3. Plugin Skills: Bundled within Claude Code plugins
 
 ## Progressive Disclosure Architecture
@@ -362,7 +362,7 @@ Supports both pre-built Agent Skills and custom Skills. Upload custom Skills as 
 
 ### Claude Agent SDK
 
-Supports custom Skills through filesystem-based configuration. Create Skills in `.pi/generated/source/skills/` and enable by including "Skill" in `allowed_tools` configuration.
+Supports custom Skills through filesystem-based configuration. Create Skills in `.claude/skills/` and enable by including "Skill" in `allowed_tools` configuration.
 
 ## Security Considerations
 
@@ -384,8 +384,8 @@ Ask Claude directly: "What Skills are available?"
 
 Or check file system:
 
-- Personal Skills: ls ~/.pi/generated/source/skills/
-- Project Skills: ls .pi/generated/source/skills/
+- Personal Skills: ls ~/.claude/skills/
+- Project Skills: ls .claude/skills/
 
 ### Update a Skill
 
@@ -393,8 +393,8 @@ Edit SKILL.md directly. Changes apply on next Claude Code startup.
 
 ### Remove a Skill
 
-Personal: rm -rf ~/.pi/generated/source/skills/my-skill
-Project: rm -rf .pi/generated/source/skills/my-skill && git commit -m "Remove unused Skill"
+Personal: rm -rf ~/.claude/skills/my-skill
+Project: rm -rf .claude/skills/my-skill && git commit -m "Remove unused Skill"
 
 ## Debugging Skills
 
@@ -413,8 +413,8 @@ Check YAML syntax validity:
 
 Check correct file location:
 
-- Personal: ~/.pi/generated/source/skills/*/SKILL.md
-- Project: .pi/generated/source/skills/*/SKILL.md
+- Personal: ~/.claude/skills/*/SKILL.md
+- Project: .claude/skills/*/SKILL.md
 
 ### Multiple Skills Conflicting
 

@@ -429,7 +429,7 @@ Language-to-LSP Mapping (all 16 MoAI-supported languages, alphabetical):
 - TypeScript: typescript-language-server (check: which typescript-language-server)
 
 Note: The canonical language name for Dart/Flutter ecosystem is "Flutter",
-matching `.pi/generated/source/skills/moai/workflows/sync.md` Phase 0.6.1. Per
+matching `.claude/skills/moai/workflows/sync.md` Phase 0.6.1. Per
 CLAUDE.local.md Section 22, all 16 languages are treated as equal
 first-class citizens; the user's project marker files determine which
 server(s) actually spawn at runtime.
@@ -984,8 +984,8 @@ generating project-specific dynamic harness artifacts in the user area
 (REQ-PH-004, T-P2-01).
 
 [HARD] This phase MUST run the FROZEN guard (`EnsureAllowed`) as the **first check**
-before any write attempt. Paths in `.claude/agents/moai/`, `.pi/generated/source/skills/moai-*/`,
-or `.pi/generated/source/rules/moai/` are permanently FROZEN and must be rejected immediately.
+before any write attempt. Paths in `.claude/agents/moai/`, `.claude/skills/moai-*/`,
+or `.claude/rules/moai/` are permanently FROZEN and must be rejected immediately.
 
 [HARD] If meta-harness generation fails mid-way, `CleanupOnFailure` MUST remove all
 partial artifacts written so far (REQ-PH-010).
@@ -1049,8 +1049,8 @@ in the **user area** (FROZEN guard pre-verified):
 |----------|------|----------|
 | Architect agent | `.claude/agents/my-harness/<domain>-architect.md` | Always |
 | Engineer agent | `.claude/agents/my-harness/<domain>-engineer.md` | Always |
-| Patterns skill | `.pi/generated/source/skills/my-harness-<domain>-patterns/SKILL.md` | Always |
-| Best-practices skill | `.pi/generated/source/skills/my-harness-<domain>-best-practices/SKILL.md` | Always |
+| Patterns skill | `.claude/skills/my-harness-<domain>-patterns/SKILL.md` | Always |
+| Best-practices skill | `.claude/skills/my-harness-<domain>-best-practices/SKILL.md` | Always |
 | Harness directory | `.moai/harness/` | Always |
 | Design extension | `.moai/harness/design-extension.md` | Q13 == Advanced only |
 

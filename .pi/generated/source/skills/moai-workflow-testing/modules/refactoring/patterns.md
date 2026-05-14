@@ -35,24 +35,24 @@ def process_order(order):
     for item in order.items:
         if item.quantity <= 0:
             raise ValueError(f"Invalid quantity for {item.name}")
-
+    
     # Calculate total
     total = 0
     for item in order.items:
         total += item.price * item.quantity
-
+    
     # Apply discount
     if order.customer.is_vip:
         total *= 0.9
-
+    
     # Save to database
     db.execute("INSERT INTO orders ...", order)
     for item in order.items:
         db.execute("INSERT INTO order_items ...", item)
-
+    
     # Send notification
     email.send(order.customer.email, "Order confirmed")
-
+    
     return total
 
 # After: Extracted methods with clear responsibilities
@@ -431,10 +431,10 @@ def calculate_discount(user, order):
 def calculate_discount(user, order):
     if not user or not user.is_active:
         return 0
-
+    
     if order.total <= 100:
         return 0
-
+    
     return 0.2 if user.is_vip else 0.1
 
 # Before: Complex boolean expression
@@ -447,13 +447,13 @@ if (user.age >= 18 and user.has_valid_id and user.country == "US") or \
 def is_eligible_for_access(user):
     if user.is_vip and user.age >= 16:
         return True
-
+    
     if user.country == "US":
         return user.age >= 18 and user.has_valid_id
-
+    
     if user.country == "EU":
         return user.age >= 21
-
+    
     return False
 
 if is_eligible_for_access(user):
@@ -573,7 +573,7 @@ class OrderProcessor:
         self.db = Database()
         self.email_sender = EmailSender()
         self.payment_gateway = PaymentGateway()
-
+    
     def process_order(self, order):
         # Validate
         self.validate_order(order)
@@ -583,19 +583,19 @@ class OrderProcessor:
         self.save_order(order)
         # Send email
         self.send_confirmation(order)
-
+    
     def validate_order(self, order):
         # Validation logic
         pass
-
+    
     def process_payment(self, order):
         # Payment logic
         pass
-
+    
     def save_order(self, order):
         # Database logic
         pass
-
+    
     def send_confirmation(self, order):
         # Email logic
         pass
@@ -609,7 +609,7 @@ class OrderValidator:
 class OrderRepository:
     def __init__(self, db):
         self.db = db
-
+    
     def save(self, order):
         # Database logic
         pass
@@ -617,7 +617,7 @@ class OrderRepository:
 class OrderConfirmationService:
     def __init__(self, email_sender):
         self.email_sender = email_sender
-
+    
     def send_confirmation(self, order):
         # Email logic
         pass
@@ -628,7 +628,7 @@ class OrderProcessor:
         self.repository = repository
         self.confirmation_service = confirmation_service
         self.payment_gateway = payment_gateway
-
+    
     def process_order(self, order):
         self.validator.validate(order)
         self.payment_gateway.process_payment(order)

@@ -30,6 +30,7 @@ Standard MCP servers in MoAI-ADK:
 - sequential-thinking: Complex problem analysis
 - pencil: .pen file design editing. Used by expert-frontend (sub-agent mode) and by design teammates that use `general-purpose` with MoAI profile adoption for `expert-frontend` (team mode).
 - claude-in-chrome: Browser automation
+- zai-mcp-server (optional): Z.AI hosted MCP for Vision OCR / WebSearch / WebReader. Registered via `moai glm tools enable [vision|websearch|webreader|all]` (SPEC-GLM-MCP-001).
 
 **`alwaysLoad` field (Claude Code v2.1.119+)**
 

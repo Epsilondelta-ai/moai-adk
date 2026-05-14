@@ -177,7 +177,7 @@ Use Cases:
 # Load specific module
 from pathlib import Path
 
-skill_path = Path(".pi/generated/source/skills/moai-foundation-core")
+skill_path = Path(".claude/skills/moai-foundation-core")
 module_path = skill_path / "modules" / "trust-5-framework.md"
 
 with open(module_path) as f:
@@ -193,12 +193,12 @@ class ModuleLoader:
  """Load Quick Reference section only (~1K tokens)."""
  content = self.load_module(module_name)
  return self.extract_section(content, "Quick Reference")
-
+ 
  def load_implementation(self, module_name: str):
  """Load Implementation Guide (~3K tokens)."""
  content = self.load_module(module_name)
  return self.extract_section(content, "Implementation Guide")
-
+ 
  def load_advanced(self, module_name: str):
  """Load Advanced Patterns (~5K tokens)."""
  content = self.load_module(module_name)
@@ -211,19 +211,19 @@ class ModuleLoader:
 class ModuleSearch:
  def search_topic(self, query: str) -> list:
  """Search for topic across all modules."""
- modules_dir = Path(".pi/generated/source/skills/moai-foundation-core/modules")
+ modules_dir = Path(".claude/skills/moai-foundation-core/modules")
  results = []
-
+ 
  for module_file in modules_dir.glob("*.md"):
  with open(module_file) as f:
  content = f.read()
-
+ 
  if query.lower() in content.lower():
  results.append({
  "module": module_file.stem,
  "matches": content.lower().count(query.lower())
  })
-
+ 
  return sorted(results, key=lambda x: x["matches"], reverse=True)
 
 # Usage

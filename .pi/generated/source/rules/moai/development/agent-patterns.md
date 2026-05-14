@@ -1,9 +1,9 @@
 ---
 description: "Six architectural agent orchestration patterns for MoAI-ADK agent design"
-paths: ".claude/agents/**/*.md,.pi/generated/source/rules/moai/development/agent-authoring.md"
+paths: ".claude/agents/**/*.md,.claude/rules/moai/development/agent-authoring.md"
 ---
 
-<!-- Source: revfactory/harness — Apache License 2.0 — see .pi/generated/source/rules/moai/NOTICE.md -->
+<!-- Source: revfactory/harness — Apache License 2.0 — see .claude/rules/moai/NOTICE.md -->
 
 # Agent Design Patterns
 
@@ -15,7 +15,7 @@ Sequential execution where each agent's output becomes the next agent's input.
 
 **Structure**: Agent A → Agent B → Agent C → Agent D
 
-**When to Use**:
+**When to Use**: 
 - Requirements are strongly dependent on previous stage outputs
 - Each stage has clear input/output contracts
 - Linear workflow with minimal branching
@@ -30,7 +30,7 @@ Sequential execution where each agent's output becomes the next agent's input.
 
 Parallel processing with independent analysis followed by result aggregation.
 
-**Structure**:
+**Structure**: 
 ```
          ┌→ Agent A ┐
 Dispatch ┼→ Agent B ┼→ Synthesize

@@ -197,7 +197,7 @@ Configure hooks in `settings.json`:
  "hooks": [
  {
  "type": "command",
- "command": "echo 'Executing bash command:' >> ~/.pi/generated/source/hooks.log"
+ "command": "echo 'Executing bash command:' >> ~/.claude/hooks.log"
  }
  ]
  }

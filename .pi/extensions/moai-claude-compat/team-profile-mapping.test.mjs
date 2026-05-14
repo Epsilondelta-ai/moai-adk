@@ -98,12 +98,12 @@ for (const roles of Object.values(expected)) {
 }
 
 const workflowYaml = readFileSync(join(repoRoot, ".moai/config/sections/workflow.yaml"), "utf8");
-assert.match(workflowYaml, /moai_profile_mappings:/);
-assert.match(workflowYaml, /researcher:\s*codebase-researcher/);
+// moai_profile_mappings was removed from workflow.yaml in upstream SPEC-V3R4-HARNESS-001.
+// Profile mappings are now defined in TypeScript (TEAM_MOAI_PROFILE_MAPPINGS) only.
+assert.doesNotMatch(workflowYaml, /moai_profile_mappings:/);
+assert.match(workflowYaml, /role_profiles:/);
+assert.match(workflowYaml, /researcher:/);
 assert.doesNotMatch(workflowYaml, /researcher:\s*scout/);
-assert.doesNotMatch(workflowYaml, /scout\s+is\s+the\s+Explore-compatible/);
-assert.match(workflowYaml, /backend-dev:\s*expert-backend/);
-assert.match(workflowYaml, /security-reviewer:\s*expert-security/);
 
 const status = teamMoaiProfileMappingStatus(repoRoot).join("\n");
 assert.match(status, /runtime-facing docs avoid removed team pseudo-agents/);

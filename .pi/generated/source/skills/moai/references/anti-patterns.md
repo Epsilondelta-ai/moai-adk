@@ -423,6 +423,6 @@ def fix_payment_calculation():
 
 ---
 
-**Version**: 1.0.0
-**Source**: SPEC-KARPATHY-001 M1
+**Version**: 1.0.0  
+**Source**: SPEC-KARPATHY-001 M1  
 **Last Updated**: 2026-04-28
