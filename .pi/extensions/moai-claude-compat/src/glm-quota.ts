@@ -254,8 +254,9 @@ function quotaURLsForContext(ctx: Pick<ExtensionContext, "model">): string[] {
 function mapZaiQuotaPayload(payload: ZaiQuotaPayload, capturedAtMs: number): GlmQuotaSnapshot {
   const limits = payload.data?.limits?.length ? payload.data.limits : (payload.limits ?? []);
   const tokenLimit = limits.find((limit) => String(limit.type ?? "").toUpperCase() === "TOKENS_LIMIT");
-  const primary = buildUsageWindow(tokenLimit ?? limits[0], "5H:");
-  const secondarySource = limits.find((limit) => limit !== (tokenLimit ?? limits[0]) && hasUsablePercent(limit) && hasResetTime(limit));
+  const primarySource = tokenLimit ?? limits[0];
+  const primary = buildUsageWindow(primarySource, "5H:");
+  const secondarySource = limits.find((limit) => limit !== primarySource && hasUsablePercent(limit));
   const secondary = buildUsageWindow(secondarySource, "7D:");
 
   if (!primary && !secondary) throw new Error("GLM quota response did not contain quota limits");
@@ -283,18 +284,11 @@ function hasUsablePercent(limit: ZaiQuotaLimit | undefined): boolean {
   return resolveUsedPercent(limit) !== undefined;
 }
 
-function hasResetTime(limit: ZaiQuotaLimit | undefined): boolean {
-  if (!limit) return false;
-  return parseResetTime(limit.nextResetTime ?? limit.resetTime ?? limit.resetsAt) !== undefined;
-}
-
 function resolveUsedPercent(limit: ZaiQuotaLimit | undefined): number | undefined {
   if (!limit) return undefined;
   const raw = sanitizeNumber(limit.percentage) ?? sanitizeNumber(limit.used_percent) ?? sanitizeNumber(limit.usedPercentage);
   if (raw === undefined) return undefined;
-  // Z.AI API `percentage` = remaining percentage (100 = nothing used, 0 = fully consumed)
-  const remaining = raw > 1 ? raw : raw * 100;
-  return clamp(100 - remaining, 0, 100);
+  return clamp(raw, 0, 100);
 }
 
 function isGlmModel(ctx: Pick<ExtensionContext, "hasUI" | "model">): boolean {
