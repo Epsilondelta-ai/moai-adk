@@ -53,7 +53,8 @@ Examples:
   moai init my-app           Creates ./my-app/ and initializes MoAI inside
   moai init .                Initializes MoAI in the current directory
   moai init --mode tdd       Initialize with specific development mode (default: tdd)
-  moai init --all            Deploy all catalog entries (default is core-only slim mode; SPEC-V3R4-CATALOG-002)`,
+  moai init --all            Deploy all catalog entries (default is core-only slim mode; SPEC-V3R4-CATALOG-002)
+  moai init --pi             Deploy Pi runtime artifacts only (.moai/ and .pi/)`,
 	Args:    cobra.MaximumNArgs(1),
 	PreRunE: validateInitFlags,
 	RunE:    runInit,
@@ -75,6 +76,7 @@ func init() {
 	initCmd.Flags().Bool("force", false, "Reinitialize an existing project (backs up current .moai/)")
 	initCmd.Flags().Bool("no-hooks", false, "Skip git hook installation (REQ-CIAUT-002)")
 	initCmd.Flags().Bool("all", false, "Deploy all catalog entries (core + optional packs + harness-generated). Bypasses slim mode (SPEC-V3R4-CATALOG-002).")
+	initCmd.Flags().Bool("pi", false, "Deploy Pi runtime artifacts only (.moai/ and .pi/). Skips Claude artifacts.")
 }
 
 // getStringFlag retrieves a string flag value from the command.
@@ -230,6 +232,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		GitLabInstanceURL: getStringFlag(cmd, "gitlab-instance-url"),
 		NonInteractive:    nonInteractive,
 		Force:             getBoolFlag(cmd, "force"),
+		PiMode:            getBoolFlag(cmd, "pi"),
 	}
 
 	// Apply user-level defaults from profile preferences.
@@ -340,7 +343,9 @@ func runInit(cmd *cobra.Command, args []string) error {
 	renderer := template.NewRenderer(embeddedFS)
 
 	var deployer template.Deployer
-	if shouldDistributeAll(cmd) {
+	if getBoolFlag(cmd, "pi") {
+		deployer = template.NewPiOnlyDeployerWithRenderer(embeddedFS, renderer)
+	} else if shouldDistributeAll(cmd) {
 		deployer = template.NewDeployerWithRenderer(embeddedFS, renderer)
 	} else {
 		var slimErr error
