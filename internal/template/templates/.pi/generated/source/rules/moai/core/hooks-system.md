@@ -1,5 +1,5 @@
 ---
-paths: "**/.pi/generated/source/hooks/**,**/.claude/settings.json,**/.claude/settings.local.json"
+paths: "**/.claude/hooks/**,**/.claude/settings.json,**/.claude/settings.local.json"
 ---
 
 # Hooks System
@@ -35,7 +35,7 @@ Claude Code hooks for extending functionality with custom scripts.
 | ConfigChange | Config source | Yes | Runs when config files change (v2.1.49+). Matchers: user_settings, project_settings, local_settings, policy_settings, skills |
 | CwdChanged | No | No | Runs when working directory changes (v2.1.83+). Receives CLAUDE_ENV_FILE |
 | FileChanged | Filename | No | Runs when a file is changed externally (v2.1.83+). Receives CLAUDE_ENV_FILE |
-| InstructionsLoaded | Load reason | No | Runs when .pi/generated/source/CLAUDE.md or rules loaded (v2.1.69+). Matchers: session_start, nested_traversal, path_glob_match, include, compact |
+| InstructionsLoaded | Load reason | No | Runs when CLAUDE.md or rules loaded (v2.1.69+). Matchers: session_start, nested_traversal, path_glob_match, include, compact |
 | Elicitation | MCP server | Yes | Runs when MCP server requests user input (v2.1.76+) |
 | ElicitationResult | MCP server | Yes | Runs after user responds to MCP elicitation (v2.1.76+) |
 
@@ -166,7 +166,7 @@ Agent hooks are defined in agent frontmatter and executed for agent lifecycle ev
 
 ## Hook Location
 
-Hooks are defined in `.pi/generated/source/hooks/` directory:
+Hooks are defined in `.claude/hooks/` directory:
 
 - Shell scripts: `*.sh`
 - Python scripts: `*.py`
@@ -180,39 +180,39 @@ Define hooks in `.claude/settings.json`:
   "hooks": {
     "SessionStart": [{
       "type": "command",
-      "command": "\"$CLAUDE_PROJECT_DIR/.pi/generated/source/hooks/moai/handle-session-start.sh\"",
+      "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-session-start.sh\"",
       "timeout": 5
     }],
     "PreCompact": [{
-      "command": "\"$CLAUDE_PROJECT_DIR/.pi/generated/source/hooks/moai/handle-compact.sh\"",
+      "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-compact.sh\"",
       "timeout": 5
     }],
     "PreToolUse": [{
       "matcher": "Write|Edit|Bash",
-      "command": "\"$CLAUDE_PROJECT_DIR/.pi/generated/source/hooks/moai/handle-pre-tool.sh\"",
+      "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-pre-tool.sh\"",
       "timeout": 5
     }],
     "PostToolUse": [{
       "matcher": "Write|Edit",
-      "command": "\"$CLAUDE_PROJECT_DIR/.pi/generated/source/hooks/moai/handle-post-tool.sh\"",
+      "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-post-tool.sh\"",
       "timeout": 10,
       "async": true
     }],
     "Stop": [{
-      "command": "\"$CLAUDE_PROJECT_DIR/.pi/generated/source/hooks/moai/handle-stop.sh\"",
+      "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-stop.sh\"",
       "timeout": 5
     }],
     "TeammateIdle": [{
       "hooks": [{
         "type": "command",
-        "command": "\"$CLAUDE_PROJECT_DIR/.pi/generated/source/hooks/moai/handle-agent-hook.sh\"",
+        "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-agent-hook.sh\"",
         "timeout": 10
       }]
     }],
     "TaskCompleted": [{
       "hooks": [{
         "type": "command",
-        "command": "\"$CLAUDE_PROJECT_DIR/.pi/generated/source/hooks/moai/handle-agent-hook.sh\"",
+        "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-agent-hook.sh\"",
         "timeout": 10
       }]
     }]
@@ -226,13 +226,13 @@ Hooks support `$CLAUDE_PROJECT_DIR` and `$HOME` environment variables:
 
 ```json
 {
-  "command": "\"$CLAUDE_PROJECT_DIR/.pi/generated/source/hooks/moai/hook.sh\""
+  "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/hook.sh\""
 }
 ```
 
 **Important**: Quote the entire path to handle project folders with spaces:
-- Correct: `"\"$CLAUDE_PROJECT_DIR/.pi/generated/source/hooks/moai/hook.sh\""`
-- Wrong: `"$CLAUDE_PROJECT_DIR/.pi/generated/source/hooks/moai/hook.sh"`
+- Correct: `"\"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/hook.sh\""`
+- Wrong: `"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/hook.sh"`
 
 For StatusLine path configuration, see @settings-management.md (StatusLine does NOT support environment variables).
 
@@ -248,12 +248,12 @@ MoAI-ADK generates hook wrapper scripts during `moai init` that:
    - Default `~/go/bin/moai`
 
 Wrapper scripts are located at:
-- `.pi/generated/source/hooks/moai/handle-session-start.sh`
-- `.pi/generated/source/hooks/moai/handle-compact.sh`
-- `.pi/generated/source/hooks/moai/handle-pre-tool.sh`
-- `.pi/generated/source/hooks/moai/handle-post-tool.sh`
-- `.pi/generated/source/hooks/moai/handle-stop.sh`
-- `.pi/generated/source/hooks/moai/handle-agent-hook.sh`: TeammateIdle, TaskCompleted events (team mode)
+- `.claude/hooks/moai/handle-session-start.sh`
+- `.claude/hooks/moai/handle-compact.sh`
+- `.claude/hooks/moai/handle-pre-tool.sh`
+- `.claude/hooks/moai/handle-post-tool.sh`
+- `.claude/hooks/moai/handle-stop.sh`
+- `.claude/hooks/moai/handle-agent-hook.sh`: TeammateIdle, TaskCompleted events (team mode)
 
 ## Smart Hook Behaviors (v2.10.1)
 

@@ -27,9 +27,9 @@ progressive_disclosure:
 triggers:
   keywords: ["skill", "agent", "plugin", "slash command", "hook", "sandbox", "headless", "memory", "settings", "claude code", "sub-agent", "agent pattern", "orchestration", "delegation"]
   agents:
-    - "builder-agent"
-    - "builder-skill"
-    - "builder-plugin"
+    - "builder-harness"
+    - "builder-harness"
+    - "builder-harness"
   phases:
     - "plan"
     - "run"
@@ -67,7 +67,7 @@ Advanced Features:
 
 ## Quick Reference
 
-Skills: Model-invoked extensions in ~/.pi/generated/source/skills/ (personal) or .pi/generated/source/skills/ (project). Three-level progressive disclosure. Max 500 lines.
+Skills: Model-invoked extensions in ~/.claude/skills/ (personal) or .claude/skills/ (project). Three-level progressive disclosure. Max 500 lines.
 
 Sub-agents: Specialized assistants via Agent(subagent_type="..."). Own 200K context. Cannot spawn sub-agents. Use /agents command.
 
@@ -77,7 +77,7 @@ Commands: User-invoked via /command. Parameters: $ARGUMENTS, $1, $2. File refs: 
 
 Hooks: Events in settings.json. PreToolUse, PostToolUse, SessionStart, SessionEnd, PreCompact, Notification.
 
-Memory: .pi/generated/source/CLAUDE.md files + .pi/generated/source/rules/*.md. Enterprise to Project to User hierarchy. @import syntax.
+Memory: CLAUDE.md files + .claude/rules/*.md. Enterprise to Project to User hierarchy. @import syntax.
 
 Settings: 6-level hierarchy. Managed to file-managed to CLI to local to shared to user.
 
@@ -212,7 +212,7 @@ Phase 4 Commit: Descriptive messages, logical groupings, clean history
 ### Essential Sub-agents
 
 - spec-builder: EARS specifications
-- manager-ddd: DDD execution
+- manager-develop: DDD execution
 - expert-security: Security analysis
 - expert-backend: API development
 - expert-frontend: UI implementation
@@ -243,7 +243,7 @@ For detailed patterns and working examples, see the reference directory.
 
 Version History:
 
-- v5.0.0 (2026-01-11): Converted to narrative format per .pi/generated/source/CLAUDE.md Documentation Standards
+- v5.0.0 (2026-01-11): Converted to narrative format per CLAUDE.md Documentation Standards
 - v4.0.0 (2026-01-06): Added plugins, sandboxing, headless, statusline, dev containers, CLI reference, advanced patterns
 - v3.0.0 (2025-12-06): Added progressive disclosure, sub-agent details, integration patterns
 - v2.0.0 (2025-11-26): Initial comprehensive release
@@ -255,7 +255,7 @@ Version History:
 |---|---|
 | "I will use Bash sed instead of Edit, it is faster" | Edit is the preferred tool for accuracy and review. Bash sed errors are silent and hard to trace. |
 | "This hook does not need a timeout, it finishes quickly" | Hooks without timeouts can hang the entire session. Always set an explicit timeout. |
-| "I can put all logic in .pi/generated/source/CLAUDE.md, rules are overkill" | .pi/generated/source/CLAUDE.md has a 40K character limit. Rules load conditionally and scale without bloating the prompt. |
+| "I can put all logic in CLAUDE.md, rules are overkill" | CLAUDE.md has a 40K character limit. Rules load conditionally and scale without bloating the prompt. |
 | "Settings.json changes are low risk" | Incorrect settings.json breaks hooks, permissions, and model routing. Validate the JSON after every edit. |
 | "I will skip progressive disclosure, all content is needed" | Loading 5K tokens for every skill wastes 67% of context. Level 1 metadata is sufficient for routing. |
 | "This skill does not need allowed-tools, Claude will figure it out" | Missing allowed-tools means the skill silently inherits all tools. Explicit is safer than implicit. |
@@ -265,7 +265,7 @@ Version History:
 <!-- moai:evolvable-start id="red-flags" -->
 ## Red Flags
 
-- .pi/generated/source/CLAUDE.md exceeds 40,000 characters
+- CLAUDE.md exceeds 40,000 characters
 - Hook registered in settings.json without a corresponding script file
 - Skill frontmatter uses space-separated allowed-tools instead of comma-separated
 - Agent definition uses YAML array for tools instead of CSV string
@@ -277,9 +277,9 @@ Version History:
 <!-- moai:evolvable-start id="verification" -->
 ## Verification
 
-- [ ] .pi/generated/source/CLAUDE.md character count is under 40,000 (show wc -c output)
+- [ ] CLAUDE.md character count is under 40,000 (show wc -c output)
 - [ ] settings.json is valid JSON (show json validation output)
-- [ ] Every hook in settings.json has a matching script file in .pi/generated/source/hooks/
+- [ ] Every hook in settings.json has a matching script file in .claude/hooks/
 - [ ] All skill frontmatter uses CSV format for allowed-tools
 - [ ] Agent frontmatter uses CSV for tools and YAML array for skills
 - [ ] All metadata values in skill frontmatter are quoted strings

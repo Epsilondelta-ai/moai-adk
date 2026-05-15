@@ -2,7 +2,7 @@
 name: moai-workflow-run
 description: >
   DDD/TDD implementation workflow for SPEC requirements. Second step
-  of the Plan-Run-Sync workflow. Routes to manager-ddd or manager-tdd based
+  of the Plan-Run-Sync workflow. Routes to manager-develop based
   on quality.yaml development_mode setting.
 user-invocable: false
 metadata:
@@ -21,7 +21,7 @@ progressive_disclosure:
 # MoAI Extension: Triggers
 triggers:
   keywords: ["run", "implement", "build", "create", "develop", "code"]
-  agents: ["manager-ddd", "manager-tdd", "manager-strategy", "manager-quality", "manager-git"]
+  agents: ["manager-develop", "manager-strategy", "manager-quality", "manager-git"]
   phases: ["run"]
 ---
 
@@ -31,7 +31,7 @@ triggers:
 
 Implement SPEC requirements using the configured development methodology.
 
-For methodology details (DDD ANALYZE-PRESERVE-IMPROVE and TDD RED-GREEN-REFACTOR cycles, success criteria, brownfield enhancement), see: .pi/generated/source/rules/moai/workflow/spec-workflow.md (Run Phase section)
+For methodology details (DDD ANALYZE-PRESERVE-IMPROVE and TDD RED-GREEN-REFACTOR cycles, success criteria, brownfield enhancement), see: .claude/rules/moai/workflow/spec-workflow.md (Run Phase section)
 
 ## Scope
 
@@ -208,7 +208,7 @@ Anti-patterns that bypass worktree isolation:
 "Run: go test ./..."
 ```
 
-See `.pi/generated/source/rules/moai/workflow/worktree-integration.md` for complete path rules.
+See `.claude/rules/moai/workflow/worktree-integration.md` for complete path rules.
 
 ---
 
@@ -386,7 +386,7 @@ Progress update: Append to `.moai/specs/SPEC-{ID}/progress.md`:
 - Phase 0.6 complete: memory_guard={enabled|disabled}, available_mb={N}, strategy={full|module|changed}
 ```
 
-<!-- @MX:WARN: [AUTO] Future PRs may be tempted to revert to moai-lang-* skill references here. The current rule-path mapping (post-SPEC-V3R2-WF-005) MUST remain pointing to .pi/generated/source/rules/moai/languages/<name>.md. Frontmatter `related-skills:` regressions fail TestRelatedSkillsNoLangReference (DEAD_LANG_FRONTMATTER_REFERENCE); body-prose regressions fail TestSkillBodyNoLangReference (DEAD_LANG_SKILL_REFERENCE). -->
+<!-- @MX:WARN: [AUTO] Future PRs may be tempted to revert to moai-lang-* skill references here. The current rule-path mapping (post-SPEC-V3R2-WF-005) MUST remain pointing to .claude/rules/moai/languages/<name>.md. Frontmatter `related-skills:` regressions fail TestRelatedSkillsNoLangReference (DEAD_LANG_FRONTMATTER_REFERENCE); body-prose regressions fail TestSkillBodyNoLangReference (DEAD_LANG_SKILL_REFERENCE). -->
 <!-- @MX:REASON: High-traffic section — language detection mapping is frequently referenced by agent authors who may inadvertently reintroduce moai-lang-* skill IDs. -->
 ### Phase 0.9: JIT Language Skill Detection
 
@@ -394,21 +394,21 @@ Purpose: Detect the project's primary language and prepare the appropriate langu
 
 Steps:
 1. Check project root for language indicator files:
-   - go.mod → `.pi/generated/source/rules/moai/languages/go.md` (auto-loaded via paths frontmatter)
-   - package.json with "typescript" in devDependencies → `.pi/generated/source/rules/moai/languages/typescript.md`
-   - package.json without typescript → `.pi/generated/source/rules/moai/languages/javascript.md`
-   - pyproject.toml or requirements.txt → `.pi/generated/source/rules/moai/languages/python.md`
-   - Cargo.toml → `.pi/generated/source/rules/moai/languages/rust.md`
-   - pom.xml or build.gradle → `.pi/generated/source/rules/moai/languages/java.md`
-   - build.gradle.kts → `.pi/generated/source/rules/moai/languages/kotlin.md`
-   - *.csproj or *.sln → `.pi/generated/source/rules/moai/languages/csharp.md`
-   - Gemfile → `.pi/generated/source/rules/moai/languages/ruby.md`
-   - mix.exs → `.pi/generated/source/rules/moai/languages/elixir.md`
-   - build.sbt → `.pi/generated/source/rules/moai/languages/scala.md`
-   - Package.swift → `.pi/generated/source/rules/moai/languages/swift.md`
-   - pubspec.yaml → `.pi/generated/source/rules/moai/languages/flutter.md`
-   - DESCRIPTION (with R content) → `.pi/generated/source/rules/moai/languages/r.md`
-   - CMakeLists.txt or *.cpp → `.pi/generated/source/rules/moai/languages/cpp.md`
+   - go.mod → `.claude/rules/moai/languages/go.md` (auto-loaded via paths frontmatter)
+   - package.json with "typescript" in devDependencies → `.claude/rules/moai/languages/typescript.md`
+   - package.json without typescript → `.claude/rules/moai/languages/javascript.md`
+   - pyproject.toml or requirements.txt → `.claude/rules/moai/languages/python.md`
+   - Cargo.toml → `.claude/rules/moai/languages/rust.md`
+   - pom.xml or build.gradle → `.claude/rules/moai/languages/java.md`
+   - build.gradle.kts → `.claude/rules/moai/languages/kotlin.md`
+   - *.csproj or *.sln → `.claude/rules/moai/languages/csharp.md`
+   - Gemfile → `.claude/rules/moai/languages/ruby.md`
+   - mix.exs → `.claude/rules/moai/languages/elixir.md`
+   - build.sbt → `.claude/rules/moai/languages/scala.md`
+   - Package.swift → `.claude/rules/moai/languages/swift.md`
+   - pubspec.yaml → `.claude/rules/moai/languages/flutter.md`
+   - DESCRIPTION (with R content) → `.claude/rules/moai/languages/r.md`
+   - CMakeLists.txt or *.cpp → `.claude/rules/moai/languages/cpp.md`
 2. Store the detected language rule path(s) as context for subsequent phases
 3. Language rules are auto-loaded via paths frontmatter when project files match; no explicit Skill() invocation required for language rules.
 4. If multiple languages detected (e.g., monorepo), all relevant language rules are auto-loaded
@@ -425,8 +425,8 @@ Mode Selection Rules:
 
 | Request Pattern | Detection Criteria | Execution Mode | Agents |
 |----------------|-------------------|---------------|--------|
-| Bug fix / error fix | SPEC scope ≤ 3 files, single domain | **Fix Mode** | expert-debug + expert-testing |
-| Single endpoint / function | SPEC scope ≤ 5 files, single domain | **Focused Mode** | relevant expert + expert-testing |
+| Bug fix / error fix | SPEC scope ≤ 3 files, single domain | **Fix Mode** | manager-quality + manager-develop |
+| Single endpoint / function | SPEC scope ≤ 5 files, single domain | **Focused Mode** | relevant expert + manager-develop |
 | Feature across 1 domain | SPEC scope 5-10 files, single domain | **Standard Mode** | manager-strategy + relevant expert + manager-quality |
 | Multi-domain feature | SPEC scope ≥ 10 files OR ≥ 3 domains | **Full Pipeline** | All agents (strategy + backend + frontend + testing + quality + docs) |
 | Large cross-cutting change | complexity score ≥ 7 AND --team flag | **Team Mode** | 3-4 parallel teammates |
@@ -589,18 +589,18 @@ Purpose: Scan files that will be modified during implementation to build an MX c
 
 **Skip Condition:** If target files do not exist (greenfield implementation), skip this phase.
 
-See .pi/generated/source/rules/moai/workflow/mx-tag-protocol.md for tag type definitions.
+See .claude/rules/moai/workflow/mx-tag-protocol.md for tag type definitions.
 
 ### Development Mode Routing
 
 Before Phase 2, determine the development methodology by reading `.moai/config/sections/quality.yaml`:
 
 **If development_mode is "ddd":**
-- Route all tasks to manager-ddd subagent
+- Route all tasks to manager-develop subagent
 - Use ANALYZE-PRESERVE-IMPROVE cycle (see @spec-workflow.md for details)
 
 **If development_mode is "tdd":**
-- Route all tasks to manager-tdd subagent
+- Route all tasks to manager-develop subagent
 - Use RED-GREEN-REFACTOR cycle (see @spec-workflow.md for details)
 
 ### Phase 2.0: Sprint Contract Negotiation
@@ -655,11 +655,11 @@ If no delta markers are present in the SPEC, delta processing is silently skippe
 
 ### Phase 2: Implementation (Mode-Dependent)
 
-**[HARD] Worktree Prompt Construction**: When spawning implementation agents (manager-ddd, manager-tdd) with `isolation: "worktree"`, the orchestrator MUST construct prompts using project-root-relative paths only. Do NOT embed the current working directory path in the agent prompt. See "Worktree Path Rules [HARD]" section above.
+**[HARD] Worktree Prompt Construction**: When spawning implementation agents (manager-develop) with `isolation: "worktree"`, the orchestrator MUST construct prompts using project-root-relative paths only. Do NOT embed the current working directory path in the agent prompt. See "Worktree Path Rules [HARD]" section above.
 
 #### Phase 2A: DDD Implementation (for ddd mode)
 
-Agent: manager-ddd subagent
+Agent: manager-develop subagent
 
 Input: Approved execution plan from Phase 1 plus task decomposition from Phase 1.5. Include `.moai/project/structure.md` and `.moai/project/tech.md` as onboarding context in the agent prompt so the implementation agent understands the project's architecture conventions before writing code.
 
@@ -675,7 +675,7 @@ Output: files_modified list, characterization_tests_created list, test_results (
 
 Implementation Divergence Tracking:
 
-The manager-ddd subagent must track deviations from the original SPEC plan during implementation:
+The manager-develop subagent must track deviations from the original SPEC plan during implementation:
 
 - planned_files: Files listed in plan.md that were expected to be created or modified
 - actual_files: Files actually created or modified during the DDD cycle
@@ -703,7 +703,7 @@ After each DDD IMPROVE cycle completion, compare planned vs actual:
 
 #### Phase 2B: TDD Implementation (for tdd mode)
 
-Agent: manager-tdd subagent
+Agent: manager-develop subagent
 
 Input: Approved execution plan from Phase 1 plus task decomposition from Phase 1.5. Include `.moai/project/structure.md` and `.moai/project/tech.md` as onboarding context in the agent prompt so the implementation agent understands the project's architecture conventions before writing code.
 
@@ -718,7 +718,7 @@ Output: files_created list, specification_tests_created list, test_results (all 
 
 Implementation Divergence Tracking:
 
-The manager-tdd subagent must track deviations from the original SPEC plan during implementation:
+The manager-develop subagent must track deviations from the original SPEC plan during implementation:
 
 - planned_files: Files listed in plan.md that were expected to be created
 - actual_files: Files actually created during the TDD cycle
@@ -796,7 +796,7 @@ If status is PASS or WARNING: Continue to Phase 2.8.
 
 ### Phase 2.7: Re-planning Gate Check
 
-Purpose: Detect stagnation and trigger re-assessment if implementation is stuck. See .pi/generated/source/rules/moai/workflow/spec-workflow.md for trigger conditions, communication path, and detection method.
+Purpose: Detect stagnation and trigger re-assessment if implementation is stuck. See .claude/rules/moai/workflow/spec-workflow.md for trigger conditions, communication path, and detection method.
 
 Check `.moai/specs/SPEC-{ID}/progress.md` for stagnation signals. If triggered, return structured stagnation report to MoAI for user escalation.
 
@@ -881,7 +881,7 @@ Output: review_findings per dimension, iterations_completed count, final review 
 
 ### Phase 2.9: MX Tag Update [HARD]
 
-Purpose: Update @MX code annotations for modified files. See .pi/generated/source/rules/moai/workflow/mx-tag-protocol.md for tag rules.
+Purpose: Update @MX code annotations for modified files. See .claude/rules/moai/workflow/mx-tag-protocol.md for tag rules.
 
 [HARD] This phase is MANDATORY. MoAI MUST scan all files modified during Phase 2 and verify @MX tag coverage before proceeding to Phase 3. If implementation agents did not add required tags during their work, MoAI adds them here.
 
@@ -935,9 +935,9 @@ feat(scope): description
 
 SPEC: SPEC-{ID}
 Fixes #{issue_number}
-```
 
-AI attribution policy: Do not add `Co-Authored-By` for AI models automatically. If the actual provider/model is known, add an `AI-Assisted-By: provider/model` footer after the issue/SPEC footers. If unknown, omit AI attribution. Never invent provider email addresses.
+AI-Assisted-By: provider/model
+```
 
 Output: branch_name, commits array (sha and message), files_staged count, status, issue_number (from SPEC metadata).
 
@@ -1035,11 +1035,11 @@ All of the following must be verified:
 ### Normal Flow
 **Prompt**: "/moai run SPEC-AUTH-001"
 **Expected Result**:
-- Phase 0.9: Detects Go project (go.mod) → references `.pi/generated/source/rules/moai/languages/go.md`
+- Phase 0.9: Detects Go project (go.mod) → references `.claude/rules/moai/languages/go.md`
 - Phase 0.95: SPEC has 8 files, 2 domains → Standard Mode selected
 - Phase 1: manager-strategy creates execution plan with 5 tasks
 - Decision Point: User approves plan
-- Phase 2: Implementation via manager-ddd (DDD mode)
+- Phase 2: Implementation via manager-develop (DDD mode)
 - Phase 2.5: TRUST 5 validation passes
 - Phase 3: Commits created on feature branch
 
@@ -1047,7 +1047,7 @@ All of the following must be verified:
 **Prompt**: "/moai run SPEC-BUG-042" (bug fix SPEC, 2 files affected)
 **Expected Result**:
 - Phase 0.95: SPEC has 2 files, 1 domain → Fix Mode selected
-- Directly spawns expert-debug + expert-testing
+- Directly spawns manager-quality + manager-develop
 - Minimal overhead, fast execution
 - Quality validation still runs
 

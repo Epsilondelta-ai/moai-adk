@@ -52,19 +52,19 @@ Teammates are spawned using the Agent tool with runtime overrides:
 
 ### Role Profile Reference
 
-From `.moai/config/sections/workflow.yaml` → `team.role_profiles` and `team.moai_profile_mappings`:
+From `.moai/config/sections/workflow.yaml` → `team.role_profiles`:
 
 | Profile | mode | model | isolation | Use For |
 |---------|------|-------|-----------|---------|
 | researcher | plan | haiku | none | Codebase exploration, read-only analysis |
 | analyst | plan | sonnet | none | Requirements analysis, validation |
-| architect | plan | sonnet | none | Solution design, architecture |
+| architect | plan | opus | none | Solution design, architecture |
 | implementer | acceptEdits | sonnet | worktree | Backend, frontend, full-stack code |
 | tester | acceptEdits | sonnet | worktree | Test creation, coverage validation |
 | designer | acceptEdits | sonnet | worktree | UI/UX with MCP design tools |
-| reviewer | plan | haiku | none | Code review, quality validation |
+| reviewer | plan | sonnet | none | Code review, quality validation |
 
-MoAI profile mappings for this workflow:
+MoAI profile mappings for this workflow are runtime-defined in `.pi/extensions/moai-claude-compat/src/team-runtime.ts`:
 
 | Teammate | MoAI profile to adopt |
 |---|---|

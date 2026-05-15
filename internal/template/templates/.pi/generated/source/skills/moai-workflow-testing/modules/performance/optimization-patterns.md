@@ -63,19 +63,19 @@ class CacheOptimizer:
         self.cache = {}
         self.max_size = max_size
         self.access_count = {}
-
+    
     def get(self, key):
         if key in self.cache:
             self.access_count[key] = self.access_count.get(key, 0) + 1
             return self.cache[key]
         return None
-
+    
     def set(self, key, value):
         if len(self.cache) >= self.max_size:
             lru_key = min(self.access_count, key=self.access_count.get)
             del self.cache[lru_key]
             del self.access_count[lru_key]
-
+        
         self.cache[key] = value
         self.access_count[key] = 0
 ```
@@ -189,7 +189,7 @@ def _prioritize_bottlenecks(
     self, bottlenecks: List[PerformanceBottleneck]
 ) -> List[PerformanceBottleneck]:
     severity_order = {'critical': 4, 'high': 3, 'medium': 2, 'low': 1}
-
+    
     return sorted(
         bottlenecks,
         key=lambda x: (
@@ -210,7 +210,7 @@ def _create_optimization_execution_order(
     type_groups = defaultdict(list)
     for i, bottleneck in enumerate(bottlenecks):
         type_groups[bottleneck.optimization_type].append(i)
-
+    
     execution_order = []
     type_order = [
         OptimizationType.ALGORITHM_IMPROVEMENT,
@@ -221,11 +221,11 @@ def _create_optimization_execution_order(
         OptimizationType.I_O_OPTIMIZATION,
         OptimizationType.DATABASE_OPTIMIZATION
     ]
-
+    
     for opt_type in type_order:
         if opt_type in type_groups:
             execution_order.extend(type_groups[opt_type])
-
+    
     return execution_order
 ```
 
@@ -242,12 +242,12 @@ def _assess_optimization_risk(
         OptimizationType.DATA_STRUCTURE_CHANGE,
         OptimizationType.CONCURRENCY
     }
-
+    
     high_risk_count = sum(
         1 for b in bottlenecks
         if b.optimization_type in high_risk_types and b.impact_score > 0.3
     )
-
+    
     if high_risk_count > 3:
         return "high"
     elif high_risk_count > 1:
@@ -267,21 +267,21 @@ def _identify_optimization_prerequisites(
         "Ensure version control with current implementation",
         "Set up performance testing environment"
     ]
-
+    
     optimization_types = set(b.optimization_type for b in bottlenecks)
-
+    
     if OptimizationType.CONCURRENCY in optimization_types:
         prerequisites.extend([
             "Review thread safety and shared resource access",
             "Implement proper synchronization mechanisms"
         ])
-
+    
     if OptimizationType.DATABASE_OPTIMIZATION in optimization_types:
         prerequisites.extend([
             "Create database backup before optimization",
             "Set up database performance monitoring"
         ])
-
+    
     return prerequisites
 ```
 
@@ -313,19 +313,19 @@ class IntelligentOptimizer(PerformanceProfiler):
     ) -> Dict[str, Any]:
         if not self.context7:
             return self._get_rule_based_suggestions(bottlenecks)
-
+        
         optimization_patterns = await self.context7.get_library_docs(
             context7_library_id="/performance/python-profiling",
             topic="advanced performance optimization patterns 2025",
             tokens=5000
         )
-
+        
         algorithm_patterns = await self.context7.get_library_docs(
             context7_library_id="/algorithms/python",
             topic="algorithm optimization big-O complexity reduction",
             tokens=3000
         )
-
+        
         return await self._generate_ai_suggestions(
             bottlenecks, optimization_patterns, algorithm_patterns, codebase_context
         )
@@ -339,21 +339,21 @@ def _suggest_algorithm_improvement(
 ) -> Dict[str, Any]:
     function_name = bottleneck.function_name.lower()
     suggestions = []
-
+    
     if any(keyword in function_name for keyword in ["search", "find"]):
         suggestions.extend([
             "Consider using binary search for sorted data",
             "Implement hash-based lookup for O(1) average case",
             "Use trie structures for prefix searches"
         ])
-
+    
     elif any(keyword in function_name for keyword in ["sort", "order"]):
         suggestions.extend([
             "Consider using Timsort (Python's built-in sort)",
             "Use radix sort for uniform integer data",
             "Implement bucket sort for uniformly distributed data"
         ])
-
+    
     return {
         'bottleneck': bottleneck.function_name,
         'suggestions': suggestions,

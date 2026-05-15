@@ -2,7 +2,7 @@
 name: researcher
 description: |
   Active self-research agent that optimizes moai-adk components
-  (skills, agents, rules, .pi/generated/source/CLAUDE.md) through iterative experimentation
+  (skills, agents, rules, CLAUDE.md) through iterative experimentation
   with binary eval criteria. Uses worktree isolation for safe mutation.
   Implements the autoresearch pattern adapted for multi-tier component types.
   MUST INVOKE when ANY of these keywords appear in user request:

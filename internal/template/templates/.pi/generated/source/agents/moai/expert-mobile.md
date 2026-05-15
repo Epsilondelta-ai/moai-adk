@@ -22,13 +22,13 @@ hooks:
     - matcher: "Write|Edit"
       hooks:
         - type: command
-          command: "\"$CLAUDE_PROJECT_DIR/.pi/generated/source/hooks/moai/handle-agent-hook.sh\" mobile-validation"
+          command: "\"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-agent-hook.sh\" mobile-validation"
           timeout: 5
   PostToolUse:
     - matcher: "Write|Edit"
       hooks:
         - type: command
-          command: "\"$CLAUDE_PROJECT_DIR/.pi/generated/source/hooks/moai/handle-agent-hook.sh\" mobile-verification"
+          command: "\"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-agent-hook.sh\" mobile-verification"
           timeout: 15
 ---
 
@@ -102,7 +102,7 @@ Key technologies: Dart, Flutter SDK, Provider/Riverpod/BLoC, go_router, Dio, Pla
 - Backend API design: Delegate to expert-backend
 - Security audit: Delegate to expert-security
 - DevOps deployment: Delegate to expert-devops
-- DDD implementation: Delegate to manager-ddd
+- DDD implementation: Delegate to manager-develop
 
 ## Escalation Protocol
 
@@ -118,14 +118,14 @@ Anti-pattern: silent absorption of out-of-scope work. Maintain Scope Discipline 
 
 ## Harness Era: Sub-Skill Generation
 
-This agent does NOT bundle full iOS/Android/RN/Flutter sub-skills inline. Instead, use `builder-skill` to dynamically generate deep sub-skills when the project requires them:
+This agent does NOT bundle full iOS/Android/RN/Flutter sub-skills inline. Instead, use `builder-harness` (artifact_type=skill) to dynamically generate deep sub-skills when the project requires them:
 
 ```
 # Generate iOS-specific deep skill
-Use the builder-skill subagent to create moai-framework-ios with SwiftUI, UIKit, Core Data patterns.
+Use the builder-harness subagent (artifact_type=skill) to create moai-framework-ios with SwiftUI, UIKit, Core Data patterns.
 
 # Generate Flutter deep skill
-Use the builder-skill subagent to create moai-framework-flutter-deep with Riverpod, go_router, Dio, Platform Channels.
+Use the builder-harness subagent (artifact_type=skill) to create moai-framework-flutter-deep with Riverpod, go_router, Dio, Platform Channels.
 ```
 
 This keeps `expert-mobile` lean and allows harness-generated skills to be tailored to project-specific iOS/Android/RN/Flutter versions and patterns.

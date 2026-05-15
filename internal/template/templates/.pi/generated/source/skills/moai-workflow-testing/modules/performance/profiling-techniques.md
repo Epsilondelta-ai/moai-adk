@@ -70,7 +70,7 @@ class PerformanceProfiler:
 
     def stop_profiling(self) -> Dict[str, Any]:
         results = {}
-
+        
         if tracemalloc.is_tracing():
             current, peak = tracemalloc.get_traced_memory()
             tracemalloc.stop()
@@ -170,7 +170,7 @@ class RealTimeMonitor:
                     memory_percent=process.memory_percent(),
                     open_files=len(process.open_files()),
                     threads=process.num_threads(),
-                    context_switches=process.num_ctx_switches().voluntary +
+                    context_switches=process.num_ctx_switches().voluntary + 
                                    process.num_ctx_switches().involuntary
                 )
 
@@ -437,13 +437,13 @@ async def detect_bottlenecks(
 ) -> List[PerformanceBottleneck]:
     if not context7_patterns:
         return await self._rule_based_detection(profile_results)
-
+    
     optimization_patterns = await self.context7.get_library_docs(
         context7_library_id="/performance/python-profiling",
         topic="advanced performance optimization patterns 2025",
         tokens=5000
     )
-
+    
     return await self._ai_enhanced_detection(profile_results, optimization_patterns)
 ```
 

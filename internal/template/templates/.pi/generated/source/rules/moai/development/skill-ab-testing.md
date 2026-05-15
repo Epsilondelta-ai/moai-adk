@@ -1,9 +1,9 @@
 ---
 description: "A/B testing methodology for skill quality validation and iteration"
-paths: ".pi/generated/source/skills/**/SKILL.md,.pi/generated/source/skills/**/*.md"
+paths: ".claude/skills/**/SKILL.md,.claude/skills/**/*.md"
 ---
 
-<!-- Source: revfactory/harness — Apache License 2.0 — see .pi/generated/source/rules/moai/NOTICE.md -->
+<!-- Source: revfactory/harness — Apache License 2.0 — see .claude/rules/moai/NOTICE.md -->
 
 # Skill A/B Testing Methodology
 

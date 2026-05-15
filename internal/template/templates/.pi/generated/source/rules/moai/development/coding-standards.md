@@ -1,5 +1,5 @@
 ---
-paths: ".claude/**/*.md,.claude/**/*.yaml,.moai/**/*.yaml,.pi/generated/source/CLAUDE.md"
+paths: ".claude/**/*.md,.claude/**/*.yaml,.moai/**/*.yaml,CLAUDE.md"
 ---
 
 # Coding Standards
@@ -9,11 +9,11 @@ MoAI-specific coding standards. General coding conventions are not included as C
 ## Language Policy
 
 All instruction documents must be in English:
-- .pi/generated/source/CLAUDE.md
+- CLAUDE.md
 - Agent definitions (.claude/agents/**/*.md)
 - Slash commands (.claude/commands/**/*.md)
-- Skill definitions (.pi/generated/source/skills/**/*.md)
-- Hook scripts (.pi/generated/source/hooks/**/*.py, *.sh)
+- Skill definitions (.claude/skills/**/*.md)
+- Hook scripts (.claude/hooks/**/*.py, *.sh)
 - Configuration files (.moai/config/**/*.yaml)
 
 User-facing documentation may use multiple languages:
@@ -22,12 +22,12 @@ User-facing documentation may use multiple languages:
 
 ## File Size Limits
 
-.pi/generated/source/CLAUDE.md must not exceed 40,000 characters.
+CLAUDE.md must not exceed 40,000 characters.
 
 When approaching limit:
-- Move detailed content to .pi/generated/source/rules/moai/
+- Move detailed content to .claude/rules/moai/
 - Use @import references
-- Keep only core identity and hard rules in .pi/generated/source/CLAUDE.md
+- Keep only core identity and hard rules in CLAUDE.md
 
 ## Content Restrictions
 
@@ -51,7 +51,7 @@ All slash command files MUST be thin routing wrappers (under 20 LOC body).
 
 Rules:
 - Commands route to skills via `Skill("moai")` -- they never contain workflow logic
-- All workflow logic belongs in `.pi/generated/source/skills/moai/workflows/` or skill body
+- All workflow logic belongs in `.claude/skills/moai/workflows/` or skill body
 - YAML frontmatter must include: description, argument-hint, allowed-tools (CSV string)
 - Root commands may contain router tables but no implementation logic
 

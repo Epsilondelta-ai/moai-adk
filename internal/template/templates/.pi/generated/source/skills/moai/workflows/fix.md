@@ -22,7 +22,7 @@ progressive_disclosure:
 # MoAI Extension: Triggers
 triggers:
   keywords: ["fix", "auto-fix", "error", "lint", "diagnostic", "lsp", "type error"]
-  agents: ["expert-debug", "expert-backend", "expert-frontend", "expert-refactoring"]
+  agents: ["manager-quality", "expert-backend", "expert-frontend", "expert-refactoring"]
   phases: ["fix"]
 ---
 
@@ -132,7 +132,7 @@ Normalize all scanner output into a unified issue record format regardless of la
 
 This normalization enables language-agnostic fix agents to work without language-specific logic.
 
-Language auto-detection uses indicator files and covers all 16 MoAI-supported languages equally (C++, C#, Elixir, Flutter, Go, Java, JavaScript, Kotlin, PHP, Python, R, Ruby, Rust, Scala, Swift, TypeScript). Each language has its own marker files (for example `go.mod` for Go, `pyproject.toml` for Python, `tsconfig.json` for TypeScript, `Cargo.toml` for Rust, `pubspec.yaml` for Flutter); the scanner inspects project root and activates the corresponding toolchain. See `.pi/generated/source/skills/moai/workflows/sync.md` Phase 0.6.1 for the complete Language Detection table.
+Language auto-detection uses indicator files and covers all 16 MoAI-supported languages equally (C++, C#, Elixir, Flutter, Go, Java, JavaScript, Kotlin, PHP, Python, R, Ruby, Rust, Scala, Swift, TypeScript). Each language has its own marker files (for example `go.mod` for Go, `pyproject.toml` for Python, `tsconfig.json` for TypeScript, `Cargo.toml` for Rust, `pubspec.yaml` for Flutter); the scanner inspects project root and activates the corresponding toolchain. See `.claude/skills/moai/workflows/sync.md` Phase 0.6.1 for the complete Language Detection table.
 
 Error handling: If any scanner fails, continue with results from successful scanners. Note the failed scanner in the report.
 
@@ -166,7 +166,7 @@ Before applying fixes, scan target files for existing @MX tags to understand con
 
 **Skip Condition:** If no @MX tags found in target files, proceed directly to Phase 3.
 
-See .pi/generated/source/rules/moai/workflow/mx-tag-protocol.md for tag type definitions.
+See .claude/rules/moai/workflow/mx-tag-protocol.md for tag type definitions.
 
 ## Phase 3: Auto-Fix
 
@@ -177,7 +177,7 @@ See .pi/generated/source/rules/moai/workflow/mx-tag-protocol.md for tag type def
 Agent selection by fix level:
 - Level 1 (import, formatting): expert-backend or expert-frontend subagent
 - Level 2 (rename, type): expert-refactoring subagent
-- Level 3 (logic, API): expert-debug or expert-backend subagent (after user approval)
+- Level 3 (logic, API): manager-quality or expert-backend subagent (after user approval)
 
 Execution order:
 - Level 1 fixes applied automatically via agent delegation
@@ -230,7 +230,7 @@ Generate MX_TAG_REPORT section in fix report:
 - Files with new @MX:WARN requiring review
 ```
 
-See .pi/generated/source/rules/moai/workflow/mx-tag-protocol.md for complete tag rules.
+See .claude/rules/moai/workflow/mx-tag-protocol.md for complete tag rules.
 
 ## Phase 4.6: Dead Code Cleanup (Optional)
 
@@ -250,7 +250,7 @@ After fixes are applied and verified, scan for dead code exposed by the fixes:
 
 ## Safe Development Protocol
 
-All fixes follow .pi/generated/source/CLAUDE.md Section 7 Safe Development Protocol:
+All fixes follow CLAUDE.md Section 7 Safe Development Protocol:
 - Reproduction-first: Write a failing test that reproduces the bug before fixing
 - Approach-first: For Level 3+ fixes, explain approach before applying
 - Post-fix review: List potential side effects after each fix

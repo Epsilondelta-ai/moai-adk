@@ -122,12 +122,12 @@ For Node.js documentation, use context7 get library docs with nodejs/node and to
 ---
 
 
-- `.pi/generated/source/rules/moai/languages/typescript.md` for TypeScript integration and type checking with JSDoc
+- `.claude/rules/moai/languages/typescript.md` for TypeScript integration and type checking with JSDoc
 - moai-domain-backend for API design and microservices architecture
 - moai-domain-database for database integration and ORM patterns
 - moai-workflow-testing for DDD workflows and testing strategies
 - moai-foundation-quality for code quality standards
-- delegate to `expert-debug` agent for AI-powered debugging
+- delegate to `manager-quality` agent for AI-powered debugging
 
 ---
 
@@ -150,3 +150,4 @@ ESM and CommonJS Interop:
 To import CommonJS from ESM, import the default then destructure named exports from it. For dynamic import in CommonJS, use await import and destructure the default property.
 
 ---
+

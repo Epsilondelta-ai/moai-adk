@@ -128,7 +128,7 @@ Effect System Issues:
 ---
 
 
-- `.pi/generated/source/rules/moai/languages/java.md` - JVM interoperability, Spring Boot integration
+- `.claude/rules/moai/languages/java.md` - JVM interoperability, Spring Boot integration
 - moai-domain-backend - REST API, GraphQL, microservices patterns
 - moai-domain-database - Doobie, Slick, database patterns
 - moai-workflow-testing - ScalaTest, MUnit, property-based testing
@@ -142,3 +142,4 @@ For comprehensive reference materials:
 - [examples.md](examples.md) - Production-ready code: Http4s, Akka, Spark patterns
 
 ---
+

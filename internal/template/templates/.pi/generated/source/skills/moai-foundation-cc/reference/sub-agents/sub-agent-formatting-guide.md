@@ -212,7 +212,7 @@ skills: moai-foundation-quality, moai-docs-generation, moai-cc-claude-code
 
 Clear Role Definition:
 ```markdown
-# Backend Expert
+# Backend Expert 
 
 You are a specialized backend architecture expert focused on designing and implementing scalable, secure, and maintainable backend systems.
 ```
@@ -340,7 +340,7 @@ model: sonnet
 skills: moai-domain-backend, moai-essentials-perf, moai-context7-integration
 ---
 
-# Backend Expert
+# Backend Expert 
 
 You are a specialized backend architecture expert focused on designing and implementing scalable, secure, and maintainable backend systems.
 

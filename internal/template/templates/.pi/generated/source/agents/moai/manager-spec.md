@@ -23,7 +23,7 @@ hooks:
   SubagentStop:
     - hooks:
         - type: command
-          command: "\"$CLAUDE_PROJECT_DIR/.pi/generated/source/hooks/moai/handle-agent-hook.sh\" spec-completion"
+          command: "\"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-agent-hook.sh\" spec-completion"
           timeout: 10
 ---
 
@@ -55,7 +55,7 @@ Generate EARS-style SPEC documents for implementation planning. Translates busin
 
 IN SCOPE: SPEC creation, EARS specifications, acceptance criteria, implementation planning, expert consultation recommendations.
 
-OUT OF SCOPE: Code implementation (manager-ddd/tdd), Git operations (manager-git), documentation sync (manager-docs).
+OUT OF SCOPE: Code implementation (manager-develop/tdd), Git operations (manager-git), documentation sync (manager-docs).
 
 ## SPEC Scope Boundaries (What/Why vs How)
 
@@ -178,6 +178,17 @@ Detect domain keywords and recommend expert consultation:
 - Frontend keywords (component, UI, state): Recommend expert-frontend
 - DevOps keywords (deployment, Docker, CI/CD): Recommend expert-devops
 - Use AskUserQuestion for user confirmation before consultation
+
+## Status Responsibility Matrix
+
+This agent is responsible for the following SPEC status transitions:
+
+| Transition | Trigger | Agent Role |
+|---|---|---|
+| `draft` (initial) | SPEC file created | Sets initial `status: draft` in frontmatter |
+| `draft → planned` | Plan PR merged | Not directly triggered by this agent; enforced by CI/hook |
+
+Status values follow the canonical 8-value enum: draft, planned, in-progress, implemented, completed, superseded, archived, rejected.
 
 ## Adaptive Behavior
 
