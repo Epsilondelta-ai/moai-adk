@@ -91,7 +91,7 @@ SPEC/Phase tracking: `SPEC: SPEC-XXX-NNN` and `Phase: [PLAN|RUN-*|SYNC|FIX|LOOP]
 ```
 https://adk.mo.ai.kr
 
-AI-Assisted-By: provider/model
+Co-Authored-By: Claude <noreply@anthropic.com>
 ```
 
 ## Branch Management

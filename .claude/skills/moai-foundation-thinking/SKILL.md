@@ -30,7 +30,7 @@ triggers:
   agents:
     - "manager-strategy"
     - "manager-spec"
-    - "general-purpose teammates adopting codebase-researcher/manager-spec/manager-strategy profiles"
+    - "team-reader"
     - "expert-backend"
     - "expert-frontend"
     - "expert-devops"
@@ -187,9 +187,9 @@ Run Phase (/moai run):
 - Apply Deep Questioning when encountering unexpected complexity
 
 Agent Teams:
-- analyst teammate (general-purpose + manager-spec profile): Primary user of Deep Questioning framework
-- architect teammate (general-purpose + manager-strategy profile): Primary user of Critical Evaluation framework
-- researcher teammate (general-purpose + codebase-researcher profile): Uses all three for comprehensive analysis
+- team-reader (analyst role): Primary user of Deep Questioning framework
+- team-reader (architect role): Primary user of Critical Evaluation framework
+- team-reader (researcher role): Uses all three for comprehensive analysis
 
 ---
 
@@ -198,8 +198,8 @@ Agent Teams:
 Agents:
 - manager-strategy: Combined with Philosopher for full decision framework
 - manager-spec: Deep Questioning during requirement analysis
-- analyst teammate (general-purpose + manager-spec profile): Primary consumer for plan phase analysis
-- researcher teammate (general-purpose + codebase-researcher profile): Comprehensive research methodology
+- team-reader (analyst role): Primary consumer for plan phase analysis
+- team-reader (researcher role): Comprehensive research methodology
 
 Skills:
 - moai-foundation-philosopher: Complementary (Philosopher = strategic decisions, Thinking = creative analysis)
