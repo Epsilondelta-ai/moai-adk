@@ -5,7 +5,7 @@
 - 2026-04-26 (SPEC-V3R3-DESIGN-PIPELINE-001): §4 Phase Contracts table extended with Path B1 (figma-extractor) and Path B2 (pencil-mcp) rows. Version 3.3.1 → 3.4.0.
 - 2026-04-26 (SPEC-V3R3-DESIGN-FOLDER-FIX-001): §3.2 footnote 추가 — Reserved name violation은 `moai update` (update path)에서 warning + skip, `moai init` (scaffold path)에서 hard error. v3.3.0 → 3.3.1.
 - 2026-04-20 (SPEC-DESIGN-CONST-AMEND-001): Section 3 expanded to tripartite structure (3.1/3.2/3.3). Version 3.2.0 → 3.3.0 (v3.3.0). FROZEN zone extended to cover each subsection individually.
-- 2026-04-20: Relocated from `.pi/generated/source/rules/agency/constitution.md` (v3.2.0) to `.pi/generated/source/rules/moai/design/constitution.md` as part of SPEC-AGENCY-ABSORB-001 M1. Original path: `.pi/generated/source/rules/agency/constitution.md`. No content changes. FROZEN zone and EVOLVABLE zone definitions are preserved verbatim.
+- 2026-04-20: Relocated from `.claude/rules/agency/constitution.md` (v3.2.0) to `.claude/rules/moai/design/constitution.md` as part of SPEC-AGENCY-ABSORB-001 M1. Original path: `.claude/rules/agency/constitution.md`. No content changes. FROZEN zone and EVOLVABLE zone definitions are preserved verbatim.
 
 ---
 
@@ -31,7 +31,7 @@ The design system is NOT a replacement for MoAI. It is a vertical specialization
 
 The following elements are immutable and can only be changed by human developers:
 
-- [FROZEN] This constitution file (.pi/generated/source/rules/moai/design/constitution.md)
+- [FROZEN] This constitution file (.claude/rules/moai/design/constitution.md)
 - [FROZEN] Section 3.1 Brand Context content
 - [FROZEN] Section 3.2 Design Brief content
 - [FROZEN] Section 3.3 Relationship rules

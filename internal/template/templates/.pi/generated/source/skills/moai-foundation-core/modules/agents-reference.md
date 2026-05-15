@@ -265,7 +265,7 @@ The following skills are organized for token efficiency and domain specializatio
 
 | Category | Skills | Purpose |
 |----------|--------|---------|
-| Language (Rules) | `.pi/generated/source/rules/moai/languages/*.md` (16 files) | Language-specific guidance via paths frontmatter auto-load — not skills |
+| Language (Rules) | `.claude/rules/moai/languages/*.md` (16 files) | Language-specific guidance via paths frontmatter auto-load — not skills |
 | Platform (Separated) | moai-platform-auth, moai-platform-database, moai-platform-deploy | Domain-specific platform skills for 30-50% token savings |
 | Foundation | moai-foundation-core, moai-foundation-cc, moai-foundation-context, moai-foundation-quality | Core principles and quality gates |
 | Workflow | moai-workflow-spec, moai-workflow-project, moai-workflow-testing, moai-workflow-jit-docs | Workflow automation and testing |
@@ -275,11 +275,11 @@ Language Rules Selection Guide (auto-loaded via paths frontmatter, per SPEC-V3R2
 
 | Language Rule | Coverage | Auto-loads When |
 |---------------|----------|-----------------|
-| `.pi/generated/source/rules/moai/languages/python.md` | Python 3.13, FastAPI, Django, pytest | `**/*.py`, `**/pyproject.toml` present |
-| `.pi/generated/source/rules/moai/languages/typescript.md` | TypeScript 5.9, React 19, Next.js 16 | `**/*.ts`, `**/*.tsx` present |
-| `.pi/generated/source/rules/moai/languages/go.md` | Go 1.23, Fiber | `**/*.go`, `**/go.mod` present |
-| `.pi/generated/source/rules/moai/languages/java.md` | Java 21, Spring | `**/pom.xml`, `**/build.gradle` present |
-| `.pi/generated/source/rules/moai/languages/kotlin.md` | Kotlin 2.0, Android | `**/*.kt` present |
+| `.claude/rules/moai/languages/python.md` | Python 3.13, FastAPI, Django, pytest | `**/*.py`, `**/pyproject.toml` present |
+| `.claude/rules/moai/languages/typescript.md` | TypeScript 5.9, React 19, Next.js 16 | `**/*.ts`, `**/*.tsx` present |
+| `.claude/rules/moai/languages/go.md` | Go 1.23, Fiber | `**/*.go`, `**/go.mod` present |
+| `.claude/rules/moai/languages/java.md` | Java 21, Spring | `**/pom.xml`, `**/build.gradle` present |
+| `.claude/rules/moai/languages/kotlin.md` | Kotlin 2.0, Android | `**/*.kt` present |
 
 Platform Skills Selection Guide:
 
@@ -289,7 +289,7 @@ Platform Skills Selection Guide:
 | moai-platform-database | Supabase, Neon, Convex, Firestore | Database platform integration |
 | moai-platform-deploy | Vercel, Railway | Deployment and CI/CD |
 
-Note: Language guidance lives in rules (`.pi/generated/source/rules/moai/languages/*.md`), not skills. These rules auto-load via paths frontmatter when project files match. See SPEC-V3R2-WF-005 for the canonical decision.
+Note: Language guidance lives in rules (`.claude/rules/moai/languages/*.md`), not skills. These rules auto-load via paths frontmatter when project files match. See SPEC-V3R2-WF-005 for the canonical decision.
 
 ---
 

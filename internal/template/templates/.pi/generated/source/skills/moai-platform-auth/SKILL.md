@@ -222,7 +222,7 @@ Access up-to-date platform documentation using Context7 MCP:
 
 - moai-platform-supabase: Database with auth integration
 - moai-platform-vercel: Deployment with edge authentication
-- `.pi/generated/source/rules/moai/languages/typescript.md`: TypeScript patterns for auth SDKs (auto-loaded via paths frontmatter)
+- `.claude/rules/moai/languages/typescript.md`: TypeScript patterns for auth SDKs (auto-loaded via paths frontmatter)
 - moai-domain-backend: Backend architecture with authentication
 - moai-domain-frontend: React/Next.js frontend integration
 - moai-expert-security: Security audit and threat modeling

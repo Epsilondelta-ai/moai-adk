@@ -1,6 +1,6 @@
 ---
 name: moai-workflow-ci-autofix
-description: CI auto-fix loop skill — receives Wave 2 ci-watch failure handoff, classifies failures (mechanical vs semantic), attempts automated patch (max 3 iterations), and escalates via AskUserQuestion. HARD invocation contract in .pi/generated/source/rules/moai/workflow/ci-autofix-protocol.md.
+description: CI auto-fix loop skill — receives Wave 2 ci-watch failure handoff, classifies failures (mechanical vs semantic), attempts automated patch (max 3 iterations), and escalates via AskUserQuestion. HARD invocation contract in .claude/rules/moai/workflow/ci-autofix-protocol.md.
 version: "1.0.0"
 tools: Bash,Read
 level1_tokens: 120
@@ -11,7 +11,8 @@ triggers:
   - "T3.*loop"
   - "ci.*autofix"
 paths:
-  - ".pi/generated/source/rules/moai/workflow/ci-autofix-protocol.md"
+  - ".claude/rules/moai/workflow/ci-autofix-protocol.md"
+user-invocable: false
 ---
 
 # CI Auto-Fix Loop (`moai-workflow-ci-autofix`)
@@ -277,7 +278,7 @@ printf '\n## Iteration %s\n\n- **classification**: %s\n- **sub_class**: %s\n- **
 - `manager-quality` → 실패 로그 진단 + patch 제안
 - `scripts/ci-autofix/classify.sh` → mechanical vs semantic 분류
 - `scripts/ci-autofix/log-fetch.sh` → 실패 로그 + PR diff 캡처
-- `.pi/generated/source/rules/moai/workflow/ci-autofix-protocol.md` → HARD invocation contract
+- `.claude/rules/moai/workflow/ci-autofix-protocol.md` → HARD invocation contract
 
 <!-- moai:evolvable-start id="rationalizations" -->
 ## Common Rationalizations

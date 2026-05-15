@@ -1,7 +1,7 @@
 ---
 description: CI auto-fix loop protocol — HARD invocation contract for moai-workflow-ci-autofix skill. Auto-loaded when the ci-autofix skill is active.
 paths:
-  - ".pi/generated/source/skills/moai-workflow-ci-autofix/SKILL.md"
+  - ".claude/skills/moai-workflow-ci-autofix/SKILL.md"
 ---
 
 # CI Auto-Fix Protocol Rule

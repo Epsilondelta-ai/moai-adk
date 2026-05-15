@@ -9,8 +9,6 @@ SPEC-V3R3-DESIGN-PIPELINE-001: REQ-DPL-005, REQ-DPL-008 (Phase 2 — Workflow Ro
 
 ## Mode Dispatch (Multi-Mode Router)
 
-<!-- @MX:NOTE - Multi-Mode Router per SPEC-V3R2-WF-003 REQ-WF003-009, 013; --mode {autopilot,import,team} dispatch with Path B1/B2 preserved under default invocation. See spec-workflow.md#mode-dispatch-cross-reference. -->
-
 Per SPEC-V3R2-WF-003, `/moai design` participates in the `--mode` axis with 4 valid values: `autopilot`, `import`, `team`, `pipeline`. Each value selects a distinct execution path. Note that the design value set differs from `/moai run` (uses `import` instead of `loop`), but the precedence rules and sentinel keys are identical.
 
 ### Mode Values
@@ -33,7 +31,7 @@ This skill emits the same sentinel error keys as `/moai run` for consistency. CI
 
 ### Cross-Reference
 
-Mode precedence (CLI `--mode` > `workflow.default_mode` config > harness auto), harness-based default selection, the silent downgrade behavior for auto-resolved `team` (REQ-WF003-012), and the `MODE_TEAM_UNAVAILABLE` sentinel for explicit `--mode team` requests are documented in `.pi/generated/source/skills/moai/workflows/run.md` § Mode Dispatch (Multi-Mode Router). The same rules apply to `/moai design`. Refer to that section for the resolver pseudocode and team prerequisite check; do not duplicate.
+Mode precedence (CLI `--mode` > `workflow.default_mode` config > harness auto), harness-based default selection, the silent downgrade behavior for auto-resolved `team` (REQ-WF003-012), and the `MODE_TEAM_UNAVAILABLE` sentinel for explicit `--mode team` requests are documented in `.claude/skills/moai/workflows/run.md` § Mode Dispatch (Multi-Mode Router). The same rules apply to `/moai design`. Refer to that section for the resolver pseudocode and team prerequisite check; do not duplicate.
 
 See [Subcommand Classification matrix](../../rules/moai/workflow/spec-workflow.md#subcommand-classification) for the cross-skill mode dispatch contract.
 
@@ -94,7 +92,7 @@ If `.moai/design/path-selection.json` exists (written by `internal/design/pipeli
 
 Use AskUserQuestion to present the three design paths.
 
-**Option order** (.pi/generated/source/CLAUDE.md §8: recommended-first rule):
+**Option order** (CLAUDE.md §8: recommended-first rule):
 
 Option 1 (Recommended): Path A (Claude Design)
 - "Claude Design handoff bundle import (most stable, recommended for new users)"

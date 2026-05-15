@@ -23,13 +23,13 @@ hooks:
     - matcher: "Write|Edit"
       hooks:
         - type: command
-          command: "\"$CLAUDE_PROJECT_DIR/.pi/generated/source/hooks/moai/handle-agent-hook.sh\" frontend-validation"
+          command: "\"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-agent-hook.sh\" frontend-validation"
           timeout: 5
   PostToolUse:
     - matcher: "Write|Edit"
       hooks:
         - type: command
-          command: "\"$CLAUDE_PROJECT_DIR/.pi/generated/source/hooks/moai/handle-agent-hook.sh\" frontend-verification"
+          command: "\"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-agent-hook.sh\" frontend-verification"
           timeout: 15
 ---
 
@@ -116,7 +116,7 @@ Create `.moai/docs/frontend-architecture-{SPEC-ID}.md` with component hierarchy,
 
 - expert-backend: API contract (OpenAPI/GraphQL), auth flow, CORS
 - expert-devops: Deployment platform (Vercel, Netlify), env vars, build strategy
-- manager-ddd: Component test structure, mock strategy (MSW), coverage
+- manager-develop: Component test structure, mock strategy (MSW), coverage
 
 ## DTCG Validator Integration
 

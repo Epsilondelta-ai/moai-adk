@@ -21,7 +21,7 @@ hooks:
   SubagentStop:
     - hooks:
         - type: command
-          command: "\"$CLAUDE_PROJECT_DIR/.pi/generated/source/hooks/moai/handle-agent-hook.sh\" evaluator-completion"
+          command: "\"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-agent-hook.sh\" evaluator-completion"
           timeout: 10
 ---
 
@@ -91,7 +91,7 @@ The "Evaluation Dimensions" table above reflects the built-in default profile. W
 ## Sprint Contract Negotiation (Phase 2.0, thorough only)
 
 When invoked for contract negotiation before implementation:
-1. Review implementation plan from manager-ddd/tdd
+1. Review implementation plan from manager-develop/tdd
 2. Identify missing edge cases, untested scenarios, security gaps
 3. Produce contract.md with agreed Done criteria and hard thresholds
 4. Maximum 2 negotiation rounds
@@ -106,6 +106,49 @@ When invoked for contract negotiation before implementation:
 - Sub-agent: Invoked via Agent(subagent_type="evaluator-active")
 - Team: Reviewer role teammate receives evaluation task via SendMessage
 - CG: Leader (Claude) performs evaluation directly without spawning agent
+
+## HRN-003 Hierarchical Scoring Protocol
+
+When `harness.yaml` has `evaluator_mode: hierarchical` (SPEC-V3R2-HRN-003), scoring MUST follow the
+4-dimension x sub-criteria model:
+
+### Dimension Enum (FROZEN — design-constitution §12 Mechanism 3)
+
+Exactly 4 canonical dimensions: `Functionality`, `Security`, `Craft`, `Consistency`.
+Non-canonical dimension names in profiles are loaded as best-effort (unknown dims skipped).
+
+### Sub-Criterion Scoring
+
+Each dimension has N sub-criteria. Scores MUST use canonical anchors: 0.25, 0.50, 0.75, 1.00.
+Intermediate values are rejected (ErrFlatScoreCardProhibited).
+
+### Aggregation
+
+- Default: `min` aggregation per dimension (REQ-HRN-003-007)
+- Optional: `mean` aggregation enabled per profile (REQ-HRN-003-015)
+- Profile field: `aggregation: min | mean`
+
+### Must-Pass Firewall (FROZEN)
+
+Per design-constitution §12 Mechanism 3: dimensions in `must_pass_dimensions` (default:
+Functionality + Security) must meet their pass_threshold independently. A failing must-pass
+dimension causes overall FAIL regardless of other dimension scores.
+
+### Sprint Contract Integration
+
+Sprint Contract YAML at `.moai/sprints/{spec-id}/contract.yaml` carries criterion state:
+- `passed`: criterion met in a previous iteration (no regression allowed)
+- `failed`: criterion did not meet threshold
+- `refined`: expectation revised based on feedback
+- `new`: added in current iteration
+
+NEVER include scoring rationale, prior iteration verdicts, or reasoning traces in the contract
+(HRN-002 §11.4.1 fresh-judgment constraint).
+
+### Rubric Citation Requirement
+
+Every sub-criterion score MUST cite the canonical anchor description from the active profile's
+Scoring Rubric section. Uncited scores are rejected (ErrRubricCitationMissing).
 
 ## Language
 

@@ -1,5 +1,5 @@
 ---
-paths: "**/.pi/generated/source/skills/**"
+paths: "**/.claude/skills/**"
 ---
 
 # Skill Authoring
@@ -229,8 +229,8 @@ Skills can exist at multiple levels. When the same name exists across levels, hi
 | Priority | Location | Path | Scope |
 |----------|----------|------|-------|
 | 1 (highest) | Enterprise | Per managed settings | All org users |
-| 2 | Personal | ~/.pi/generated/source/skills/name/SKILL.md | All projects |
-| 3 | Project | .pi/generated/source/skills/name/SKILL.md | This project |
+| 2 | Personal | ~/.claude/skills/name/SKILL.md | All projects |
+| 3 | Project | .claude/skills/name/SKILL.md | This project |
 | 4 (lowest) | Plugin | plugin/skills/name/SKILL.md | Where enabled (uses plugin-name:skill-name namespace) |
 
 ## Best Practices
@@ -254,11 +254,11 @@ Skills can exist at multiple levels. When the same name exists across levels, hi
 <!-- @MX:REASON: fan_in=N — this section is the single source of truth for language vs skill classification; consulted by every skill author and plan-auditor on every language-related SPEC. -->
 
 Per SPEC-V3R2-WF-005, the 16 supported languages live as **rules** under
-`.pi/generated/source/rules/moai/languages/*.md`, never as skills.
+`.claude/rules/moai/languages/*.md`, never as skills.
 
 - **No `moai-lang-<name>` skill** may be created. Any PR adding such a
   skill directory triggers `LANG_AS_SKILL_FORBIDDEN` in CI.
-- **Canonical location**: `.pi/generated/source/rules/moai/languages/<name>.md` for all
+- **Canonical location**: `.claude/rules/moai/languages/<name>.md` for all
   16 supported languages: `cpp`, `csharp`, `elixir`, `flutter`, `go`,
   `java`, `javascript`, `kotlin`, `php`, `python`, `r`, `ruby`, `rust`,
   `scala`, `swift`, `typescript`. Canonical Dart name is `flutter` per
@@ -269,7 +269,7 @@ Per SPEC-V3R2-WF-005, the 16 supported languages live as **rules** under
   language-scoped guidance; keyword-based skill activation is the wrong
   abstraction for files-on-disk language detection.
 - **Adding a 17th language**: create a new `.md` file under
-  `.pi/generated/source/rules/moai/languages/` with a `paths:` frontmatter; never a new
+  `.claude/rules/moai/languages/` with a `paths:` frontmatter; never a new
   skill. A reversal of this decision requires a new SPEC with an atomic
   migration plan covering all languages (no partial adoption).
 - **Cross-language abstraction**: when guidance applies across languages
@@ -279,6 +279,6 @@ Per SPEC-V3R2-WF-005, the 16 supported languages live as **rules** under
 - **CI guard**: `internal/template/lang_boundary_audit_test.go` enforces
   this principle.
 
-See `.pi/generated/source/rules/moai/languages/*.md` (16 files) for the canonical
+See `.claude/rules/moai/languages/*.md` (16 files) for the canonical
 per-language guidance, and `CLAUDE.local.md` §15 for the 16-language
 neutrality contract.

@@ -180,7 +180,7 @@ Hooks Setup:
  "hooks": [
  {
  "type": "command",
- "command": ".pi/generated/source/hooks/block-rm.sh",
+ "command": ".claude/hooks/block-rm.sh",
  "timeout": 10
  }
  ]
@@ -192,7 +192,7 @@ Hooks Setup:
  "hooks": [
  {
  "type": "command",
- "command": "\"$CLAUDE_PROJECT_DIR\"/.pi/generated/source/hooks/lint-check.sh",
+ "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/lint-check.sh",
  "timeout": 30
  }
  ]

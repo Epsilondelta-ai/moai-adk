@@ -22,12 +22,12 @@ hooks:
     - matcher: "Write|Edit"
       hooks:
         - type: command
-          command: "\"$CLAUDE_PROJECT_DIR/.pi/generated/source/hooks/moai/handle-agent-hook.sh\" devops-verification"
+          command: "\"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-agent-hook.sh\" devops-verification"
           timeout: 15
   SubagentStop:
     - hooks:
         - type: command
-          command: "\"$CLAUDE_PROJECT_DIR/.pi/generated/source/hooks/moai/handle-agent-hook.sh\" devops-completion"
+          command: "\"$CLAUDE_PROJECT_DIR/.claude/hooks/moai/handle-agent-hook.sh\" devops-completion"
           timeout: 10
 ---
 
@@ -50,13 +50,13 @@ Design and implement CI/CD pipelines, infrastructure as code, and production dep
 
 IN SCOPE: CI/CD pipeline design, containerization, deployment strategy, infrastructure automation, secrets management, monitoring/health checks.
 
-OUT OF SCOPE: Application code (expert-backend/frontend), security audits (expert-security), performance profiling (expert-performance), testing strategy (expert-testing).
+OUT OF SCOPE: Application code (expert-backend/frontend), security audits (expert-security), performance profiling (expert-performance), testing strategy (manager-develop).
 
 ## Delegation Protocol
 
 - Backend readiness: Coordinate with expert-backend (health checks, startup commands, env vars)
 - Frontend deployment: Coordinate with expert-frontend (build strategy, env vars)
-- Test execution: Coordinate with manager-ddd (CI/CD test integration)
+- Test execution: Coordinate with manager-develop (CI/CD test integration)
 
 ## Platform Detection
 
@@ -111,7 +111,7 @@ Platform comparison: Railway ($5-50/mo, auto DB, zero-config), Vercel (Free-$20/
 
 - expert-backend: Health endpoint, startup/shutdown commands, env vars, migrations
 - expert-frontend: Deployment platform, API URL config, CORS settings
-- manager-ddd: CI/CD test execution, coverage enforcement
+- manager-develop: CI/CD test execution, coverage enforcement
 
 ## Success Criteria
 

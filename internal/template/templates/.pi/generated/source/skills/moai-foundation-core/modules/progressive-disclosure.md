@@ -145,10 +145,10 @@ Implementation:
 def implement_pattern():
  # Step 1
  result1 = step_one()
-
+ 
  # Step 2
  result2 = step_two(result1)
-
+ 
  # Step 3
  return finalize(result2)
 ```
@@ -232,7 +232,7 @@ def register_user(email, password):
 # REFACTOR: Improve quality
 def register_user(email: str, password: str) -> RegistrationResult:
  """Register new user with email and password.
-
+ 
  Implements SPEC-001-REQ-01
  """
  # Validation, hashing, database operations
@@ -270,15 +270,15 @@ Implementation:
 class AdvancedPattern:
  def __init__(self):
  self.setup_complex_state()
-
+ 
  def handle_edge_case_1(self):
  # Detailed edge case handling
  pass
-
+ 
  def handle_edge_case_2(self):
  # Another edge case
  pass
-
+ 
  def optimize_performance(self):
  # Performance optimization
  pass
@@ -362,20 +362,20 @@ Overflow Handling Strategy:
 ```python
 class SKILLMDValidator:
  """Validate and enforce 500-line SKILL.md limit."""
-
+ 
  MAX_LINES = 500
-
+ 
  def validate_skill(self, skill_path: str) -> dict:
  """Validate SKILL.md compliance."""
-
+ 
  skill_file = f"{skill_path}/SKILL.md"
-
+ 
  # Count lines
  with open(skill_file) as f:
  lines = f.readlines()
-
+ 
  line_count = len(lines)
-
+ 
  if line_count > self.MAX_LINES:
  return {
  "valid": False,
@@ -384,20 +384,20 @@ class SKILLMDValidator:
  "action": "SPLIT_REQUIRED",
  "recommendation": self._generate_split_recommendation(lines)
  }
-
+ 
  return {
  "valid": True,
  "line_count": line_count,
  "remaining": self.MAX_LINES - line_count
  }
-
+ 
  def _generate_split_recommendation(self, lines: list) -> dict:
  """Generate file splitting recommendation."""
-
+ 
  sections = self._analyze_sections(lines)
-
+ 
  recommendations = []
-
+ 
  # Check Advanced Patterns section size
  advanced = sections.get("Advanced Patterns", 0)
  if advanced > 100:
@@ -406,7 +406,7 @@ class SKILLMDValidator:
  "content": "Advanced Patterns section",
  "lines_saved": advanced - 20 # Keep brief intro
  })
-
+ 
  # Check code examples
  example_lines = self._count_code_blocks(lines)
  if example_lines > 100:
@@ -415,7 +415,7 @@ class SKILLMDValidator:
  "content": "Code examples",
  "lines_saved": example_lines - 30 # Keep key examples
  })
-
+ 
  # Check reference links
  reference_lines = self._count_references(lines)
  if reference_lines > 50:
@@ -424,24 +424,24 @@ class SKILLMDValidator:
  "content": "External references",
  "lines_saved": reference_lines - 10
  })
-
+ 
  return {
  "recommendations": recommendations,
  "total_lines_saved": sum(r["lines_saved"] for r in recommendations),
  "resulting_size": len(lines) - sum(r["lines_saved"] for r in recommendations)
  }
-
+ 
  def auto_split_skill(self, skill_path: str):
  """Automatically split SKILL.md into modules."""
-
+ 
  skill_file = f"{skill_path}/SKILL.md"
-
+ 
  with open(skill_file) as f:
  content = f.read()
-
+ 
  # Extract sections
  sections = self._extract_sections(content)
-
+ 
  # Keep core sections in SKILL.md
  core_content = {
  "frontmatter": sections["frontmatter"],
@@ -450,25 +450,25 @@ class SKILLMDValidator:
  "advanced_intro": self._create_brief_intro(sections["advanced_patterns"]),
  "works_well_with": sections["works_well_with"]
  }
-
+ 
  # Move overflow to modules
  modules_dir = f"{skill_path}/modules"
  os.makedirs(modules_dir, exist_ok=True)
-
+ 
  # Advanced patterns → modules/advanced-patterns.md
  with open(f"{modules_dir}/advanced-patterns.md", "w") as f:
  f.write(sections["advanced_patterns"])
-
+ 
  # Examples → examples.md
  if "examples" in sections:
  with open(f"{skill_path}/examples.md", "w") as f:
  f.write(sections["examples"])
-
+ 
  # References → reference.md
  if "references" in sections:
  with open(f"{skill_path}/reference.md", "w") as f:
  f.write(sections["references"])
-
+ 
  # Rewrite SKILL.md with core content + cross-references
  with open(skill_file, "w") as f:
  f.write(self._assemble_core_skill(core_content))
@@ -477,15 +477,15 @@ class SKILLMDValidator:
 validator = SKILLMDValidator()
 
 # Validate skill
-result = validator.validate_skill(".pi/generated/source/skills/moai-foundation-core")
+result = validator.validate_skill(".claude/skills/moai-foundation-core")
 
 if not result["valid"]:
  print(f" SKILL.md exceeds limit: {result['line_count']} lines")
  print(f" Overflow: {result['overflow']} lines")
  print(f" Recommendation: {result['recommendation']}")
-
+ 
  # Auto-split
- validator.auto_split_skill(".pi/generated/source/skills/moai-foundation-core")
+ validator.auto_split_skill(".claude/skills/moai-foundation-core")
  print(" Skill automatically split into modules")
 ```
 
@@ -496,44 +496,44 @@ Token-Efficient Content Access:
 ```python
 class ProgressiveContentLoader:
  """Load skill content progressively based on user needs."""
-
+ 
  def __init__(self, skill_path: str):
  self.skill_path = skill_path
  self.loaded_levels = set()
-
+ 
  def load_level_1(self) -> str:
  """Load Quick Reference only (30 seconds, ~1K tokens)."""
-
+ 
  if "level_1" in self.loaded_levels:
  return # Already loaded
-
+ 
  with open(f"{self.skill_path}/SKILL.md") as f:
  content = f.read()
-
+ 
  # Extract only Quick Reference section
  quick_ref = self._extract_section(content, "Quick Reference")
-
+ 
  self.loaded_levels.add("level_1")
  return quick_ref
-
+ 
  def load_level_2(self) -> str:
  """Load Implementation Guide (~3K additional tokens)."""
-
+ 
  if "level_2" not in self.loaded_levels:
  with open(f"{self.skill_path}/SKILL.md") as f:
  content = f.read()
-
+ 
  impl_guide = self._extract_section(content, "Implementation Guide")
  self.loaded_levels.add("level_2")
  return impl_guide
-
+ 
  def load_level_3(self) -> str:
  """Load Advanced Patterns (~5K additional tokens)."""
-
+ 
  if "level_3" not in self.loaded_levels:
  # Check if in SKILL.md or split to module
  advanced_path = f"{self.skill_path}/modules/advanced-patterns.md"
-
+ 
  if os.path.exists(advanced_path):
  # Load from module
  with open(advanced_path) as f:
@@ -543,26 +543,26 @@ class ProgressiveContentLoader:
  with open(f"{self.skill_path}/SKILL.md") as f:
  content = f.read()
  advanced = self._extract_section(content, "Advanced Patterns")
-
+ 
  self.loaded_levels.add("level_3")
  return advanced
-
+ 
  def load_examples(self) -> str:
  """Load examples.md if exists."""
  examples_path = f"{self.skill_path}/examples.md"
  if os.path.exists(examples_path):
  with open(examples_path) as f:
  return f.read()
-
+ 
  def load_on_demand(self, user_expertise: str, time_available: int) -> str:
  """Load appropriate level based on user context."""
-
+ 
  if time_available <= 30: # seconds
  return self.load_level_1()
-
+ 
  elif time_available <= 300: # 5 minutes
  return self.load_level_1() + "\n\n" + self.load_level_2()
-
+ 
  else: # 10+ minutes
  return (
  self.load_level_1() + "\n\n" +
@@ -571,7 +571,7 @@ class ProgressiveContentLoader:
  )
 
 # Usage
-loader = ProgressiveContentLoader(".pi/generated/source/skills/moai-foundation-core")
+loader = ProgressiveContentLoader(".claude/skills/moai-foundation-core")
 
 # User with 30 seconds
 quick_help = loader.load_level_1() # ~1K tokens
