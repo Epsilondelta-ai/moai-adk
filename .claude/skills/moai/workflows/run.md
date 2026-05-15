@@ -936,7 +936,7 @@ feat(scope): description
 SPEC: SPEC-{ID}
 Fixes #{issue_number}
 
-AI-Assisted-By: provider/model
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
 ```
 
 Output: branch_name, commits array (sha and message), files_staged count, status, issue_number (from SPEC metadata).
