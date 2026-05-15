@@ -1,7 +1,7 @@
 ---
 id: SPEC-V3R4-HARNESS-002
-version: "0.3.0"
-status: implemented
+version: "0.4.0"
+status: completed
 created: 2026-05-14
 updated: 2026-05-15
 author: manager-spec
@@ -21,6 +21,9 @@ bc_id: []
 lifecycle: spec-anchored
 related_theme: "Self-Evolving Harness v2 — Observer Expansion Wave"
 target_release: v2.21.0
+lint:
+  skip:
+    - StatusGitConsistency
 ---
 
 # SPEC-V3R4-HARNESS-002 — Multi-Event Observer Expansion

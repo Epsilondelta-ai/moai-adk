@@ -1,8 +1,8 @@
 ---
 id: SPEC-V3R2-SPC-001
 title: "EARS + hierarchical acceptance criteria"
-version: "0.1.1"
-status: completed
+version: "0.1.2"
+status: in-progress
 created: 2026-04-23
 updated: 2026-05-13
 author: Wave 4 SPEC Writer
